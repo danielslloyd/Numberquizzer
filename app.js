@@ -1,4 +1,4 @@
-// Addition Flash Cards
+// Addition Flash Cards — spoken answer edition
 
 // ============================================
 // STATE
@@ -13,6 +13,9 @@ const state = {
     timerInterval: null,
     maxNumber: 10,
     questionCount: 10,
+    recognition: null,
+    isListening: false,
+    speechSupported: false,
 };
 
 // ============================================
@@ -53,6 +56,139 @@ function generateQuestions(max, count) {
 }
 
 // ============================================
+// ANSWER NORMALIZATION (speech → number)
+// ============================================
+
+function normalizeAnswer(text) {
+    const lowerText = text.toLowerCase().trim();
+
+    const homophones = {
+        'for': 'four',
+        'to': 'two',
+        'too': 'two',
+        'won': 'one',
+        'ate': 'eight',
+        'fore': 'four',
+        'tree': 'three',
+    };
+
+    let normalized = lowerText;
+    for (const [wrong, right] of Object.entries(homophones)) {
+        normalized = normalized.replace(new RegExp(`\\b${wrong}\\b`, 'g'), right);
+    }
+
+    const wordToNumber = {
+        'zero': 0, 'one': 1, 'two': 2, 'three': 3, 'four': 4,
+        'five': 5, 'six': 6, 'seven': 7, 'eight': 8, 'nine': 9,
+        'ten': 10, 'eleven': 11, 'twelve': 12, 'thirteen': 13, 'fourteen': 14,
+        'fifteen': 15, 'sixteen': 16, 'seventeen': 17, 'eighteen': 18, 'nineteen': 19,
+        'twenty': 20, 'thirty': 30, 'forty': 40, 'fifty': 50,
+        'sixty': 60, 'seventy': 70, 'eighty': 80, 'ninety': 90,
+        'hundred': 100,
+    };
+
+    if (Object.prototype.hasOwnProperty.call(wordToNumber, normalized)) {
+        return wordToNumber[normalized].toString();
+    }
+
+    const compound = parseSpokenNumber(normalized, wordToNumber);
+    if (compound !== null) {
+        return compound.toString();
+    }
+
+    if (/^\d+$/.test(normalized)) {
+        return normalized;
+    }
+
+    return normalized;
+}
+
+function parseSpokenNumber(text, wordToNumber) {
+    const words = text.split(/\s+/);
+    let total = 0;
+    let current = 0;
+
+    for (const word of words) {
+        const value = wordToNumber[word];
+        if (value === undefined) {
+            const digit = parseInt(word, 10);
+            if (!isNaN(digit)) {
+                current += digit;
+            } else {
+                return null;
+            }
+        } else if (value === 100) {
+            current = (current || 1) * 100;
+        } else if (value >= 20) {
+            current += value;
+        } else {
+            current += value;
+        }
+    }
+
+    total += current;
+    return total > 0 ? total : null;
+}
+
+// ============================================
+// SPEECH RECOGNITION
+// ============================================
+
+function initSpeechRecognition() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+        state.speechSupported = false;
+        return false;
+    }
+
+    state.speechSupported = true;
+    state.recognition = new SR();
+    state.recognition.continuous = false;
+    state.recognition.interimResults = false;
+    state.recognition.lang = 'en-US';
+
+    state.recognition.onstart = () => {
+        state.isListening = true;
+        document.getElementById('mic-btn').classList.add('listening');
+        document.getElementById('listening-text').textContent = 'Listening…';
+    };
+
+    state.recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        document.getElementById('listening-text').textContent = `"${transcript}"`;
+        checkAnswer(transcript);
+    };
+
+    state.recognition.onerror = (event) => {
+        state.isListening = false;
+        document.getElementById('mic-btn').classList.remove('listening');
+        const msg = event.error === 'no-speech' ? 'No speech — try again' : 'Error — try again';
+        document.getElementById('listening-text').textContent = msg;
+    };
+
+    state.recognition.onend = () => {
+        state.isListening = false;
+        document.getElementById('mic-btn').classList.remove('listening');
+    };
+
+    return true;
+}
+
+function startListening() {
+    if (state.isListening) return;
+
+    document.getElementById('feedback-display').textContent = '';
+    document.getElementById('feedback-display').className = 'feedback-display';
+    document.getElementById('listening-text').textContent = '';
+
+    try {
+        state.recognition.start();
+    } catch (e) {
+        // recognition may already be running; ignore
+    }
+}
+
+// ============================================
 // TIMER
 // ============================================
 
@@ -85,8 +221,8 @@ function showScreen(name) {
 
 function initHome() {
     const bestTime = loadBestTime();
-    const el = document.getElementById('best-time-home');
-    el.textContent = bestTime !== null ? formatTime(bestTime) : '--:--';
+    document.getElementById('best-time-home').textContent =
+        bestTime !== null ? formatTime(bestTime) : '--:--';
 }
 
 // ============================================
@@ -106,9 +242,11 @@ function startQuiz() {
     renderQuestion();
     startTimer();
 
-    const input = document.getElementById('answer-input');
-    input.value = '';
-    input.focus();
+    if (!state.speechSupported) {
+        const input = document.getElementById('answer-input');
+        input.value = '';
+        input.focus();
+    }
 }
 
 function renderQuestion() {
@@ -119,22 +257,22 @@ function renderQuestion() {
     document.getElementById('feedback-display').textContent = '';
     document.getElementById('feedback-display').className = 'feedback-display';
 
-    const input = document.getElementById('answer-input');
-    input.value = '';
-    input.focus();
+    if (state.speechSupported) {
+        document.getElementById('listening-text').textContent = 'Tap to answer';
+    } else {
+        const input = document.getElementById('answer-input');
+        input.value = '';
+        input.focus();
+    }
 }
 
-function submitAnswer() {
-    const input = document.getElementById('answer-input');
-    const raw = input.value.trim();
-
-    if (raw === '') return;
-
-    const given = parseInt(raw, 10);
+function checkAnswer(input) {
+    const normalized = normalizeAnswer(input.toString());
     const q = state.questions[state.currentIndex];
+    const correct = q.answer.toString();
     const feedback = document.getElementById('feedback-display');
 
-    if (given === q.answer) {
+    if (normalized === correct) {
         feedback.textContent = 'Correct!';
         feedback.className = 'feedback-display correct';
         state.correctCount++;
@@ -148,12 +286,24 @@ function submitAnswer() {
             }
         }, 600);
     } else {
-        feedback.textContent = `Not quite — try again!`;
+        feedback.textContent = 'Not quite — try again!';
         feedback.className = 'feedback-display incorrect';
         state.wrongAttempts++;
-        input.value = '';
-        input.focus();
+
+        if (!state.speechSupported) {
+            const answerInput = document.getElementById('answer-input');
+            answerInput.value = '';
+            answerInput.focus();
+        }
     }
+}
+
+// Typed fallback submit
+function submitTyped() {
+    const input = document.getElementById('answer-input');
+    const raw = input.value.trim();
+    if (raw === '') return;
+    checkAnswer(raw);
 }
 
 // ============================================
@@ -165,51 +315,56 @@ function endQuiz() {
     const bestTime = loadBestTime();
     const isNewBest = bestTime === null || elapsed < bestTime;
 
-    if (isNewBest) {
-        saveBestTime(elapsed);
-    }
+    if (isNewBest) saveBestTime(elapsed);
 
     document.getElementById('final-time').textContent = formatTime(elapsed);
     document.getElementById('final-score').textContent =
         `${state.correctCount} / ${state.questionCount}`;
-
-    const displayedBest = isNewBest ? elapsed : bestTime;
-    document.getElementById('best-time-results').textContent = formatTime(displayedBest);
+    document.getElementById('best-time-results').textContent =
+        formatTime(isNewBest ? elapsed : bestTime);
 
     const badge = document.getElementById('new-record-badge');
-    if (isNewBest) {
-        badge.classList.remove('hidden');
-    } else {
-        badge.classList.add('hidden');
-    }
+    badge.classList.toggle('hidden', !isNewBest);
 
-    const title = document.getElementById('results-title');
-    title.textContent = state.correctCount === state.questionCount ? 'Perfect!' : 'Done!';
+    document.getElementById('results-title').textContent =
+        state.correctCount === state.questionCount ? 'Perfect!' : 'Done!';
 
     showScreen('results');
 }
 
 // ============================================
-// EVENT LISTENERS
+// INIT
 // ============================================
 
 document.addEventListener('DOMContentLoaded', () => {
+    const speechReady = initSpeechRecognition();
+
+    // Show correct input mode
+    if (speechReady) {
+        document.getElementById('mic-section').classList.remove('hidden');
+        document.getElementById('typed-section').classList.add('hidden');
+    } else {
+        document.getElementById('mic-section').classList.add('hidden');
+        document.getElementById('typed-section').classList.remove('hidden');
+    }
+
     initHome();
 
-    // Settings changes refresh best time display
     document.getElementById('max-number').addEventListener('change', initHome);
     document.getElementById('question-count').addEventListener('change', initHome);
 
     document.getElementById('start-btn').addEventListener('click', startQuiz);
 
-    document.getElementById('submit-btn').addEventListener('click', submitAnswer);
+    // Speech input
+    document.getElementById('mic-btn').addEventListener('click', startListening);
 
+    // Typed fallback input
+    document.getElementById('submit-btn').addEventListener('click', submitTyped);
     document.getElementById('answer-input').addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') submitAnswer();
+        if (e.key === 'Enter') submitTyped();
     });
 
     document.getElementById('play-again-btn').addEventListener('click', startQuiz);
-
     document.getElementById('home-btn').addEventListener('click', () => {
         showScreen('home');
         initHome();

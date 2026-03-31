@@ -184,6 +184,52 @@ body {
     line-height: 1;
 }
 
+/* Mic Section */
+.mic-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.2rem;
+}
+
+.mic-btn {
+    width: 110px;
+    height: 110px;
+    border-radius: 50%;
+    border: 4px solid #000000;
+    background-color: #ffffff;
+    color: #000000;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.mic-btn:hover {
+    background-color: #000000;
+    color: #ffffff;
+}
+
+.mic-btn.listening {
+    background-color: #000000;
+    color: #ffffff;
+    animation: pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.08); }
+}
+
+.listening-text {
+    font-size: 1.1rem;
+    font-weight: 600;
+    text-align: center;
+    min-height: 1.6rem;
+}
+
+/* Typed fallback */
 .answer-row {
     display: flex;
     gap: 1rem;
