@@ -1,4 +1,4 @@
-// Math Flash Cards — spoken answer edition
+// Math Flash Cards
 
 // ============================================
 // STATE
@@ -8,12 +8,11 @@ const state = {
     questions: [],
     currentIndex: 0,
     correctCount: 0,
-    wrongAttempts: 0,
     startTime: null,
     timerInterval: null,
-    operation: 'addition',
+    operations: ['addition'],
     maxNumber: 10,
-    questionCount: 10,
+    shuffle: true,
     recognition: null,
     isListening: false,
     speechSupported: false,
@@ -24,17 +23,17 @@ const state = {
 // STORAGE
 // ============================================
 
-function getBestTimeKey() {
-    return `bestTime_${state.operation}_${state.maxNumber}_${state.questionCount}`;
+function getBestTimeKey(ops, max) {
+    return `bestTime_${[...ops].sort().join(',')}_${max}`;
 }
 
-function loadBestTime() {
-    const stored = localStorage.getItem(getBestTimeKey());
+function loadBestTime(ops, max) {
+    const stored = localStorage.getItem(getBestTimeKey(ops, max));
     return stored ? parseInt(stored, 10) : null;
 }
 
 function saveBestTime(seconds) {
-    localStorage.setItem(getBestTimeKey(), seconds.toString());
+    localStorage.setItem(getBestTimeKey(state.operations, state.maxNumber), seconds.toString());
 }
 
 // ============================================
@@ -47,43 +46,56 @@ function formatTime(seconds) {
     return `${m}:${s}`;
 }
 
-const SYMBOLS = {
-    addition: '+',
-    subtraction: '−',
-    multiplication: '×',
-    division: '÷',
-};
-
-function generateQuestions(operation, max, count) {
-    const questions = [];
-    for (let i = 0; i < count; i++) {
-        const a = Math.floor(Math.random() * max) + 1;
-        const b = Math.floor(Math.random() * max) + 1;
-        let display, answer;
-
-        switch (operation) {
-            case 'addition':
-                display = `${a}\n+\n${b}`;
-                answer = a + b;
-                break;
-            case 'subtraction': {
-                const hi = Math.max(a, b), lo = Math.min(a, b);
-                display = `${hi}\n−\n${lo}`;
-                answer = hi - lo;
-                break;
-            }
-            case 'multiplication':
-                display = `${a}\n×\n${b}`;
-                answer = a * b;
-                break;
-            case 'division':
-                display = `${a * b}\n÷\n${a}`;
-                answer = b;
-                break;
-        }
-
-        questions.push({ display, answer });
+function shuffleArray(arr) {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
     }
+    return a;
+}
+
+function getSelectedOps() {
+    return [...document.querySelectorAll('.op-toggle.active')].map(b => b.dataset.op);
+}
+
+// ============================================
+// DECK GENERATION
+// ============================================
+// Each operation produces the complete set of unique questions for the chosen
+// range.  Operand constraints:
+//   Addition:       a, b ∈ [1, max]
+//   Subtraction:    subtrahend ∈ [1, max], answer ∈ [0, max], minuend = subtrahend + answer
+//   Multiplication: a, b ∈ [1, max]
+//   Division:       divisor ∈ [1, max] (never 0), quotient (answer) ∈ [0, max],
+//                   dividend = divisor × quotient (may exceed max)
+
+function generateAllQuestions(operations, max) {
+    const questions = [];
+
+    for (const op of operations) {
+        if (op === 'addition') {
+            for (let a = 1; a <= max; a++)
+                for (let b = 1; b <= max; b++)
+                    questions.push({ display: `${a}\n+\n${b}`, answer: a + b });
+
+        } else if (op === 'subtraction') {
+            for (let sub = 1; sub <= max; sub++)       // subtrahend
+                for (let ans = 0; ans <= max; ans++)    // answer/difference
+                    questions.push({ display: `${sub + ans}\n−\n${sub}`, answer: ans });
+
+        } else if (op === 'multiplication') {
+            for (let a = 1; a <= max; a++)
+                for (let b = 1; b <= max; b++)
+                    questions.push({ display: `${a}\n×\n${b}`, answer: a * b });
+
+        } else if (op === 'division') {
+            for (let div = 1; div <= max; div++)        // divisor (never 0)
+                for (let quo = 0; quo <= max; quo++)    // quotient/answer (may be 0)
+                    questions.push({ display: `${div * quo}\n÷\n${div}`, answer: quo });
+        }
+    }
+
     return questions;
 }
 
@@ -92,7 +104,7 @@ function generateQuestions(operation, max, count) {
 // ============================================
 
 // Scan every 1-, 2-, and 3-word n-gram in transcript for a recognisable
-// number, return the first one found (or null).
+// number; return the first match found, or null.
 function findNumberInSpeech(transcript) {
     const words = transcript.toLowerCase().trim().split(/\s+/);
     for (let len = 1; len <= Math.min(3, words.length); len++) {
@@ -111,13 +123,8 @@ function normalizeAnswer(text) {
     const lowerText = text.toLowerCase().trim();
 
     const homophones = {
-        'for': 'four',
-        'to': 'two',
-        'too': 'two',
-        'won': 'one',
-        'ate': 'eight',
-        'fore': 'four',
-        'tree': 'three',
+        'for': 'four', 'to': 'two', 'too': 'two',
+        'won': 'one',  'ate': 'eight', 'fore': 'four', 'tree': 'three',
     };
 
     let normalized = lowerText;
@@ -140,13 +147,9 @@ function normalizeAnswer(text) {
     }
 
     const compound = parseSpokenNumber(normalized, wordToNumber);
-    if (compound !== null) {
-        return compound.toString();
-    }
+    if (compound !== null) return compound.toString();
 
-    if (/^\d+$/.test(normalized)) {
-        return normalized;
-    }
+    if (/^\d+$/.test(normalized)) return normalized;
 
     return normalized;
 }
@@ -160,22 +163,18 @@ function parseSpokenNumber(text, wordToNumber) {
         const value = wordToNumber[word];
         if (value === undefined) {
             const digit = parseInt(word, 10);
-            if (!isNaN(digit)) {
-                current += digit;
-            } else {
-                return null;
-            }
+            if (!isNaN(digit)) { current += digit; }
+            else { return null; }
         } else if (value === 100) {
             current = (current || 1) * 100;
-        } else if (value >= 20) {
-            current += value;
         } else {
             current += value;
         }
     }
 
     total += current;
-    return total > 0 ? total : null;
+    // Return 0 explicitly so zero-answer questions can be matched
+    return (total === 0 && words.length > 0) ? null : total;
 }
 
 // ============================================
@@ -184,10 +183,7 @@ function parseSpokenNumber(text, wordToNumber) {
 
 function initSpeechRecognition() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) {
-        state.speechSupported = false;
-        return false;
-    }
+    if (!SR) { state.speechSupported = false; return false; }
 
     state.speechSupported = true;
     state.recognition = new SR();
@@ -201,23 +197,19 @@ function initSpeechRecognition() {
     };
 
     state.recognition.onresult = (event) => {
-        // Only examine the latest result (could be interim or final)
         const latest = event.results[event.results.length - 1];
         const transcript = latest[0].transcript.trim();
         document.getElementById('listening-text').textContent = transcript;
 
+        if (!state.quizActive) return;
         const found = findNumberInSpeech(transcript);
-        if (found !== null && state.quizActive) {
-            const expected = state.questions[state.currentIndex].answer;
-            if (found === expected) {
-                advanceQuestion();
-            }
+        if (found !== null && found === state.questions[state.currentIndex].answer) {
+            advanceQuestion();
         }
     };
 
     state.recognition.onerror = (event) => {
         state.isListening = false;
-        // 'aborted' fires when we call stop() intentionally — ignore it
         if (event.error !== 'aborted' && state.quizActive) {
             setTimeout(startListening, 200);
         }
@@ -225,7 +217,6 @@ function initSpeechRecognition() {
 
     state.recognition.onend = () => {
         state.isListening = false;
-        // Auto-restart so the mic is always on during the quiz
         if (state.quizActive) {
             setTimeout(startListening, 100);
         } else {
@@ -238,11 +229,7 @@ function initSpeechRecognition() {
 
 function startListening() {
     if (state.isListening) return;
-    try {
-        state.recognition.start();
-    } catch (e) {
-        // already running; ignore
-    }
+    try { state.recognition.start(); } catch (e) { /* already running */ }
 }
 
 // ============================================
@@ -270,6 +257,7 @@ function stopTimer() {
 function showScreen(name) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById(`${name}-screen`).classList.add('active');
+    document.getElementById('settings-widget').classList.toggle('hidden', name !== 'home');
 }
 
 // ============================================
@@ -277,9 +265,12 @@ function showScreen(name) {
 // ============================================
 
 function initHome() {
-    const bestTime = loadBestTime();
+    const ops = getSelectedOps();
+    const max = parseInt(document.getElementById('max-number').value, 10);
+    const bestTime = ops.length > 0 ? loadBestTime(ops, max) : null;
     document.getElementById('best-time-home').textContent =
         bestTime !== null ? formatTime(bestTime) : '--:--';
+    document.getElementById('start-btn').disabled = ops.length === 0;
 }
 
 // ============================================
@@ -287,13 +278,16 @@ function initHome() {
 // ============================================
 
 function startQuiz() {
-    state.operation = document.getElementById('operation').value;
-    state.maxNumber = parseInt(document.getElementById('max-number').value, 10);
-    state.questionCount = parseInt(document.getElementById('question-count').value, 10);
-    state.questions = generateQuestions(state.operation, state.maxNumber, state.questionCount);
+    state.operations = getSelectedOps();
+    state.maxNumber   = parseInt(document.getElementById('max-number').value, 10);
+    state.shuffle     = document.getElementById('shuffle-toggle').checked;
+
+    let questions = generateAllQuestions(state.operations, state.maxNumber);
+    if (state.shuffle) questions = shuffleArray(questions);
+    state.questions = questions;
+
     state.currentIndex = 0;
     state.correctCount = 0;
-    state.wrongAttempts = 0;
 
     document.getElementById('timer-display').textContent = '00:00';
     showScreen('quiz');
@@ -313,15 +307,17 @@ function startQuiz() {
 function renderQuestion() {
     const q = state.questions[state.currentIndex];
     const [top, op, bottom] = q.display.split('\n');
-    // Safe: top/op/bottom are all generated numbers and operator symbols
+    // Safe: all values are generated numbers and operator symbols
     document.getElementById('question-display').innerHTML =
         `<div class="q-row"><span class="q-op"></span><span class="q-num">${top}</span></div>` +
         `<div class="q-row"><span class="q-op">${op}</span><span class="q-num">${bottom}</span></div>` +
         `<div class="q-line"></div>`;
+
     document.getElementById('progress-display').textContent =
-        `${state.currentIndex + 1} / ${state.questionCount}`;
+        `${state.currentIndex + 1} / ${state.questions.length}`;
     document.getElementById('feedback-display').textContent = '';
     document.getElementById('feedback-display').className = 'feedback-display';
+    document.getElementById('listening-text').textContent = '';
 
     if (!state.speechSupported) {
         const input = document.getElementById('answer-input');
@@ -333,16 +329,16 @@ function renderQuestion() {
 function advanceQuestion() {
     state.correctCount++;
     state.currentIndex++;
-    if (state.currentIndex >= state.questionCount) {
+    if (state.currentIndex >= state.questions.length) {
         endQuiz();
     } else {
         renderQuestion();
     }
 }
 
-// Typed fallback answer check
-function checkTypedAnswer(input) {
-    const normalized = normalizeAnswer(input.toString());
+// Typed fallback
+function checkTypedAnswer(raw) {
+    const normalized = normalizeAnswer(raw.toString());
     const q = state.questions[state.currentIndex];
 
     if (normalized === q.answer.toString()) {
@@ -351,19 +347,15 @@ function checkTypedAnswer(input) {
         const feedback = document.getElementById('feedback-display');
         feedback.textContent = 'Not quite — try again!';
         feedback.className = 'feedback-display incorrect';
-        state.wrongAttempts++;
-        const answerInput = document.getElementById('answer-input');
-        answerInput.value = '';
-        answerInput.focus();
+        const input = document.getElementById('answer-input');
+        input.value = '';
+        input.focus();
     }
 }
 
-// Typed fallback submit
 function submitTyped() {
-    const input = document.getElementById('answer-input');
-    const raw = input.value.trim();
-    if (raw === '') return;
-    checkTypedAnswer(raw);
+    const raw = document.getElementById('answer-input').value.trim();
+    if (raw !== '') checkTypedAnswer(raw);
 }
 
 // ============================================
@@ -374,22 +366,18 @@ function endQuiz() {
     state.quizActive = false;
     if (state.speechSupported) state.recognition.stop();
     const elapsed = stopTimer();
-    const bestTime = loadBestTime();
-    const isNewBest = bestTime === null || elapsed < bestTime;
 
+    const bestTime  = loadBestTime(state.operations, state.maxNumber);
+    const isNewBest = bestTime === null || elapsed < bestTime;
     if (isNewBest) saveBestTime(elapsed);
 
-    document.getElementById('final-time').textContent = formatTime(elapsed);
-    document.getElementById('final-score').textContent =
-        `${state.correctCount} / ${state.questionCount}`;
-    document.getElementById('best-time-results').textContent =
-        formatTime(isNewBest ? elapsed : bestTime);
+    document.getElementById('final-time').textContent    = formatTime(elapsed);
+    document.getElementById('final-score').textContent   = `${state.correctCount} / ${state.questions.length}`;
+    document.getElementById('best-time-results').textContent = formatTime(isNewBest ? elapsed : bestTime);
 
-    const badge = document.getElementById('new-record-badge');
-    badge.classList.toggle('hidden', !isNewBest);
-
+    document.getElementById('new-record-badge').classList.toggle('hidden', !isNewBest);
     document.getElementById('results-title').textContent =
-        state.correctCount === state.questionCount ? 'Perfect!' : 'Done!';
+        state.correctCount === state.questions.length ? 'Perfect!' : 'Done!';
 
     showScreen('results');
 }
@@ -400,8 +388,6 @@ function endQuiz() {
 
 document.addEventListener('DOMContentLoaded', () => {
     const speechReady = initSpeechRecognition();
-
-    // Show correct input mode
     if (speechReady) {
         document.getElementById('mic-btn').classList.remove('hidden');
         document.getElementById('typed-section').classList.add('hidden');
@@ -412,13 +398,31 @@ document.addEventListener('DOMContentLoaded', () => {
 
     initHome();
 
-    document.getElementById('operation').addEventListener('change', initHome);
+    // Operation toggle buttons
+    document.getElementById('op-toggles').addEventListener('click', (e) => {
+        const btn = e.target.closest('.op-toggle');
+        if (!btn) return;
+        btn.classList.toggle('active');
+        initHome();
+    });
+
     document.getElementById('max-number').addEventListener('change', initHome);
-    document.getElementById('question-count').addEventListener('change', initHome);
+
+    // Settings burger
+    document.getElementById('settings-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.getElementById('settings-panel').classList.toggle('hidden');
+    });
+    document.addEventListener('click', () => {
+        document.getElementById('settings-panel').classList.add('hidden');
+    });
+    document.getElementById('settings-panel').addEventListener('click', (e) => {
+        e.stopPropagation();
+    });
 
     document.getElementById('start-btn').addEventListener('click', startQuiz);
 
-    // Typed fallback input
+    // Typed fallback
     document.getElementById('submit-btn').addEventListener('click', submitTyped);
     document.getElementById('answer-input').addEventListener('keydown', (e) => {
         if (e.key === 'Enter') submitTyped();
