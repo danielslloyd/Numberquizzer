@@ -422,11 +422,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('start-btn').addEventListener('click', startQuiz);
 
-    // Typed fallback
-    document.getElementById('submit-btn').addEventListener('click', submitTyped);
-    document.getElementById('answer-input').addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') submitTyped();
-    });
+    // Typed fallback (only exists if speech not supported)
+    const submitBtn = document.getElementById('submit-btn');
+    if (submitBtn) {
+        submitBtn.addEventListener('click', submitTyped);
+        document.getElementById('answer-input').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') submitTyped();
+        });
+    }
 
     document.getElementById('play-again-btn').addEventListener('click', startQuiz);
     document.getElementById('home-btn').addEventListener('click', () => {
