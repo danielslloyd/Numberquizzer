@@ -63,22 +63,21 @@ function generateQuestions(operation, max, count) {
 
         switch (operation) {
             case 'addition':
-                display = `${a} + ${b}`;
+                display = `${a}\n+\n${b}`;
                 answer = a + b;
                 break;
             case 'subtraction': {
                 const hi = Math.max(a, b), lo = Math.min(a, b);
-                display = `${hi} − ${lo}`;
+                display = `${hi}\n−\n${lo}`;
                 answer = hi - lo;
                 break;
             }
             case 'multiplication':
-                display = `${a} × ${b}`;
+                display = `${a}\n×\n${b}`;
                 answer = a * b;
                 break;
             case 'division':
-                // dividend ÷ a = b, so answer is always a whole number in range
-                display = `${a * b} ÷ ${a}`;
+                display = `${a * b}\n÷\n${a}`;
                 answer = b;
                 break;
         }
@@ -313,7 +312,12 @@ function startQuiz() {
 
 function renderQuestion() {
     const q = state.questions[state.currentIndex];
-    document.getElementById('question-display').textContent = q.display;
+    const [top, op, bottom] = q.display.split('\n');
+    // Safe: top/op/bottom are all generated numbers and operator symbols
+    document.getElementById('question-display').innerHTML =
+        `<div class="q-row"><span class="q-op"></span><span class="q-num">${top}</span></div>` +
+        `<div class="q-row"><span class="q-op">${op}</span><span class="q-num">${bottom}</span></div>` +
+        `<div class="q-line"></div>`;
     document.getElementById('progress-display').textContent =
         `${state.currentIndex + 1} / ${state.questionCount}`;
     document.getElementById('feedback-display').textContent = '';
@@ -399,10 +403,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Show correct input mode
     if (speechReady) {
-        document.getElementById('mic-section').classList.remove('hidden');
+        document.getElementById('mic-btn').classList.remove('hidden');
         document.getElementById('typed-section').classList.add('hidden');
     } else {
-        document.getElementById('mic-section').classList.add('hidden');
+        document.getElementById('mic-btn').classList.add('hidden');
         document.getElementById('typed-section').classList.remove('hidden');
     }
 
