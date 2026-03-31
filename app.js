@@ -1,4 +1,4 @@
-// Addition Flash Cards — spoken answer edition
+// Math Flash Cards — spoken answer edition
 
 // ============================================
 // STATE
@@ -11,6 +11,7 @@ const state = {
     wrongAttempts: 0,
     startTime: null,
     timerInterval: null,
+    operation: 'addition',
     maxNumber: 10,
     questionCount: 10,
     recognition: null,
@@ -23,7 +24,7 @@ const state = {
 // ============================================
 
 function getBestTimeKey() {
-    return `bestTime_${state.maxNumber}_${state.questionCount}`;
+    return `bestTime_${state.operation}_${state.maxNumber}_${state.questionCount}`;
 }
 
 function loadBestTime() {
@@ -45,12 +46,43 @@ function formatTime(seconds) {
     return `${m}:${s}`;
 }
 
-function generateQuestions(max, count) {
+const SYMBOLS = {
+    addition: '+',
+    subtraction: '−',
+    multiplication: '×',
+    division: '÷',
+};
+
+function generateQuestions(operation, max, count) {
     const questions = [];
     for (let i = 0; i < count; i++) {
         const a = Math.floor(Math.random() * max) + 1;
         const b = Math.floor(Math.random() * max) + 1;
-        questions.push({ a, b, answer: a + b });
+        let display, answer;
+
+        switch (operation) {
+            case 'addition':
+                display = `${a} + ${b}`;
+                answer = a + b;
+                break;
+            case 'subtraction': {
+                const hi = Math.max(a, b), lo = Math.min(a, b);
+                display = `${hi} − ${lo}`;
+                answer = hi - lo;
+                break;
+            }
+            case 'multiplication':
+                display = `${a} × ${b}`;
+                answer = a * b;
+                break;
+            case 'division':
+                // dividend ÷ a = b, so answer is always a whole number in range
+                display = `${a * b} ÷ ${a}`;
+                answer = b;
+                break;
+        }
+
+        questions.push({ display, answer });
     }
     return questions;
 }
@@ -230,9 +262,10 @@ function initHome() {
 // ============================================
 
 function startQuiz() {
+    state.operation = document.getElementById('operation').value;
     state.maxNumber = parseInt(document.getElementById('max-number').value, 10);
     state.questionCount = parseInt(document.getElementById('question-count').value, 10);
-    state.questions = generateQuestions(state.maxNumber, state.questionCount);
+    state.questions = generateQuestions(state.operation, state.maxNumber, state.questionCount);
     state.currentIndex = 0;
     state.correctCount = 0;
     state.wrongAttempts = 0;
@@ -251,7 +284,7 @@ function startQuiz() {
 
 function renderQuestion() {
     const q = state.questions[state.currentIndex];
-    document.getElementById('question-display').textContent = `${q.a} + ${q.b}`;
+    document.getElementById('question-display').textContent = q.display;
     document.getElementById('progress-display').textContent =
         `${state.currentIndex + 1} / ${state.questionCount}`;
     document.getElementById('feedback-display').textContent = '';
@@ -273,18 +306,13 @@ function checkAnswer(input) {
     const feedback = document.getElementById('feedback-display');
 
     if (normalized === correct) {
-        feedback.textContent = 'Correct!';
-        feedback.className = 'feedback-display correct';
         state.correctCount++;
-
-        setTimeout(() => {
-            state.currentIndex++;
-            if (state.currentIndex >= state.questionCount) {
-                endQuiz();
-            } else {
-                renderQuestion();
-            }
-        }, 600);
+        state.currentIndex++;
+        if (state.currentIndex >= state.questionCount) {
+            endQuiz();
+        } else {
+            renderQuestion();
+        }
     } else {
         feedback.textContent = 'Not quite — try again!';
         feedback.className = 'feedback-display incorrect';
@@ -350,6 +378,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     initHome();
 
+    document.getElementById('operation').addEventListener('change', initHome);
     document.getElementById('max-number').addEventListener('change', initHome);
     document.getElementById('question-count').addEventListener('change', initHome);
 
