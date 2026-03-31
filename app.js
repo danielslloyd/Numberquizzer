@@ -312,7 +312,12 @@ function startQuiz() {
 
 function renderQuestion() {
     const q = state.questions[state.currentIndex];
-    document.getElementById('question-display').textContent = q.display;
+    const [top, op, bottom] = q.display.split('\n');
+    // Safe: top/op/bottom are all generated numbers and operator symbols
+    document.getElementById('question-display').innerHTML =
+        `<div class="q-row"><span class="q-op"></span><span class="q-num">${top}</span></div>` +
+        `<div class="q-row"><span class="q-op">${op}</span><span class="q-num">${bottom}</span></div>` +
+        `<div class="q-line"></div>`;
     document.getElementById('progress-display').textContent =
         `${state.currentIndex + 1} / ${state.questionCount}`;
     document.getElementById('feedback-display').textContent = '';

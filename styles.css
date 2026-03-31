@@ -207,10 +207,35 @@ body {
 .question-display {
     font-size: clamp(5rem, 22vw, 10rem);
     font-weight: 800;
-    letter-spacing: -0.02em;
-    text-align: center;
-    line-height: 1.05;
-    white-space: pre;
+    font-variant-numeric: tabular-nums;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.q-row {
+    display: flex;
+    justify-content: flex-end;
+    line-height: 1.1;
+}
+
+/* Fixed-width column for the operator (or blank on top row) */
+.q-op {
+    width: 0.75em;
+    flex-shrink: 0;
+    text-align: left;
+}
+
+/* Right-aligned number column */
+.q-num {
+    min-width: 1.5em;
+    text-align: right;
+}
+
+.q-line {
+    border-top: 0.05em solid #000000;
+    margin-top: 0.2em;
+    width: 100%;
 }
 
 .listening-text {
