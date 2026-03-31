@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Addition Flash Cards</title>
+    <title>Math Flash Cards</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -11,7 +11,7 @@
     <!-- Home Screen -->
     <div id="home-screen" class="screen active">
         <div class="container">
-            <h1 class="app-title">Addition<br>Flash Cards</h1>
+            <h1 class="app-title">Math<br>Flash Cards</h1>
 
             <div id="best-score-display" class="best-score">
                 <span class="best-label">BEST TIME</span>
@@ -19,6 +19,15 @@
             </div>
 
             <div class="settings">
+                <div class="setting-row">
+                    <label for="operation">Operation</label>
+                    <select id="operation" class="setting-select">
+                        <option value="addition">+  Addition</option>
+                        <option value="subtraction">−  Subtraction</option>
+                        <option value="multiplication">×  Multiplication</option>
+                        <option value="division">÷  Division</option>
+                    </select>
+                </div>
                 <div class="setting-row">
                     <label for="max-number">Numbers up to</label>
                     <select id="max-number" class="setting-select">
@@ -53,7 +62,7 @@
 
             <!-- Speech UI (default) -->
             <div class="mic-section" id="mic-section">
-                <button id="mic-btn" class="mic-btn" aria-label="Tap to speak answer">
+                <button id="mic-btn" class="mic-btn" aria-label="Microphone active">
                     <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
                         <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
@@ -61,7 +70,7 @@
                         <line x1="8" y1="23" x2="16" y2="23"></line>
                     </svg>
                 </button>
-                <p id="listening-text" class="listening-text">Tap to answer</p>
+                <p id="listening-text" class="listening-text"></p>
             </div>
 
             <!-- Typed fallback (shown only if speech unsupported) -->

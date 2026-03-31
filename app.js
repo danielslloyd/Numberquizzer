@@ -1,4 +1,4 @@
-// Addition Flash Cards — spoken answer edition
+// Math Flash Cards — spoken answer edition
 
 // ============================================
 // STATE
@@ -11,11 +11,13 @@ const state = {
     wrongAttempts: 0,
     startTime: null,
     timerInterval: null,
+    operation: 'addition',
     maxNumber: 10,
     questionCount: 10,
     recognition: null,
     isListening: false,
     speechSupported: false,
+    quizActive: false,
 };
 
 // ============================================
@@ -23,7 +25,7 @@ const state = {
 // ============================================
 
 function getBestTimeKey() {
-    return `bestTime_${state.maxNumber}_${state.questionCount}`;
+    return `bestTime_${state.operation}_${state.maxNumber}_${state.questionCount}`;
 }
 
 function loadBestTime() {
@@ -45,12 +47,43 @@ function formatTime(seconds) {
     return `${m}:${s}`;
 }
 
-function generateQuestions(max, count) {
+const SYMBOLS = {
+    addition: '+',
+    subtraction: '−',
+    multiplication: '×',
+    division: '÷',
+};
+
+function generateQuestions(operation, max, count) {
     const questions = [];
     for (let i = 0; i < count; i++) {
         const a = Math.floor(Math.random() * max) + 1;
         const b = Math.floor(Math.random() * max) + 1;
-        questions.push({ a, b, answer: a + b });
+        let display, answer;
+
+        switch (operation) {
+            case 'addition':
+                display = `${a} + ${b}`;
+                answer = a + b;
+                break;
+            case 'subtraction': {
+                const hi = Math.max(a, b), lo = Math.min(a, b);
+                display = `${hi} − ${lo}`;
+                answer = hi - lo;
+                break;
+            }
+            case 'multiplication':
+                display = `${a} × ${b}`;
+                answer = a * b;
+                break;
+            case 'division':
+                // dividend ÷ a = b, so answer is always a whole number in range
+                display = `${a * b} ÷ ${a}`;
+                answer = b;
+                break;
+        }
+
+        questions.push({ display, answer });
     }
     return questions;
 }
@@ -58,6 +91,22 @@ function generateQuestions(max, count) {
 // ============================================
 // ANSWER NORMALIZATION (speech → number)
 // ============================================
+
+// Scan every 1-, 2-, and 3-word n-gram in transcript for a recognisable
+// number, return the first one found (or null).
+function findNumberInSpeech(transcript) {
+    const words = transcript.toLowerCase().trim().split(/\s+/);
+    for (let len = 1; len <= Math.min(3, words.length); len++) {
+        for (let start = 0; start <= words.length - len; start++) {
+            const phrase = words.slice(start, start + len).join(' ');
+            const normalized = normalizeAnswer(phrase);
+            if (/^\d+$/.test(normalized)) {
+                return parseInt(normalized, 10);
+            }
+        }
+    }
+    return null;
+}
 
 function normalizeAnswer(text) {
     const lowerText = text.toLowerCase().trim();
@@ -143,32 +192,46 @@ function initSpeechRecognition() {
 
     state.speechSupported = true;
     state.recognition = new SR();
-    state.recognition.continuous = false;
-    state.recognition.interimResults = false;
+    state.recognition.continuous = true;
+    state.recognition.interimResults = true;
     state.recognition.lang = 'en-US';
 
     state.recognition.onstart = () => {
         state.isListening = true;
         document.getElementById('mic-btn').classList.add('listening');
-        document.getElementById('listening-text').textContent = 'Listening…';
     };
 
     state.recognition.onresult = (event) => {
-        const transcript = event.results[0][0].transcript;
-        document.getElementById('listening-text').textContent = `"${transcript}"`;
-        checkAnswer(transcript);
+        // Only examine the latest result (could be interim or final)
+        const latest = event.results[event.results.length - 1];
+        const transcript = latest[0].transcript.trim();
+        document.getElementById('listening-text').textContent = transcript;
+
+        const found = findNumberInSpeech(transcript);
+        if (found !== null && state.quizActive) {
+            const expected = state.questions[state.currentIndex].answer;
+            if (found === expected) {
+                advanceQuestion();
+            }
+        }
     };
 
     state.recognition.onerror = (event) => {
         state.isListening = false;
-        document.getElementById('mic-btn').classList.remove('listening');
-        const msg = event.error === 'no-speech' ? 'No speech — try again' : 'Error — try again';
-        document.getElementById('listening-text').textContent = msg;
+        // 'aborted' fires when we call stop() intentionally — ignore it
+        if (event.error !== 'aborted' && state.quizActive) {
+            setTimeout(startListening, 200);
+        }
     };
 
     state.recognition.onend = () => {
         state.isListening = false;
-        document.getElementById('mic-btn').classList.remove('listening');
+        // Auto-restart so the mic is always on during the quiz
+        if (state.quizActive) {
+            setTimeout(startListening, 100);
+        } else {
+            document.getElementById('mic-btn').classList.remove('listening');
+        }
     };
 
     return true;
@@ -176,15 +239,10 @@ function initSpeechRecognition() {
 
 function startListening() {
     if (state.isListening) return;
-
-    document.getElementById('feedback-display').textContent = '';
-    document.getElementById('feedback-display').className = 'feedback-display';
-    document.getElementById('listening-text').textContent = '';
-
     try {
         state.recognition.start();
     } catch (e) {
-        // recognition may already be running; ignore
+        // already running; ignore
     }
 }
 
@@ -230,9 +288,10 @@ function initHome() {
 // ============================================
 
 function startQuiz() {
+    state.operation = document.getElementById('operation').value;
     state.maxNumber = parseInt(document.getElementById('max-number').value, 10);
     state.questionCount = parseInt(document.getElementById('question-count').value, 10);
-    state.questions = generateQuestions(state.maxNumber, state.questionCount);
+    state.questions = generateQuestions(state.operation, state.maxNumber, state.questionCount);
     state.currentIndex = 0;
     state.correctCount = 0;
     state.wrongAttempts = 0;
@@ -241,8 +300,11 @@ function startQuiz() {
     showScreen('quiz');
     renderQuestion();
     startTimer();
+    state.quizActive = true;
 
-    if (!state.speechSupported) {
+    if (state.speechSupported) {
+        startListening();
+    } else {
         const input = document.getElementById('answer-input');
         input.value = '';
         input.focus();
@@ -251,50 +313,44 @@ function startQuiz() {
 
 function renderQuestion() {
     const q = state.questions[state.currentIndex];
-    document.getElementById('question-display').textContent = `${q.a} + ${q.b}`;
+    document.getElementById('question-display').textContent = q.display;
     document.getElementById('progress-display').textContent =
         `${state.currentIndex + 1} / ${state.questionCount}`;
     document.getElementById('feedback-display').textContent = '';
     document.getElementById('feedback-display').className = 'feedback-display';
 
-    if (state.speechSupported) {
-        document.getElementById('listening-text').textContent = 'Tap to answer';
-    } else {
+    if (!state.speechSupported) {
         const input = document.getElementById('answer-input');
         input.value = '';
         input.focus();
     }
 }
 
-function checkAnswer(input) {
+function advanceQuestion() {
+    state.correctCount++;
+    state.currentIndex++;
+    if (state.currentIndex >= state.questionCount) {
+        endQuiz();
+    } else {
+        renderQuestion();
+    }
+}
+
+// Typed fallback answer check
+function checkTypedAnswer(input) {
     const normalized = normalizeAnswer(input.toString());
     const q = state.questions[state.currentIndex];
-    const correct = q.answer.toString();
-    const feedback = document.getElementById('feedback-display');
 
-    if (normalized === correct) {
-        feedback.textContent = 'Correct!';
-        feedback.className = 'feedback-display correct';
-        state.correctCount++;
-
-        setTimeout(() => {
-            state.currentIndex++;
-            if (state.currentIndex >= state.questionCount) {
-                endQuiz();
-            } else {
-                renderQuestion();
-            }
-        }, 600);
+    if (normalized === q.answer.toString()) {
+        advanceQuestion();
     } else {
+        const feedback = document.getElementById('feedback-display');
         feedback.textContent = 'Not quite — try again!';
         feedback.className = 'feedback-display incorrect';
         state.wrongAttempts++;
-
-        if (!state.speechSupported) {
-            const answerInput = document.getElementById('answer-input');
-            answerInput.value = '';
-            answerInput.focus();
-        }
+        const answerInput = document.getElementById('answer-input');
+        answerInput.value = '';
+        answerInput.focus();
     }
 }
 
@@ -303,7 +359,7 @@ function submitTyped() {
     const input = document.getElementById('answer-input');
     const raw = input.value.trim();
     if (raw === '') return;
-    checkAnswer(raw);
+    checkTypedAnswer(raw);
 }
 
 // ============================================
@@ -311,6 +367,8 @@ function submitTyped() {
 // ============================================
 
 function endQuiz() {
+    state.quizActive = false;
+    if (state.speechSupported) state.recognition.stop();
     const elapsed = stopTimer();
     const bestTime = loadBestTime();
     const isNewBest = bestTime === null || elapsed < bestTime;
@@ -350,13 +408,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     initHome();
 
+    document.getElementById('operation').addEventListener('change', initHome);
     document.getElementById('max-number').addEventListener('change', initHome);
     document.getElementById('question-count').addEventListener('change', initHome);
 
     document.getElementById('start-btn').addEventListener('click', startQuiz);
-
-    // Speech input
-    document.getElementById('mic-btn').addEventListener('click', startListening);
 
     // Typed fallback input
     document.getElementById('submit-btn').addEventListener('click', submitTyped);
