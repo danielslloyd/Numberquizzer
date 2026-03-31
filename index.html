@@ -3,148 +3,96 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MathSpeak - Math Quiz</title>
+    <title>Addition Flash Cards</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <!-- Parent Mode Toggle (Hidden during quiz) -->
-    <div id="parent-toggle" class="parent-toggle">
-        <button id="parent-mode-btn">Parent Mode</button>
-    </div>
 
-    <!-- Main Menu Screen -->
-    <div id="menu-screen" class="screen active">
+    <!-- Home Screen -->
+    <div id="home-screen" class="screen active">
         <div class="container">
-            <h1 class="app-title">MathSpeak</h1>
-            <p class="subtitle">Speak your answers!</p>
+            <h1 class="app-title">Addition<br>Flash Cards</h1>
 
-            <div id="deck-list" class="deck-list">
-                <!-- Decks will be populated here -->
+            <div id="best-score-display" class="best-score">
+                <span class="best-label">BEST TIME</span>
+                <span id="best-time-home" class="best-value">--:--</span>
             </div>
 
-            <button id="start-quiz-btn" class="btn btn-primary" disabled>Start Quiz</button>
+            <div class="settings">
+                <div class="setting-row">
+                    <label for="max-number">Numbers up to</label>
+                    <select id="max-number" class="setting-select">
+                        <option value="5">5</option>
+                        <option value="10" selected>10</option>
+                        <option value="20">20</option>
+                    </select>
+                </div>
+                <div class="setting-row">
+                    <label for="question-count">Questions</label>
+                    <select id="question-count" class="setting-select">
+                        <option value="5">5</option>
+                        <option value="10" selected>10</option>
+                        <option value="20">20</option>
+                    </select>
+                </div>
+            </div>
+
+            <button id="start-btn" class="btn btn-primary">Start</button>
         </div>
     </div>
 
     <!-- Quiz Screen -->
     <div id="quiz-screen" class="screen">
-        <div class="quiz-container">
-            <div class="question-card">
-                <div id="question-text" class="question-text"></div>
-            </div>
-
-            <div class="mic-section">
-                <button id="mic-btn" class="mic-btn">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
-                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-                        <line x1="12" y1="19" x2="12" y2="23"></line>
-                        <line x1="8" y1="23" x2="16" y2="23"></line>
-                    </svg>
-                </button>
-                <p id="listening-text" class="listening-text"></p>
-            </div>
-
-            <div id="feedback-text" class="feedback-text"></div>
+        <div class="quiz-top-bar">
+            <div id="progress-display" class="progress-display">1 / 10</div>
+            <div id="timer-display" class="timer-display">00:00</div>
         </div>
 
-        <!-- Bottom UI -->
-        <div class="bottom-ui">
-            <div class="xp-counter">
-                <span id="xp-label">XP: </span>
-                <span id="xp-value">0</span>
+        <div class="quiz-body">
+            <div id="question-display" class="question-display"></div>
+
+            <div class="answer-row">
+                <input
+                    type="number"
+                    id="answer-input"
+                    class="answer-input"
+                    placeholder="?"
+                    min="0"
+                    autocomplete="off"
+                >
+                <button id="submit-btn" class="btn btn-primary submit-btn">OK</button>
             </div>
-            <div class="timer">
-                <span id="timer-value">00:00</span>
-            </div>
+
+            <div id="feedback-display" class="feedback-display"></div>
         </div>
     </div>
 
     <!-- Results Screen -->
     <div id="results-screen" class="screen">
         <div class="container">
-            <h1 class="results-title">Great Job!</h1>
+            <h1 id="results-title" class="results-title">Done!</h1>
 
             <div class="results-stats">
                 <div class="stat">
-                    <div class="stat-label">Time</div>
+                    <div class="stat-label">Your Time</div>
                     <div id="final-time" class="stat-value">00:00</div>
                 </div>
                 <div class="stat">
-                    <div class="stat-label">XP Earned</div>
-                    <div id="final-xp" class="stat-value">0</div>
+                    <div class="stat-label">Questions</div>
+                    <div id="final-score" class="stat-value">10 / 10</div>
                 </div>
-                <div class="stat" id="best-time-stat" style="display: none;">
+                <div class="stat">
                     <div class="stat-label">Best Time</div>
-                    <div id="best-time-value" class="stat-value">00:00</div>
-                </div>
-                <div id="new-record-badge" class="new-record" style="display: none;">
-                    ⭐ New Best Time!
+                    <div id="best-time-results" class="stat-value">--:--</div>
                 </div>
             </div>
+
+            <div id="new-record-badge" class="new-record hidden">New Best Time!</div>
 
             <div class="results-actions">
-                <button id="try-again-btn" class="btn btn-primary">Try Again</button>
-                <button id="back-to-menu-btn" class="btn btn-secondary">Back to Menu</button>
+                <button id="play-again-btn" class="btn btn-primary">Play Again</button>
+                <button id="home-btn" class="btn btn-secondary">Home</button>
             </div>
-        </div>
-    </div>
-
-    <!-- Parent Mode Screen -->
-    <div id="parent-screen" class="screen">
-        <div class="container">
-            <h1 class="app-title">Parent Mode</h1>
-
-            <div class="parent-section">
-                <h2>Create New Deck</h2>
-                <form id="deck-form">
-                    <div class="form-group">
-                        <label for="deck-name">Deck Name</label>
-                        <input type="text" id="deck-name" class="form-input" placeholder="e.g., Addition 1-10" required>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="question-type">Question Type</label>
-                        <select id="question-type" class="form-input" required>
-                            <option value="addition">Addition</option>
-                            <option value="subtraction">Subtraction</option>
-                            <option value="multiplication">Multiplication</option>
-                            <option value="division">Division</option>
-                            <option value="number-identification">Number Identification</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group" id="arithmetic-options">
-                        <label for="number-range">Number Range</label>
-                        <div class="range-inputs">
-                            <input type="number" id="range-min" class="form-input" placeholder="Min" value="1" min="0" max="9">
-                            <span>to</span>
-                            <input type="number" id="range-max" class="form-input" placeholder="Max" value="10" min="1" max="100">
-                        </div>
-                    </div>
-
-                    <div class="form-group" id="number-id-options" style="display: none;">
-                        <label for="number-count">How many numbers?</label>
-                        <input type="number" id="number-count" class="form-input" placeholder="Number of cards" value="10" min="5" max="50">
-                    </div>
-
-                    <div class="form-group">
-                        <label for="card-count">Number of Questions</label>
-                        <input type="number" id="card-count" class="form-input" placeholder="Number of cards" value="10" min="5" max="50" required>
-                    </div>
-
-                    <button type="submit" class="btn btn-primary">Create Deck</button>
-                </form>
-            </div>
-
-            <div class="parent-section">
-                <h2>Existing Decks</h2>
-                <div id="parent-deck-list" class="parent-deck-list">
-                    <!-- Existing decks will be listed here -->
-                </div>
-            </div>
-
-            <button id="exit-parent-mode-btn" class="btn btn-secondary">Exit Parent Mode</button>
         </div>
     </div>
 
