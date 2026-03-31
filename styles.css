@@ -129,6 +129,7 @@ body {
 .setting-block {
     display: flex;
     flex-direction: column;
+    width: 100%;
 }
 
 /* Operation toggle buttons */
@@ -139,25 +140,34 @@ body {
 
 .op-toggle {
     flex: 1;
-    padding: 0.85rem 0;
+    padding: 0.75rem 0;
     border: 2px solid #000000;
     border-right: none;
-    font-size: 1.6rem;
-    font-weight: 700;
+    font-size: 1.8rem;
+    font-weight: 800;
     background: #ffffff;
     color: #000000;
     cursor: pointer;
     font-family: inherit;
     transition: background-color 0.12s ease, color 0.12s ease;
+    font-variant-numeric: tabular-nums;
 }
 
 .op-toggle:last-child {
     border-right: 2px solid #000000;
 }
 
+.op-toggle:hover {
+    background: #f5f5f5;
+}
+
 .op-toggle.active {
     background: #000000;
     color: #ffffff;
+}
+
+.op-toggle.active:hover {
+    background: #333333;
 }
 
 .setting-row {
@@ -225,7 +235,7 @@ body {
     z-index: 201;
 }
 
-.settings-row {
+.panel-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
