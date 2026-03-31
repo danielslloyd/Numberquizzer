@@ -8,6 +8,26 @@
 </head>
 <body>
 
+    <!-- Settings widget — fixed top-right, home screen only -->
+    <div id="settings-widget" class="settings-widget hidden">
+        <button id="settings-btn" class="settings-btn" aria-label="Settings">
+            <svg width="22" height="16" viewBox="0 0 22 16" fill="none">
+                <line x1="1" y1="1"  x2="21" y2="1"  stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <line x1="1" y1="8"  x2="21" y2="8"  stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                <line x1="1" y1="15" x2="21" y2="15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+        </button>
+        <div id="settings-panel" class="settings-panel hidden">
+            <div class="settings-row">
+                <span>Shuffle deck</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="shuffle-toggle" checked>
+                    <span class="toggle-track"></span>
+                </label>
+            </div>
+        </div>
+    </div>
+
     <!-- Home Screen -->
     <div id="home-screen" class="screen active">
         <div class="container">
@@ -19,26 +39,18 @@
             </div>
 
             <div class="settings">
-                <div class="setting-row">
-                    <label for="operation">Operation</label>
-                    <select id="operation" class="setting-select">
-                        <option value="addition">+  Addition</option>
-                        <option value="subtraction">−  Subtraction</option>
-                        <option value="multiplication">×  Multiplication</option>
-                        <option value="division">÷  Division</option>
-                    </select>
+                <div class="setting-block">
+                    <div class="setting-block-label">Operations</div>
+                    <div class="op-toggles" id="op-toggles">
+                        <button class="op-toggle active" data-op="addition">+</button>
+                        <button class="op-toggle" data-op="subtraction">−</button>
+                        <button class="op-toggle" data-op="multiplication">×</button>
+                        <button class="op-toggle" data-op="division">÷</button>
+                    </div>
                 </div>
                 <div class="setting-row">
                     <label for="max-number">Numbers up to</label>
                     <select id="max-number" class="setting-select">
-                        <option value="5">5</option>
-                        <option value="10" selected>10</option>
-                        <option value="20">20</option>
-                    </select>
-                </div>
-                <div class="setting-row">
-                    <label for="question-count">Questions</label>
-                    <select id="question-count" class="setting-select">
                         <option value="5">5</option>
                         <option value="10" selected>10</option>
                         <option value="20">20</option>
@@ -55,7 +67,6 @@
         <div class="quiz-top-bar">
             <div id="progress-display" class="progress-display">1 / 10</div>
             <div id="timer-display" class="timer-display">00:00</div>
-            <!-- Speech indicator (default) -->
             <button id="mic-btn" class="mic-btn hidden" aria-label="Microphone active">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
@@ -99,7 +110,7 @@
                     <div id="final-time" class="stat-value">00:00</div>
                 </div>
                 <div class="stat">
-                    <div class="stat-label">Questions</div>
+                    <div class="stat-label">Score</div>
                     <div id="final-score" class="stat-value">10 / 10</div>
                 </div>
                 <div class="stat">
