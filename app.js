@@ -409,16 +409,16 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('max-number').addEventListener('change', initHome);
 
     // Settings burger
-    document.getElementById('settings-btn').addEventListener('click', (e) => {
-        e.stopPropagation();
-        document.getElementById('settings-panel').classList.toggle('hidden');
-    });
-    document.addEventListener('click', () => {
-        document.getElementById('settings-panel').classList.add('hidden');
-    });
-    document.getElementById('settings-panel').addEventListener('click', (e) => {
-        e.stopPropagation();
-    });
+    const settingsBtn   = document.getElementById('settings-btn');
+    const settingsPanel = document.getElementById('settings-panel');
+    if (settingsBtn && settingsPanel) {
+        settingsBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            settingsPanel.classList.toggle('hidden');
+        });
+        settingsPanel.addEventListener('click', (e) => e.stopPropagation());
+        document.addEventListener('click', () => settingsPanel.classList.add('hidden'));
+    }
 
     document.getElementById('start-btn').addEventListener('click', startQuiz);
 
