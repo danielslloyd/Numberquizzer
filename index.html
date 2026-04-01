@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Math Flash Cards 2026-03-31</title>
-    <link rel="stylesheet" href="styles.css?v=8079030">
+    <title>Math Flash Cards</title>
+    <link rel="stylesheet" href="styles.css?v=2">
 </head>
 <body>
 
@@ -22,6 +22,20 @@
                 <span>Shuffle deck</span>
                 <label class="toggle-switch">
                     <input type="checkbox" id="shuffle-toggle" checked>
+                    <span class="toggle-track"></span>
+                </label>
+            </div>
+            <div class="panel-row">
+                <span>Animations</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="animations-toggle" checked>
+                    <span class="toggle-track"></span>
+                </label>
+            </div>
+            <div class="panel-row">
+                <span>Show transcript</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="transcript-toggle" checked>
                     <span class="toggle-track"></span>
                 </label>
             </div>
@@ -78,9 +92,10 @@
         </div>
 
         <div class="quiz-body">
-            <div id="question-display" class="question-display"></div>
-
-            <p id="listening-text" class="listening-text"></p>
+            <!-- card-wrap provides perspective for 3D flip -->
+            <div class="card-wrap">
+                <div id="question-display" class="question-display"></div>
+            </div>
 
             <!-- Typed fallback (shown only if speech unsupported) -->
             <div class="answer-row hidden" id="typed-section">
@@ -96,6 +111,11 @@
             </div>
 
             <div id="feedback-display" class="feedback-display"></div>
+        </div>
+
+        <!-- Transcript feed at the bottom -->
+        <div id="transcript-bar" class="transcript-bar">
+            <p id="listening-text" class="listening-text"></p>
         </div>
     </div>
 
@@ -128,6 +148,9 @@
         </div>
     </div>
 
-    <script src="app.js?v=8079030"></script>
+    <!-- Sprite layer: fixed overlay for floating number particles -->
+    <div id="sprite-layer" class="sprite-layer" aria-hidden="true"></div>
+
+    <script src="app.js?v=2"></script>
 </body>
 </html>
