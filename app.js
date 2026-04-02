@@ -15,6 +15,8 @@ const state = {
     shuffle: true,
     animations: true,
     showTranscript: true,
+    progressBar: true,
+    bestTimePacer: null,   // seconds of saved best time, or null if none
     recognition: null,
     isListening: false,
     speechSupported: false,
@@ -291,12 +293,33 @@ function startListening() {
 // TIMER
 // ============================================
 
+// ============================================
+// PROGRESS BAR
+// ============================================
+
+function updateProgressBar() {
+    if (!state.progressBar) return;
+    const pct = (state.currentIndex / state.questions.length) * 100;
+    document.getElementById('progress-bar-fill').style.width = `${pct}%`;
+}
+
+function updateGhost(elapsedMs) {
+    if (!state.progressBar || state.bestTimePacer === null) return;
+    const pct = Math.min((elapsedMs / (state.bestTimePacer * 1000)) * 100, 100);
+    document.getElementById('progress-bar-ghost').style.left = `${pct}%`;
+}
+
+// ============================================
+// TIMER
+// ============================================
+
 function startTimer() {
     state.startTime = Date.now();
     state.timerInterval = setInterval(() => {
-        const elapsed = Math.floor((Date.now() - state.startTime) / 1000);
-        document.getElementById('timer-display').textContent = formatTime(elapsed);
-    }, 200);
+        const elapsed = Date.now() - state.startTime;
+        document.getElementById('timer-display').textContent = formatTime(Math.floor(elapsed / 1000));
+        updateGhost(elapsed);
+    }, 100);
 }
 
 function stopTimer() {
@@ -313,6 +336,10 @@ function showScreen(name) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById(`${name}-screen`).classList.add('active');
     document.getElementById('settings-widget').classList.toggle('hidden', name !== 'home');
+    // Progress bar only visible during the quiz
+    if (name !== 'quiz') {
+        document.getElementById('progress-bar-container').classList.add('hidden');
+    }
 }
 
 // ============================================
@@ -336,8 +363,13 @@ function startQuiz() {
     state.operations = getSelectedOps();
     state.maxNumber   = parseInt(document.getElementById('max-number').value, 10);
     state.shuffle     = document.getElementById('shuffle-toggle').checked;
-    state.animations  = document.getElementById('animations-toggle').checked;
+    state.animations     = document.getElementById('animations-toggle').checked;
     state.showTranscript = document.getElementById('transcript-toggle').checked;
+    state.progressBar    = document.getElementById('progress-bar-toggle').checked;
+
+    // Pacer: saved best time for this exact config, or null
+    const savedBest = loadBestTime(state.operations, state.maxNumber);
+    state.bestTimePacer = (state.progressBar && savedBest !== null) ? savedBest : null;
 
     let questions = generateAllQuestions(state.operations, state.maxNumber);
     if (state.shuffle) questions = shuffleArray(questions);
@@ -348,6 +380,14 @@ function startQuiz() {
 
     // Apply transcript visibility
     document.getElementById('transcript-bar').classList.toggle('hidden', !state.showTranscript);
+
+    // Set up progress bar
+    const bar = document.getElementById('progress-bar-container');
+    bar.classList.toggle('hidden', !state.progressBar);
+    document.getElementById('progress-bar-fill').style.width = '0%';
+    const ghost = document.getElementById('progress-bar-ghost');
+    ghost.classList.toggle('hidden', state.bestTimePacer === null);
+    ghost.style.left = '0%';
 
     // Reset card transform in case it was mid-flip
     const card = document.getElementById('question-display');
@@ -379,6 +419,7 @@ function renderQuestion() {
 
     document.getElementById('progress-display').textContent =
         `${state.currentIndex + 1} / ${state.questions.length}`;
+    updateProgressBar();
     document.getElementById('feedback-display').textContent = '';
     document.getElementById('feedback-display').className = 'feedback-display';
     document.getElementById('listening-text').textContent = '';

@@ -4,9 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Math Flash Cards</title>
-    <link rel="stylesheet" href="styles.css?v=3">
+    <link rel="stylesheet" href="styles.css?v=4">
 </head>
 <body>
+
+    <!-- Progress bar — fixed at very top, visible during quiz only -->
+    <div id="progress-bar-container" class="progress-bar-container hidden">
+        <div id="progress-bar-fill" class="progress-bar-fill"></div>
+        <div id="progress-bar-ghost" class="progress-bar-ghost hidden"></div>
+    </div>
 
     <!-- Settings widget — fixed top-right, home screen only -->
     <div id="settings-widget" class="settings-widget">
@@ -29,6 +35,13 @@
                 <span>Animations</span>
                 <label class="toggle-switch">
                     <input type="checkbox" id="animations-toggle" checked>
+                    <span class="toggle-track"></span>
+                </label>
+            </div>
+            <div class="panel-row">
+                <span>Progress bar</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="progress-bar-toggle" checked>
                     <span class="toggle-track"></span>
                 </label>
             </div>
@@ -151,6 +164,6 @@
     <!-- Sprite layer: fixed overlay for floating number particles -->
     <div id="sprite-layer" class="sprite-layer" aria-hidden="true"></div>
 
-    <script src="app.js?v=3"></script>
+    <script src="app.js?v=4"></script>
 </body>
 </html>

@@ -291,6 +291,37 @@ body {
     border-color: #000000;
 }
 
+/* Progress bar — fixed at very top of viewport, quiz only */
+.progress-bar-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: rgba(0, 0, 0, 0.08);
+    z-index: 600;
+    overflow: visible;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    background: #000000;
+    width: 0%;
+    /* No transition — jumps instantly on each card advance */
+}
+
+/* Ghost pacer: a vertical tick that races at the saved best-time speed */
+.progress-bar-ghost {
+    position: absolute;
+    top: -4px;
+    width: 2px;
+    height: 12px;
+    background: #cc0000;
+    transform: translateX(-50%);
+    left: 0%;
+    transition: left 0.1s linear;
+}
+
 /* Quiz Screen */
 .quiz-top-bar {
     display: flex;
