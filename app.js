@@ -4,6 +4,23 @@
 // STATE
 // ============================================
 
+let currentMode    = 'flashcards';
+let lastPlayedMode = 'flashcards';
+
+// Bubble geometry — must match the .bubble height + gap in CSS
+const BUBBLE_H      = 72;
+const BUBBLE_GAP    = 10;
+const BUBBLE_STRIDE = BUBBLE_H + BUBBLE_GAP; // 82 px
+
+const sortState = {
+    numbers:     [],   // array of numbers to sort (by value)
+    visualOrder: [],   // indices into numbers[], current top-to-bottom visual order
+    drag:        null, // null | { numIdx, pointerOffsetY, targetSlot }
+    moveCount:   0,
+    startTime:   null,
+    timerInterval: null,
+};
+
 const state = {
     questions: [],
     currentIndex: 0,
@@ -320,6 +337,12 @@ function showScreen(name) {
 // ============================================
 
 function initHome() {
+    if (currentMode === 'sort') {
+        document.getElementById('best-score-display').classList.add('hidden');
+        document.getElementById('start-btn').disabled = false;
+        return;
+    }
+    document.getElementById('best-score-display').classList.remove('hidden');
     const ops = getSelectedOps();
     const max = parseInt(document.getElementById('max-number').value, 10);
     const bestTime = ops.length > 0 ? loadBestTime(ops, max) : null;
@@ -333,6 +356,7 @@ function initHome() {
 // ============================================
 
 function startQuiz() {
+    lastPlayedMode = 'flashcards';
     state.operations = getSelectedOps();
     state.maxNumber   = parseInt(document.getElementById('max-number').value, 10);
     state.shuffle     = document.getElementById('shuffle-toggle').checked;
@@ -430,6 +454,7 @@ function submitTyped() {
 // ============================================
 
 function endQuiz() {
+    document.getElementById('score-stat-label').textContent = 'Score';
     state.quizActive = false;
     if (state.speechSupported) state.recognition.stop();
     const elapsed = stopTimer();
@@ -450,6 +475,180 @@ function endQuiz() {
 }
 
 // ============================================
+// SORT MODE
+// ============================================
+
+function generateSortNumbers(count, max) {
+    // Always distinct: pick `count` values from [1..max], capped so count ≤ max
+    const n    = Math.min(count, max);
+    const pool = Array.from({ length: max }, (_, i) => i + 1);
+    return shuffleArray(pool).slice(0, n);
+}
+
+function isSortedOrder(order, numbers) {
+    return order.every((numIdx, i) =>
+        i === 0 || numbers[order[i - 1]] <= numbers[numIdx]
+    );
+}
+
+function startSortQuiz() {
+    lastPlayedMode = 'sort';
+    const count = parseInt(document.getElementById('sort-count').value, 10);
+    const max   = parseInt(document.getElementById('max-number').value, 10);
+
+    sortState.numbers = generateSortNumbers(count, max);
+    const n = sortState.numbers.length;
+
+    // Ensure the initial order isn't already sorted
+    let order;
+    do {
+        order = shuffleArray(Array.from({ length: n }, (_, i) => i));
+    } while (isSortedOrder(order, sortState.numbers));
+    sortState.visualOrder = order;
+
+    sortState.drag      = null;
+    sortState.moveCount = 0;
+
+    document.getElementById('sort-timer-display').textContent = '00:00';
+    showScreen('sort');
+    renderBubbles();
+    startSortTimer();
+}
+
+function startSortTimer() {
+    sortState.startTime = Date.now();
+    sortState.timerInterval = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - sortState.startTime) / 1000);
+        document.getElementById('sort-timer-display').textContent = formatTime(elapsed);
+    }, 200);
+}
+
+function stopSortTimer() {
+    clearInterval(sortState.timerInterval);
+    sortState.timerInterval = null;
+    return Math.floor((Date.now() - sortState.startTime) / 1000);
+}
+
+function renderBubbles() {
+    const container = document.getElementById('bubble-container');
+    container.innerHTML = '';
+    const n = sortState.visualOrder.length;
+    container.style.height = `${n * BUBBLE_STRIDE - BUBBLE_GAP}px`;
+
+    sortState.visualOrder.forEach((numIdx, slot) => {
+        const el = document.createElement('div');
+        el.className = 'bubble';
+        el.dataset.numIdx = numIdx;
+        el.textContent = sortState.numbers[numIdx];
+        el.style.top = `${slot * BUBBLE_STRIDE}px`;
+        el.addEventListener('pointerdown', onBubblePointerDown);
+        container.appendChild(el);
+    });
+}
+
+function getBubbleEl(numIdx) {
+    return document.querySelector(`#bubble-container [data-num-idx="${numIdx}"]`);
+}
+
+function onBubblePointerDown(e) {
+    e.preventDefault();
+    const el     = e.currentTarget;
+    const numIdx = parseInt(el.dataset.numIdx, 10);
+
+    const containerTop = document.getElementById('bubble-container').getBoundingClientRect().top;
+    const bubbleTop    = el.getBoundingClientRect().top;
+
+    sortState.drag = {
+        numIdx,
+        pointerOffsetY: e.clientY - bubbleTop,
+        containerTopAtDown: containerTop,
+        targetSlot: sortState.visualOrder.indexOf(numIdx),
+    };
+
+    el.classList.add('dragging');
+
+    document.addEventListener('pointermove',   onSortPointerMove);
+    document.addEventListener('pointerup',     onSortPointerUp);
+    document.addEventListener('pointercancel', onSortPointerUp);
+}
+
+function onSortPointerMove(e) {
+    if (!sortState.drag) return;
+
+    const containerTop = document.getElementById('bubble-container').getBoundingClientRect().top;
+    const n = sortState.visualOrder.length;
+
+    let newTop = e.clientY - containerTop - sortState.drag.pointerOffsetY;
+    newTop = Math.max(0, Math.min((n - 1) * BUBBLE_STRIDE, newTop));
+
+    // Follow the pointer
+    const dragEl = getBubbleEl(sortState.drag.numIdx);
+    dragEl.style.transition = 'none';
+    dragEl.style.top = `${newTop}px`;
+
+    // Determine which slot the dragged bubble's centre is closest to
+    const centre     = newTop + BUBBLE_H / 2;
+    const targetSlot = Math.max(0, Math.min(n - 1, Math.round(centre / BUBBLE_STRIDE)));
+    sortState.drag.targetSlot = targetSlot;
+
+    // Slide every other bubble into its new position live
+    const others = sortState.visualOrder.filter(idx => idx !== sortState.drag.numIdx);
+    others.forEach((otherIdx, i) => {
+        const slot    = i < targetSlot ? i : i + 1;
+        const otherEl = getBubbleEl(otherIdx);
+        otherEl.style.transition = 'top 0.15s ease';
+        otherEl.style.top = `${slot * BUBBLE_STRIDE}px`;
+    });
+}
+
+function onSortPointerUp() {
+    document.removeEventListener('pointermove',   onSortPointerMove);
+    document.removeEventListener('pointerup',     onSortPointerUp);
+    document.removeEventListener('pointercancel', onSortPointerUp);
+
+    if (!sortState.drag) return;
+
+    const { numIdx, targetSlot } = sortState.drag;
+    sortState.drag = null;
+
+    // Commit the new visual order
+    const others = sortState.visualOrder.filter(idx => idx !== numIdx);
+    sortState.visualOrder = [
+        ...others.slice(0, targetSlot),
+        numIdx,
+        ...others.slice(targetSlot),
+    ];
+
+    // Snap the released bubble to its final slot with a smooth transition
+    const dragEl = getBubbleEl(numIdx);
+    dragEl.classList.remove('dragging');
+    dragEl.style.transition = 'top 0.15s ease';
+    dragEl.style.top = `${targetSlot * BUBBLE_STRIDE}px`;
+
+    sortState.moveCount++;
+    checkSortComplete();
+}
+
+function checkSortComplete() {
+    if (isSortedOrder(sortState.visualOrder, sortState.numbers)) {
+        setTimeout(endSortQuiz, 500);
+    }
+}
+
+function endSortQuiz() {
+    const elapsed = stopSortTimer();
+
+    document.getElementById('results-title').textContent    = 'Sorted!';
+    document.getElementById('score-stat-label').textContent = 'Moves';
+    document.getElementById('final-time').textContent       = formatTime(elapsed);
+    document.getElementById('final-score').textContent      = sortState.moveCount;
+    document.getElementById('best-time-results').textContent = '--:--';
+    document.getElementById('new-record-badge').classList.add('hidden');
+
+    showScreen('results');
+}
+
+// ============================================
 // INIT
 // ============================================
 
@@ -464,6 +663,19 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     initHome();
+
+    // Mode selector
+    document.getElementById('mode-selector').addEventListener('click', (e) => {
+        const btn = e.target.closest('.mode-btn');
+        if (!btn) return;
+        currentMode = btn.dataset.mode;
+        document.querySelectorAll('.mode-btn').forEach(b =>
+            b.classList.toggle('active', b === btn)
+        );
+        document.getElementById('ops-setting').classList.toggle('hidden', currentMode !== 'flashcards');
+        document.getElementById('bubble-count-setting').classList.toggle('hidden', currentMode !== 'sort');
+        initHome();
+    });
 
     // Operation toggles
     document.getElementById('op-toggles').addEventListener('click', (e) => {
@@ -487,7 +699,24 @@ document.addEventListener('DOMContentLoaded', () => {
         document.addEventListener('click', () => settingsPanel.classList.add('hidden'));
     }
 
-    document.getElementById('start-btn').addEventListener('click', startQuiz);
+    document.getElementById('start-btn').addEventListener('click', () => {
+        if (currentMode === 'sort') startSortQuiz();
+        else startQuiz();
+    });
+
+    // Sort screen back button
+    document.getElementById('sort-back-btn').addEventListener('click', () => {
+        if (sortState.drag) {
+            document.removeEventListener('pointermove',   onSortPointerMove);
+            document.removeEventListener('pointerup',     onSortPointerUp);
+            document.removeEventListener('pointercancel', onSortPointerUp);
+            sortState.drag = null;
+        }
+        clearInterval(sortState.timerInterval);
+        sortState.timerInterval = null;
+        showScreen('home');
+        initHome();
+    });
 
     // Typed fallback
     const submitBtn = document.getElementById('submit-btn');
@@ -498,7 +727,10 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    document.getElementById('play-again-btn').addEventListener('click', startQuiz);
+    document.getElementById('play-again-btn').addEventListener('click', () => {
+        if (lastPlayedMode === 'sort') startSortQuiz();
+        else startQuiz();
+    });
     document.getElementById('home-btn').addEventListener('click', () => {
         showScreen('home');
         initHome();

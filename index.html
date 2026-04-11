@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Math Flash Cards</title>
-    <link rel="stylesheet" href="styles.css?v=3">
+    <link rel="stylesheet" href="styles.css?v=4">
 </head>
 <body>
 
@@ -47,13 +47,18 @@
         <div class="container">
             <h1 class="app-title">Math<br>Flash Cards</h1>
 
+            <div class="mode-selector" id="mode-selector">
+                <button class="mode-btn active" data-mode="flashcards">Flash Cards</button>
+                <button class="mode-btn" data-mode="sort">Sort</button>
+            </div>
+
             <div id="best-score-display" class="best-score">
                 <span class="best-label">BEST TIME</span>
                 <span id="best-time-home" class="best-value">--:--</span>
             </div>
 
             <div class="settings">
-                <div class="setting-block">
+                <div class="setting-block" id="ops-setting">
                     <div class="setting-block-label">Operations</div>
                     <div class="op-toggles" id="op-toggles">
                         <button class="op-toggle active" data-op="addition">+</button>
@@ -61,6 +66,16 @@
                         <button class="op-toggle" data-op="multiplication">×</button>
                         <button class="op-toggle" data-op="division">÷</button>
                     </div>
+                </div>
+                <div class="setting-row hidden" id="bubble-count-setting">
+                    <label for="sort-count">Bubbles</label>
+                    <select id="sort-count" class="setting-select">
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                        <option value="5" selected>5</option>
+                        <option value="6">6</option>
+                        <option value="7">7</option>
+                    </select>
                 </div>
                 <div class="setting-row">
                     <label for="max-number">Numbers up to</label>
@@ -130,7 +145,7 @@
                     <div id="final-time" class="stat-value">00:00</div>
                 </div>
                 <div class="stat">
-                    <div class="stat-label">Score</div>
+                    <div class="stat-label" id="score-stat-label">Score</div>
                     <div id="final-score" class="stat-value">10 / 10</div>
                 </div>
                 <div class="stat">
@@ -148,9 +163,21 @@
         </div>
     </div>
 
+    <!-- Sort Screen -->
+    <div id="sort-screen" class="screen">
+        <div class="quiz-top-bar">
+            <button id="sort-back-btn" class="sort-back-btn" aria-label="Back to home">← Back</button>
+            <div id="sort-timer-display" class="timer-display">00:00</div>
+        </div>
+        <div class="sort-instruction">Smallest at the top</div>
+        <div class="sort-body">
+            <div id="bubble-container" class="bubble-container"></div>
+        </div>
+    </div>
+
     <!-- Sprite layer: fixed overlay for floating number particles -->
     <div id="sprite-layer" class="sprite-layer" aria-hidden="true"></div>
 
-    <script src="app.js?v=3"></script>
+    <script src="app.js?v=4"></script>
 </body>
 </html>
