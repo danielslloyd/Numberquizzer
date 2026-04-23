@@ -233,6 +233,28 @@ function spawnSprites(q) {
 // SPEECH RECOGNITION
 // ============================================
 
+function buildNumberGrammar() {
+    const ones  = ['zero','one','two','three','four','five','six','seven','eight','nine'];
+    const teens = ['ten','eleven','twelve','thirteen','fourteen','fifteen','sixteen',
+                   'seventeen','eighteen','nineteen'];
+    const tensW = ['twenty','thirty','forty','fifty','sixty','seventy','eighty','ninety'];
+    const terms = [...ones, ...teens, ...tensW];
+    for (const t of tensW) {
+        for (const o of ones.slice(1)) terms.push(`${t} ${o}`);
+    }
+    const hunds = ['one hundred','two hundred','three hundred','four hundred'];
+    for (const h of hunds) {
+        terms.push(h);
+        for (const o of ones.slice(1)) terms.push(`${h} ${o}`);
+        for (const teen of teens)       terms.push(`${h} ${teen}`);
+        for (const t of tensW) {
+            terms.push(`${h} ${t}`);
+            for (const o of ones.slice(1)) terms.push(`${h} ${t} ${o}`);
+        }
+    }
+    return `#JSGF V1.0; grammar numbers; public <number> = ${terms.join(' | ')};`;
+}
+
 function initSpeechRecognition() {
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) { state.speechSupported = false; return false; }
@@ -242,6 +264,14 @@ function initSpeechRecognition() {
     state.recognition.continuous = true;
     state.recognition.interimResults = true;
     state.recognition.lang = 'en-US';
+    state.recognition.maxAlternatives = 3;
+
+    const SGL = window.SpeechGrammarList || window.webkitSpeechGrammarList;
+    if (SGL) {
+        const grammarList = new SGL();
+        grammarList.addFromString(buildNumberGrammar(), 1);
+        state.recognition.grammars = grammarList;
+    }
 
     state.recognition.onstart = () => {
         state.isListening = true;
@@ -257,9 +287,12 @@ function initSpeechRecognition() {
         }
 
         if (!state.quizActive) return;
-        const found = findNumberInSpeech(transcript);
-        if (found !== null && found === state.questions[state.currentIndex].answer) {
-            advanceQuestion();
+        for (let i = 0; i < latest.length; i++) {
+            const found = findNumberInSpeech(latest[i].transcript.trim());
+            if (found !== null && found === state.questions[state.currentIndex].answer) {
+                advanceQuestion();
+                return;
+            }
         }
     };
 
