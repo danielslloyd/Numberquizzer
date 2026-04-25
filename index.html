@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Math Flash Cards</title>
-    <link rel="stylesheet" href="styles.css?v=4">
+    <link rel="stylesheet" href="styles.css?v=5">
 </head>
 <body>
 
@@ -73,6 +73,7 @@
             </div>
 
             <button id="start-btn" class="btn btn-primary">Start</button>
+            <button id="word-sort-btn" class="btn btn-secondary" style="width:100%">Word Sort</button>
         </div>
     </div>
 
@@ -148,9 +149,82 @@
         </div>
     </div>
 
+    <!-- Word Sort: Menu Screen -->
+    <div id="word-sort-menu-screen" class="screen">
+        <div class="container">
+            <h1 class="app-title">Word<br>Sort</h1>
+
+            <div class="ws-best-panel">
+                <div class="ws-best-row">
+                    <span class="ws-best-label">BASIC</span>
+                    <span id="ws-best-basic" class="ws-best-value">--:--</span>
+                </div>
+                <div class="ws-best-row">
+                    <span class="ws-best-label">INTERMEDIATE</span>
+                    <span id="ws-best-intermediate" class="ws-best-value">--:--</span>
+                </div>
+                <div class="ws-best-row">
+                    <span class="ws-best-label">ADVANCED</span>
+                    <span id="ws-best-advanced" class="ws-best-value">--:--</span>
+                </div>
+            </div>
+
+            <div class="ws-diff-btns">
+                <button class="btn btn-primary ws-diff-btn" data-diff="basic">Basic</button>
+                <button class="btn btn-secondary ws-diff-btn" data-diff="intermediate">Intermediate</button>
+                <button class="btn btn-secondary ws-diff-btn" data-diff="advanced">Advanced</button>
+            </div>
+
+            <button id="ws-home-btn" class="btn btn-secondary" style="width:100%">← Home</button>
+        </div>
+    </div>
+
+    <!-- Word Sort: Game Screen -->
+    <div id="word-sort-game-screen" class="screen">
+        <div class="ws-top-bar">
+            <div id="ws-diff-display" class="ws-diff-display">BASIC</div>
+            <div id="ws-timer-display" class="timer-display">00:00</div>
+        </div>
+        <div class="ws-game-body">
+            <p class="ws-prompt">Sort A → Z</p>
+            <div id="ws-word-list" class="ws-word-list"></div>
+            <button id="ws-check-btn" class="btn btn-primary ws-check-btn">Check Order</button>
+        </div>
+    </div>
+
+    <!-- Word Sort: Results Screen -->
+    <div id="word-sort-results-screen" class="screen">
+        <div class="container">
+            <h1 id="ws-results-title" class="results-title">Sorted!</h1>
+
+            <div class="results-stats">
+                <div class="stat">
+                    <div class="stat-label">Your Time</div>
+                    <div id="ws-final-time" class="stat-value">00:00</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Best Time</div>
+                    <div id="ws-best-time-results" class="stat-value">--:--</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Difficulty</div>
+                    <div id="ws-final-diff" class="stat-value">BASIC</div>
+                </div>
+            </div>
+
+            <div id="ws-new-record-badge" class="new-record hidden">New Best Time!</div>
+
+            <div class="results-actions">
+                <button id="ws-play-again-btn" class="btn btn-primary">Play Again</button>
+                <button id="ws-menu-btn" class="btn btn-secondary">Change Difficulty</button>
+                <button id="ws-home-from-results-btn" class="btn btn-secondary">Home</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Sprite layer: fixed overlay for floating number particles -->
     <div id="sprite-layer" class="sprite-layer" aria-hidden="true"></div>
 
-    <script src="app.js?v=4"></script>
+    <script src="app.js?v=5"></script>
 </body>
 </html>

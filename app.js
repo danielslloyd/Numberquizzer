@@ -19,6 +19,11 @@ const state = {
     isListening: false,
     speechSupported: false,
     quizActive: false,
+    wsDifficulty:    'basic',
+    wsWords:         [],
+    wsStartTime:     null,
+    wsTimerInterval: null,
+    wsDragState:     null,
 };
 
 // ============================================
@@ -37,6 +42,87 @@ function loadBestTime(ops, max) {
 function saveBestTime(seconds) {
     localStorage.setItem(getBestTimeKey(state.operations, state.maxNumber), seconds.toString());
 }
+
+// ============================================
+// WORD SORT DATA
+// ============================================
+
+const WS_WORDS_BASIC = [
+    'acorn','angel','apple','arrow',
+    'badge','beach','beast','bench','bird','black','bloom','brave','brush','burst',
+    'cabin','candy','chart','chest','child','cloak','cloud','coast','coral','crash','creek','crisp',
+    'daisy','dance',
+    'flock','flute','frost',
+    'globe','goose','grace','groan','grove','growl',
+    'hedge','herbs','hover',
+    'jewel','juice',
+    'label','lance','laugh','layer','leash','light','linen',
+    'march','mayor','mercy','model','money','month','mouse','mouth','muddy',
+    'nerve','night','noble','nurse',
+    'ocean','olive',
+    'paint','panic','paper','patch','peace','peach','pearl','penny','phone','photo',
+    'quest','quick','quiet',
+    'ranch','range','raven','reach','realm','rebel',
+    'sauce','scout','serve','shade','shake','shape','shark','shell','shift','shore',
+    'teach','teeth','theme','thick','thorn','throw','tiger','title','torch','trout',
+    'vapor','vault','verse',
+    'watch','water','wedge','whale','wheel','witch',
+];
+
+const WS_WORDS_INTERMEDIATE = [
+    'abandon','acclaim','achieve','advance','attract',
+    'balance','blanket','blossom','bounty','branch',
+    'cabinet','captain','carbon','castle','circuit','climate','cluster','commit',
+    'compare','compete','complex','concern','confuse','control','council','create',
+    'damage','danger','debate','define','design','divide','dragon',
+    'effect','effort','employ','engage','entire','escape','evolve','extend',
+    'factor','famine','feature','filter','forbid','forest','fossil','frozen',
+    'gather','gentle','global','govern','gravel','grieve','growth',
+    'handle','happen','harbor','harvest','hidden','hollow','hunger','hurdle',
+    'ignore','impact','import','inform','injure','insect','invent','island',
+    'jungle','justify','kernel','kingdom',
+    'launch','leader','lessen','liquid','locate','logical','lonely',
+    'manage','market','mature','meadow','mention','method','mirror','mobile',
+    'modest','monster','motion','muscle',
+    'nation','nature','needle','notice',
+    'object','option','origin','output',
+    'palace','parent','parrot','pattern','planet','plastic','pocket','possess',
+    'powder','problem','profit','proper',
+    'random','reason','refuse','region','release','remote','repair','result',
+    'reveal','reward','riddle','rotate',
+    'sample','select','series','settle','shadow','signal','simple','sketch',
+    'social','soldier','special','sphere','stable','statue','strict','student',
+    'symbol','talent','target','temple','theory','timber','tissue','travel',
+    'trophy','tunnel','unique','valley','vanish','vessel','village','vision',
+    'volume','voyage','wander','wealth','weapon','welcome','wisdom','wonder',
+];
+
+const WS_WORDS_ADVANCED = [
+    // SPR — spread/spree need 5th; sprig/spring need 5th
+    ['spray',  'spread', 'spree',   'sprig',   'spring',  'sprout'],
+    // STR — all share "stra" except streak; within "stra" every 5th letter differs
+    ['strain', 'strand', 'strap',   'straw',   'stray',   'streak'],
+    // SCR — scram/scrap need 5th; scrape/scratch need 5th
+    ['scram',  'scrap',  'scrape',  'scratch', 'scrawl',  'screen'],
+    // TRA — trail/train share "trai", need 5th letter (l vs n)
+    ['track',  'trade',  'trail',   'train',   'tramp',   'trash'],
+    // FLA — flash/flask share "flas", need 5th letter (h vs k)
+    ['flame',  'flank',  'flare',   'flash',   'flask',   'flat'],
+    // BRE — breach/bread/break/breath all share "brea", nearly every pair needs 5th
+    ['breach', 'bread',  'break',   'breath',  'breed',   'breeze'],
+    // CLA — clam is prefix of clamp; clash/clasp share "clas", need 5th (h vs p)
+    ['clam',   'clamp',  'clank',   'clap',    'clash',   'clasp'],
+    // GRO — 4th letter distinct throughout (a,o,p,s,v,w), forces 4th-letter work
+    ['groan',  'groom',  'grope',   'gross',   'grove',   'growl'],
+    // CRA — crash/crass share "cras", need 5th letter (h vs s)
+    ['crank',  'crape',  'crash',   'crass',   'crave',   'crawl'],
+    // SHR — shriek/shrill/shrimp/shrine/shrink all share "shri", need 5th–6th
+    ['shrank', 'shriek', 'shrill',  'shrimp',  'shrine',  'shrink'],
+    // SPL — splash/splat/splay share "spla", need 5th; splint/split share "spli", need 5th
+    ['splash', 'splat',  'splay',   'spleen',  'splint',  'split'],
+    // THR — throb/throne/throng share "thro"; throne/throng share "thron", need 6th!
+    ['throb',  'throne', 'throng',  'through', 'throw',   'thrust'],
+];
 
 // ============================================
 // HELPERS
@@ -483,6 +569,184 @@ function endQuiz() {
 }
 
 // ============================================
+// WORD SORT
+// ============================================
+
+function wsLoadBestTime(difficulty) {
+    const stored = localStorage.getItem(`wordSortBest_${difficulty}`);
+    return stored ? parseInt(stored, 10) : null;
+}
+
+function wsSaveBestTime(difficulty, seconds) {
+    localStorage.setItem(`wordSortBest_${difficulty}`, seconds.toString());
+}
+
+function initWordSortMenu() {
+    ['basic', 'intermediate', 'advanced'].forEach(diff => {
+        const best = wsLoadBestTime(diff);
+        document.getElementById(`ws-best-${diff}`).textContent =
+            best !== null ? formatTime(best) : '--:--';
+    });
+}
+
+function wsPickWords(difficulty) {
+    if (difficulty === 'advanced') {
+        const groupIndex = Math.floor(Math.random() * WS_WORDS_ADVANCED.length);
+        return shuffleArray(WS_WORDS_ADVANCED[groupIndex]);
+    }
+    const pool = difficulty === 'basic' ? WS_WORDS_BASIC : WS_WORDS_INTERMEDIATE;
+    return shuffleArray(pool).slice(0, 6);
+}
+
+function startWordSort(difficulty) {
+    if (state.wsTimerInterval) {
+        clearInterval(state.wsTimerInterval);
+        state.wsTimerInterval = null;
+    }
+    state.wsDifficulty = difficulty;
+    state.wsWords = wsPickWords(difficulty);
+
+    document.getElementById('ws-diff-display').textContent = difficulty.toUpperCase();
+    document.getElementById('ws-timer-display').textContent = '00:00';
+    wsRenderBubbles(state.wsWords);
+
+    showScreen('word-sort-game');
+
+    state.wsStartTime = Date.now();
+    state.wsTimerInterval = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - state.wsStartTime) / 1000);
+        document.getElementById('ws-timer-display').textContent = formatTime(elapsed);
+    }, 200);
+}
+
+function wsRenderBubbles(words) {
+    const list = document.getElementById('ws-word-list');
+    list.innerHTML = '';
+    words.forEach(word => {
+        const div = document.createElement('div');
+        div.className = 'ws-bubble';
+        div.dataset.word = word;
+        div.textContent = word;
+        div.addEventListener('pointerdown', wsDragStart);
+        list.appendChild(div);
+    });
+}
+
+function wsCheckOrder() {
+    const list = document.getElementById('ws-word-list');
+    const bubbles = [...list.querySelectorAll('.ws-bubble')];
+    const current = bubbles.map(b => b.dataset.word);
+    const correct = [...current].sort((a, b) => a.localeCompare(b));
+
+    let allCorrect = true;
+    bubbles.forEach((bubble, i) => {
+        bubble.classList.remove('ws-wrong');
+        if (current[i] !== correct[i]) {
+            bubble.classList.add('ws-wrong');
+            allCorrect = false;
+        }
+    });
+
+    if (allCorrect) wsEndGame();
+}
+
+function wsEndGame() {
+    clearInterval(state.wsTimerInterval);
+    state.wsTimerInterval = null;
+    const elapsed = Math.floor((Date.now() - state.wsStartTime) / 1000);
+    const diff = state.wsDifficulty;
+
+    const best = wsLoadBestTime(diff);
+    const isNewBest = best === null || elapsed < best;
+    if (isNewBest) wsSaveBestTime(diff, elapsed);
+
+    document.getElementById('ws-results-title').textContent = isNewBest ? 'New Best!' : 'Sorted!';
+    document.getElementById('ws-final-time').textContent = formatTime(elapsed);
+    document.getElementById('ws-best-time-results').textContent =
+        isNewBest ? formatTime(elapsed) : formatTime(best);
+    document.getElementById('ws-final-diff').textContent = diff.toUpperCase();
+    document.getElementById('ws-new-record-badge').classList.toggle('hidden', !isNewBest);
+
+    showScreen('word-sort-results');
+}
+
+function wsDragStart(e) {
+    if (state.wsDragState) return;
+    e.preventDefault();
+
+    const bubble = e.currentTarget;
+    const rect = bubble.getBoundingClientRect();
+
+    document.querySelectorAll('.ws-bubble').forEach(b => b.classList.remove('ws-wrong'));
+
+    const placeholder = document.createElement('div');
+    placeholder.className = 'ws-placeholder';
+    placeholder.style.height = rect.height + 'px';
+    bubble.parentNode.insertBefore(placeholder, bubble);
+
+    bubble.classList.add('ws-dragging');
+    bubble.style.position = 'fixed';
+    bubble.style.width    = rect.width + 'px';
+    bubble.style.left     = rect.left + 'px';
+    bubble.style.top      = rect.top  + 'px';
+    bubble.style.margin   = '0';
+    bubble.style.zIndex   = '1000';
+    document.body.appendChild(bubble);
+
+    const offsetX = e.clientX - rect.left;
+    const offsetY = e.clientY - rect.top;
+    state.wsDragState = { bubble, placeholder, offsetX, offsetY, lastInsertBefore: undefined };
+
+    bubble.setPointerCapture(e.pointerId);
+    document.addEventListener('pointermove', wsDragMove);
+    document.addEventListener('pointerup',     wsDragEnd);
+    document.addEventListener('pointercancel', wsDragEnd);
+}
+
+function wsDragMove(e) {
+    const ds = state.wsDragState;
+    if (!ds) return;
+
+    ds.bubble.style.left = (e.clientX - ds.offsetX) + 'px';
+    ds.bubble.style.top  = (e.clientY - ds.offsetY) + 'px';
+
+    const list = document.getElementById('ws-word-list');
+    const siblings = [...list.querySelectorAll('.ws-bubble, .ws-placeholder')];
+    let insertBefore = null;
+    for (const sib of siblings) {
+        const r = sib.getBoundingClientRect();
+        if (e.clientY < r.top + r.height / 2) { insertBefore = sib; break; }
+    }
+
+    if (insertBefore !== ds.lastInsertBefore) {
+        ds.lastInsertBefore = insertBefore;
+        if (insertBefore) {
+            list.insertBefore(ds.placeholder, insertBefore);
+        } else {
+            list.appendChild(ds.placeholder);
+        }
+    }
+}
+
+function wsDragEnd(e) {
+    const ds = state.wsDragState;
+    if (!ds) return;
+
+    document.removeEventListener('pointermove',   wsDragMove);
+    document.removeEventListener('pointerup',     wsDragEnd);
+    document.removeEventListener('pointercancel', wsDragEnd);
+
+    const list = document.getElementById('ws-word-list');
+
+    ds.bubble.classList.remove('ws-dragging');
+    ds.bubble.style.cssText = '';
+    list.insertBefore(ds.bubble, ds.placeholder);
+    ds.placeholder.remove();
+
+    state.wsDragState = null;
+}
+
+// ============================================
 // INIT
 // ============================================
 
@@ -533,6 +797,37 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('play-again-btn').addEventListener('click', startQuiz);
     document.getElementById('home-btn').addEventListener('click', () => {
+        showScreen('home');
+        initHome();
+    });
+
+    // ---- Word Sort ----
+    document.getElementById('word-sort-btn').addEventListener('click', () => {
+        showScreen('word-sort-menu');
+        initWordSortMenu();
+    });
+
+    document.getElementById('word-sort-menu-screen')
+        .querySelectorAll('.ws-diff-btn')
+        .forEach(btn => btn.addEventListener('click', () => startWordSort(btn.dataset.diff)));
+
+    document.getElementById('ws-home-btn').addEventListener('click', () => {
+        showScreen('home');
+        initHome();
+    });
+
+    document.getElementById('ws-check-btn').addEventListener('click', wsCheckOrder);
+
+    document.getElementById('ws-play-again-btn').addEventListener('click', () => {
+        startWordSort(state.wsDifficulty);
+    });
+
+    document.getElementById('ws-menu-btn').addEventListener('click', () => {
+        showScreen('word-sort-menu');
+        initWordSortMenu();
+    });
+
+    document.getElementById('ws-home-from-results-btn').addEventListener('click', () => {
         showScreen('home');
         initHome();
     });
