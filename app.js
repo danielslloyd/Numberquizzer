@@ -582,14 +582,25 @@ function wsSaveBestTime(difficulty, seconds) {
 }
 
 function initWordSortMenu() {
-    ['basic', 'intermediate', 'advanced'].forEach(diff => {
+    ['basic', 'intermediate', 'advanced', 'numbers'].forEach(diff => {
         const best = wsLoadBestTime(diff);
         document.getElementById(`ws-best-${diff}`).textContent =
             best !== null ? formatTime(best) : '--:--';
     });
 }
 
+function generateNumberSet() {
+    const numbers = [];
+    for (let i = 0; i < 6; i++) {
+        numbers.push(Math.floor(Math.random() * 19999) - 9999);
+    }
+    return shuffleArray(numbers.map(String));
+}
+
 function wsPickWords(difficulty) {
+    if (difficulty === 'numbers') {
+        return generateNumberSet();
+    }
     if (difficulty === 'advanced') {
         const groupIndex = Math.floor(Math.random() * WS_WORDS_ADVANCED.length);
         return shuffleArray(WS_WORDS_ADVANCED[groupIndex]);
@@ -608,6 +619,10 @@ function startWordSort(difficulty) {
 
     document.getElementById('ws-diff-display').textContent = difficulty.toUpperCase();
     document.getElementById('ws-timer-display').textContent = '00:00';
+
+    const prompt = difficulty === 'numbers' ? 'Sort High → Low' : 'Sort A → Z';
+    document.querySelector('.ws-prompt').textContent = prompt;
+
     wsRenderBubbles(state.wsWords);
 
     showScreen('word-sort-game');
@@ -636,7 +651,15 @@ function wsCheckOrder() {
     const list = document.getElementById('ws-word-list');
     const bubbles = [...list.querySelectorAll('.ws-bubble')];
     const current = bubbles.map(b => b.dataset.word);
-    const correct = [...current].sort((a, b) => a.localeCompare(b));
+
+    let correct;
+    if (state.wsDifficulty === 'numbers') {
+        const nums = current.map(Number);
+        const sorted = [...nums].sort((a, b) => b - a);
+        correct = sorted.map(String);
+    } else {
+        correct = [...current].sort((a, b) => a.localeCompare(b));
+    }
 
     let allCorrect = true;
     bubbles.forEach((bubble, i) => {
