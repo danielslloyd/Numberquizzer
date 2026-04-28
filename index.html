@@ -4,7 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Math Flash Cards</title>
-    <link rel="stylesheet" href="styles.css?v=5">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css?v=6">
 </head>
 <body>
 
@@ -74,6 +77,7 @@
 
             <button id="start-btn" class="btn btn-primary">Start</button>
             <button id="word-sort-btn" class="btn btn-secondary" style="width:100%">Word Sort</button>
+            <button id="visualizer-btn" class="btn btn-secondary" style="width:100%">Math Visualizer</button>
         </div>
     </div>
 
@@ -227,9 +231,37 @@
         </div>
     </div>
 
+    <!-- Math Visualizer Screen -->
+    <div id="visualizer-screen" class="screen">
+        <div class="visualizer-container">
+            <div class="visualizer-input-bar">
+                <input
+                    type="text"
+                    id="visualizer-input"
+                    class="visualizer-input"
+                    placeholder="e.g., 3 × 4 + 5"
+                    autocomplete="off"
+                >
+                <button id="visualizer-reset-btn" class="btn btn-secondary">Reset</button>
+            </div>
+            <div id="visualizer-canvas-container" class="visualizer-canvas-container">
+                <!-- Three.js canvas will be inserted here -->
+            </div>
+            <div id="visualizer-answer" class="visualizer-answer hidden"></div>
+        </div>
+        <button id="visualizer-home-btn" class="btn btn-secondary visualizer-home-btn">← Home</button>
+    </div>
+
     <!-- Sprite layer: fixed overlay for floating number particles -->
     <div id="sprite-layer" class="sprite-layer" aria-hidden="true"></div>
 
-    <script src="app.js?v=5"></script>
+    <!-- Three.js and Physics Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js"></script>
+
+    <script src="parser.js?v=6"></script>
+    <script src="physics.js?v=6"></script>
+    <script src="animator.js?v=6"></script>
+    <script src="app.js?v=6"></script>
 </body>
 </html>

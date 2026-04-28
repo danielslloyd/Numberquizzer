@@ -24,6 +24,8 @@ const state = {
     wsStartTime:     null,
     wsTimerInterval: null,
     wsDragState:     null,
+    visualizerAnimator: null,
+    visualizerInput: '',
 };
 
 // ============================================
@@ -770,6 +772,82 @@ function wsDragEnd(e) {
 }
 
 // ============================================
+// MATH VISUALIZER
+// ============================================
+
+function initVisualizer() {
+    const container = document.getElementById('visualizer-canvas-container');
+
+    if (state.visualizerAnimator) {
+        state.visualizerAnimator.dispose();
+    }
+
+    state.visualizerAnimator = new MathAnimator(container);
+
+    // Start rendering loop
+    const startRenderLoop = () => {
+        if (!state.visualizerAnimator || state.visualizerAnimator.disposed) {
+            return;
+        }
+        state.visualizerAnimator.render();
+        requestAnimationFrame(startRenderLoop);
+    };
+    startRenderLoop();
+}
+
+function handleVisualizerInput(input) {
+    const result = parseExpression(input);
+
+    if (!result.valid) {
+        alert(result.error);
+        return;
+    }
+
+    // Lock input and start animation
+    const inputEl = document.getElementById('visualizer-input');
+    const resetBtn = document.getElementById('visualizer-reset-btn');
+    inputEl.disabled = true;
+    resetBtn.disabled = false;
+
+    // Get visual structure
+    const visualStruct = getVisualStructure(result.ast);
+
+    // Run animation based on type
+    if (visualStruct.type === 'multiply') {
+        state.visualizerAnimator.animateMultiplication(
+            visualStruct.a,
+            visualStruct.b,
+            visualStruct.c
+        );
+    } else if (visualStruct.type === 'add') {
+        state.visualizerAnimator.animateAddition(visualStruct.groups);
+    }
+
+    // Show result
+    const answerEl = document.getElementById('visualizer-answer');
+    setTimeout(() => {
+        answerEl.textContent = `= ${result.result}`;
+        answerEl.classList.remove('hidden');
+    }, 1500);
+}
+
+function resetVisualizer() {
+    const inputEl = document.getElementById('visualizer-input');
+    const resetBtn = document.getElementById('visualizer-reset-btn');
+    const answerEl = document.getElementById('visualizer-answer');
+
+    inputEl.value = '';
+    inputEl.disabled = false;
+    resetBtn.disabled = true;
+    answerEl.classList.add('hidden');
+    answerEl.textContent = '';
+
+    if (state.visualizerAnimator) {
+        state.visualizerAnimator.clear();
+    }
+}
+
+// ============================================
 // INIT
 // ============================================
 
@@ -851,6 +929,33 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.getElementById('ws-home-from-results-btn').addEventListener('click', () => {
+        showScreen('home');
+        initHome();
+    });
+
+    // ---- Math Visualizer ----
+    document.getElementById('visualizer-btn').addEventListener('click', () => {
+        showScreen('visualizer');
+        initVisualizer();
+        resetVisualizer();
+    });
+
+    document.getElementById('visualizer-input').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            const input = e.target.value.trim();
+            if (input) {
+                handleVisualizerInput(input);
+            }
+        }
+    });
+
+    document.getElementById('visualizer-reset-btn').addEventListener('click', resetVisualizer);
+
+    document.getElementById('visualizer-home-btn').addEventListener('click', () => {
+        if (state.visualizerAnimator) {
+            state.visualizerAnimator.dispose();
+            state.visualizerAnimator = null;
+        }
         showScreen('home');
         initHome();
     });
