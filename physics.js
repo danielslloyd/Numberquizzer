@@ -15,11 +15,12 @@ class PhysicsWorld {
     }
 
     setupEnvironment() {
-        // Floor
+        // Floor — rotate plane so its normal points +Y (default normal is +Z)
         const floorMaterial = new CANNON.Material('floor');
         const floorShape = new CANNON.Plane();
         const floorBody = new CANNON.Body({ mass: 0, material: floorMaterial });
         floorBody.addShape(floorShape);
+        floorBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
         floorBody.position.y = -10;
         this.world.addBody(floorBody);
         this.staticBodies.push(floorBody);
