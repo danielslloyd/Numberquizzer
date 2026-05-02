@@ -730,31 +730,64 @@ body {
     flex-wrap: wrap;
 }
 
-.visualizer-input {
-    flex: 1;
-    min-width: 200px;
-    max-width: 400px;
+.visualizer-inputs-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    flex-wrap: nowrap;
+}
+
+.visualizer-input-field {
+    width: 4.5rem;
     font-size: 1.3rem;
-    padding: 0.9rem 1.2rem;
+    padding: 0.9rem 0.8rem;
     border: 3px solid #000000;
     background-color: #ffffff;
     color: #000000;
     font-family: inherit;
     font-weight: 500;
+    text-align: center;
 }
 
-.visualizer-input:disabled {
-    background-color: #f5f5f5;
+.visualizer-input-field::placeholder {
     color: #999999;
 }
 
-.visualizer-input::placeholder {
-    color: #999999;
-}
-
-.visualizer-input:focus {
+.visualizer-input-field:focus {
     outline: none;
     background-color: #fffbf0;
+}
+
+/* Remove spinner buttons on number inputs */
+.visualizer-input-field::-webkit-outer-spin-button,
+.visualizer-input-field::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.visualizer-input-field[type=number] {
+    -moz-appearance: textfield;
+}
+
+.visualizer-op-btn {
+    padding: 0.6rem 0.9rem;
+    font-size: 1.2rem;
+    font-weight: 700;
+    border: 2px solid #000000;
+    background-color: #ffffff;
+    color: #000000;
+    cursor: pointer;
+    border-radius: 4px;
+    min-width: 2.5rem;
+    text-align: center;
+}
+
+.visualizer-op-btn:hover {
+    background-color: #f5f5f5;
+}
+
+.visualizer-op-btn:active {
+    background-color: #e0e0e0;
 }
 
 .visualizer-spacing-bar {

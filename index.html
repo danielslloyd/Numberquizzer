@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=9">
+    <link rel="stylesheet" href="styles.css?v=10">
 </head>
 <body>
 
@@ -235,13 +235,37 @@
     <div id="visualizer-screen" class="screen">
         <div class="visualizer-container">
             <div class="visualizer-input-bar">
-                <input
-                    type="text"
-                    id="visualizer-input"
-                    class="visualizer-input"
-                    placeholder="e.g., 3 × 4 + 5"
-                    autocomplete="off"
-                >
+                <div class="visualizer-inputs-row">
+                    <input
+                        type="number"
+                        id="visualizer-input-1"
+                        class="visualizer-input-field"
+                        placeholder="3"
+                        autocomplete="off"
+                        min="1"
+                        max="20"
+                    >
+                    <button class="visualizer-op-btn" data-op-index="1" title="Click to toggle × / +">×</button>
+                    <input
+                        type="number"
+                        id="visualizer-input-2"
+                        class="visualizer-input-field"
+                        placeholder="4"
+                        autocomplete="off"
+                        min="1"
+                        max="20"
+                    >
+                    <button class="visualizer-op-btn" data-op-index="2" title="Click to toggle × / +">×</button>
+                    <input
+                        type="number"
+                        id="visualizer-input-3"
+                        class="visualizer-input-field"
+                        placeholder="5"
+                        autocomplete="off"
+                        min="1"
+                        max="20"
+                    >
+                </div>
                 <button id="visualizer-reset-btn" class="btn btn-secondary">Reset</button>
             </div>
             <div class="visualizer-spacing-bar">
@@ -271,9 +295,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
 
-    <script src="parser.js?v=9"></script>
-    <script src="physics.js?v=9"></script>
-    <script src="animator.js?v=9"></script>
-    <script src="app.js?v=9"></script>
+    <script src="parser.js?v=10"></script>
+    <script src="physics.js?v=10"></script>
+    <script src="animator.js?v=10"></script>
+    <script src="app.js?v=10"></script>
 </body>
 </html>
