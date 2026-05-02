@@ -821,13 +821,6 @@ function handleVisualizerInput() {
         return;
     }
 
-    // Disable inputs during animation
-    document.getElementById('visualizer-input-1').disabled = true;
-    document.getElementById('visualizer-input-2').disabled = true;
-    document.getElementById('visualizer-input-3').disabled = true;
-    document.querySelectorAll('.visualizer-op-btn').forEach(btn => btn.disabled = true);
-    document.getElementById('visualizer-reset-btn').disabled = false;
-
     // Pick up the current spacing slider value before this run
     const spacingEl = document.getElementById('visualizer-spacing');
     const spacing = parseFloat(spacingEl.value);
@@ -838,7 +831,7 @@ function handleVisualizerInput() {
     // Get visual structure
     const visualStruct = getVisualStructure(result.ast);
 
-    // Run animation based on type
+    // Run build animation; cubes stay in formation, awaiting DROP
     if (visualStruct.type === 'multiply') {
         state.visualizerAnimator.animateMultiplication(
             visualStruct.a,
@@ -857,13 +850,23 @@ function handleVisualizerInput() {
     }, 1500);
 }
 
-function resetVisualizer() {
-    // Reset input fields and re-enable
-    document.getElementById('visualizer-input-1').disabled = false;
-    document.getElementById('visualizer-input-2').disabled = false;
-    document.getElementById('visualizer-input-3').disabled = false;
-    document.querySelectorAll('.visualizer-op-btn').forEach(btn => btn.disabled = false);
-    document.getElementById('visualizer-reset-btn').disabled = true;
+function handleVisualizerDrop() {
+    if (state.visualizerAnimator) {
+        state.visualizerAnimator.startDrop();
+    }
+}
+
+function handleVisualizerReset() {
+    if (state.visualizerAnimator) {
+        state.visualizerAnimator.snapBackToFormation();
+    }
+}
+
+function handleVisualizerClear() {
+    // Clear input fields
+    document.getElementById('visualizer-input-1').value = '';
+    document.getElementById('visualizer-input-2').value = '';
+    document.getElementById('visualizer-input-3').value = '';
 
     // Hide answer display
     const answerEl = document.getElementById('visualizer-answer');
@@ -965,7 +968,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('visualizer-btn').addEventListener('click', () => {
         showScreen('visualizer');
         initVisualizer();
-        resetVisualizer();
+        handleVisualizerClear();
     });
 
     // Three input fields: Enter key on any triggers animation
@@ -987,7 +990,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    document.getElementById('visualizer-reset-btn').addEventListener('click', resetVisualizer);
+    document.getElementById('visualizer-reset-btn').addEventListener('click', handleVisualizerReset);
+    document.getElementById('visualizer-drop-btn').addEventListener('click', handleVisualizerDrop);
+    document.getElementById('visualizer-clear-btn').addEventListener('click', handleVisualizerClear);
 
     // Spacing slider: keep displayed value in sync as the user drags
     const spacingSlider = document.getElementById('visualizer-spacing');

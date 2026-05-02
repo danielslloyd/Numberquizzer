@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=10">
+    <link rel="stylesheet" href="styles.css?v=11">
 </head>
 <body>
 
@@ -240,7 +240,6 @@
                         type="number"
                         id="visualizer-input-1"
                         class="visualizer-input-field"
-                        placeholder="3"
                         autocomplete="off"
                         min="1"
                         max="20"
@@ -250,7 +249,6 @@
                         type="number"
                         id="visualizer-input-2"
                         class="visualizer-input-field"
-                        placeholder="4"
                         autocomplete="off"
                         min="1"
                         max="20"
@@ -260,13 +258,16 @@
                         type="number"
                         id="visualizer-input-3"
                         class="visualizer-input-field"
-                        placeholder="5"
                         autocomplete="off"
                         min="1"
                         max="20"
                     >
                 </div>
-                <button id="visualizer-reset-btn" class="btn btn-secondary">Reset</button>
+                <div class="visualizer-actions">
+                    <button id="visualizer-reset-btn" class="btn btn-secondary" title="Snap blocks back to formation">RESET</button>
+                    <button id="visualizer-drop-btn" class="btn btn-primary" title="Drop the blocks">DROP</button>
+                    <button id="visualizer-clear-btn" class="btn btn-secondary visualizer-clear-btn" title="Clear inputs and visualization">✕</button>
+                </div>
             </div>
             <div class="visualizer-spacing-bar">
                 <label for="visualizer-spacing">Spacing</label>
@@ -295,9 +296,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
 
-    <script src="parser.js?v=10"></script>
-    <script src="physics.js?v=10"></script>
-    <script src="animator.js?v=10"></script>
-    <script src="app.js?v=10"></script>
+    <script src="parser.js?v=11"></script>
+    <script src="physics.js?v=11"></script>
+    <script src="animator.js?v=11"></script>
+    <script src="app.js?v=11"></script>
 </body>
 </html>

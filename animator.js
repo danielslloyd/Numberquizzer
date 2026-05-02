@@ -44,6 +44,9 @@ class MathAnimator {
         this.animationFrameId = null;
         this.disposed = false;
         this.spacing = 2;
+        this.hasFilled = false;
+        this.preDropState = null;
+        this.dropAborted = false;
 
         this.resizeHandler = () => this.onWindowResize();
         window.addEventListener('resize', this.resizeHandler);
@@ -204,9 +207,8 @@ class MathAnimator {
             const expr = c ? `${a} × ${b} × ${c}` : `${a} × ${b}`;
             this.createLabel(`${expr} = ${result}`, 0, topY + 4, 0);
 
-            // Drop physics
-            await this.dropPhysics();
-
+            // Stay in formation; user must click DROP to start physics
+            this.hasFilled = true;
             this.isAnimating = false;
         } catch (e) {
             console.error('Animation error:', e);
@@ -305,9 +307,8 @@ class MathAnimator {
             // Show label
             this.createLabel(`${expressionStr} = ${totalResult}`, 0, maxTopY + 4, 0);
 
-            // Drop physics
-            await this.dropPhysics();
-
+            // Stay in formation; user must click DROP to start physics
+            this.hasFilled = true;
             this.isAnimating = false;
         } catch (e) {
             console.error('Animation error:', e);
@@ -322,6 +323,8 @@ class MathAnimator {
 
         // Create every cube up front at its final position and size — no scaling.
         // Start y at -6.5 so the bottom layer drops exactly 3 cube heights.
+        // Disable castShadow until the cube is fully opaque so shadows don't
+        // appear before the blocks themselves during fade-in.
         const cells = [];
         for (let layer = 0; layer < c; layer++) {
             for (let row = 0; row < b; row++) {
@@ -330,6 +333,7 @@ class MathAnimator {
                     const z = offsetZ + row * s;
                     const y = -6.5 + layer * s;
                     const mesh = this.createCube(x, y, z, 1, color);
+                    mesh.castShadow = false;
                     mesh.material.transparent = true;
                     mesh.material.opacity = 0;
                     cells.push(mesh);
@@ -350,6 +354,9 @@ class MathAnimator {
                 for (let i = 0; i < cells.length; i++) {
                     const t = Math.max(0, Math.min(1, (elapsed - i * stagger) / cellFade));
                     cells[i].material.opacity = t;
+                    if (t >= 1 && !cells[i].castShadow) {
+                        cells[i].castShadow = true;
+                    }
                     if (t < 1) allDone = false;
                 }
                 if (allDone) {
@@ -433,37 +440,54 @@ class MathAnimator {
         });
     }
 
-    async dropPhysics() {
-        // Convert Three.js meshes to physics bodies
+    async startDrop() {
+        if (!this.hasFilled || this.isAnimating) return;
+        this.isAnimating = true;
+        this.dropAborted = false;
+
+        // Snapshot mesh positions/orientations so RESET can snap back here
+        this.preDropState = this.cubes.map(({ mesh }) => ({
+            mesh,
+            position: mesh.position.clone(),
+            quaternion: mesh.quaternion.clone()
+        }));
+
+        // Create physics bodies at the meshes' current positions (no extra
+        // y offset — meshes already start at -6.5, three units above the
+        // floor's resting plane).
         for (const { mesh, color, size } of this.cubes) {
-            const body = this.physics.createCube(
+            this.physics.createCube(
                 mesh.position.x,
-                mesh.position.y + 10,
+                mesh.position.y,
                 mesh.position.z,
                 size,
                 color
             );
         }
 
-        // Simulate physics until settled
         const maxIterations = 300;
         let iterations = 0;
 
         return new Promise(resolve => {
             const simulate = () => {
+                if (this.dropAborted) {
+                    this.isAnimating = false;
+                    resolve();
+                    return;
+                }
+
                 this.physics.step();
 
-                // Update Three.js meshes from physics bodies
                 for (let i = 0; i < this.cubes.length; i++) {
                     const { mesh } = this.cubes[i];
                     const physicsBody = this.physics.bodies[i];
                     if (physicsBody) {
                         const state = this.physics.getBodyState(physicsBody.body);
-                        mesh.position.copy(new THREE.Vector3(
+                        mesh.position.set(
                             state.position.x,
                             state.position.y,
                             state.position.z
-                        ));
+                        );
                         mesh.quaternion.set(
                             state.quaternion.x,
                             state.quaternion.y,
@@ -476,6 +500,7 @@ class MathAnimator {
                 iterations++;
 
                 if (this.physics.hasSettled() || iterations > maxIterations) {
+                    this.isAnimating = false;
                     resolve();
                 } else {
                     requestAnimationFrame(simulate);
@@ -483,6 +508,23 @@ class MathAnimator {
             };
             simulate();
         });
+    }
+
+    snapBackToFormation() {
+        if (!this.preDropState) return;
+
+        // Break out of the simulation loop if it's still running
+        this.dropAborted = true;
+
+        // Restore each mesh to its pre-drop position and orientation
+        for (const { mesh, position, quaternion } of this.preDropState) {
+            mesh.position.copy(position);
+            mesh.quaternion.copy(quaternion);
+        }
+
+        // Drop physics bodies so a subsequent DROP starts clean
+        this.physics.clear();
+        this.isAnimating = false;
     }
 
     generateColors(count) {
@@ -526,6 +568,11 @@ class MathAnimator {
             cancelAnimationFrame(this.animationFrameId);
             this.animationFrameId = null;
         }
+
+        // Reset drop tracking
+        this.hasFilled = false;
+        this.preDropState = null;
+        this.dropAborted = false;
 
         // Reset camera
         this.camera.position.set(0, 8, 12);
