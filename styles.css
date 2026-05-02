@@ -757,6 +757,32 @@ body {
     background-color: #fffbf0;
 }
 
+.visualizer-spacing-bar {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.75rem 2rem;
+    background-color: #ffffff;
+    border-bottom: 3px solid #000000;
+    font-weight: 600;
+    font-size: 1rem;
+}
+
+.visualizer-spacing-bar label {
+    min-width: 80px;
+}
+
+.visualizer-spacing-bar input[type="range"] {
+    flex: 1;
+    max-width: 360px;
+}
+
+.visualizer-spacing-bar span {
+    min-width: 3ch;
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
 .visualizer-canvas-container {
     flex: 1;
     width: 100%;

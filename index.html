@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=8">
+    <link rel="stylesheet" href="styles.css?v=9">
 </head>
 <body>
 
@@ -244,6 +244,18 @@
                 >
                 <button id="visualizer-reset-btn" class="btn btn-secondary">Reset</button>
             </div>
+            <div class="visualizer-spacing-bar">
+                <label for="visualizer-spacing">Spacing</label>
+                <input
+                    type="range"
+                    id="visualizer-spacing"
+                    min="1"
+                    max="4"
+                    step="0.1"
+                    value="2"
+                >
+                <span id="visualizer-spacing-value">2.0</span>
+            </div>
             <div id="visualizer-canvas-container" class="visualizer-canvas-container">
                 <!-- Three.js canvas will be inserted here -->
             </div>
@@ -259,9 +271,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
 
-    <script src="parser.js?v=8"></script>
-    <script src="physics.js?v=8"></script>
-    <script src="animator.js?v=8"></script>
-    <script src="app.js?v=8"></script>
+    <script src="parser.js?v=9"></script>
+    <script src="physics.js?v=9"></script>
+    <script src="animator.js?v=9"></script>
+    <script src="app.js?v=9"></script>
 </body>
 </html>
