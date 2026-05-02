@@ -803,6 +803,11 @@ function handleVisualizerInput(input) {
         return;
     }
 
+    if (!state.visualizerAnimator) {
+        alert('Visualizer is not ready yet. Please try again in a moment.');
+        return;
+    }
+
     // Lock input and start animation
     const inputEl = document.getElementById('visualizer-input');
     const resetBtn = document.getElementById('visualizer-reset-btn');

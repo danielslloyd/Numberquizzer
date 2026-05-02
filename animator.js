@@ -28,7 +28,7 @@ class MathAnimator {
         );
         this.renderer.setPixelRatio(window.devicePixelRatio || 1);
         this.renderer.shadowMap.enabled = true;
-        this.renderer.shadowMap.type = THREE.PCFShadowShadowMap;
+        this.renderer.shadowMap.type = THREE.PCFShadowMap;
 
         // Clear container and add canvas
         container.innerHTML = '';
