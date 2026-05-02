@@ -25,7 +25,8 @@ const state = {
     wsTimerInterval: null,
     wsDragState:     null,
     visualizerAnimator: null,
-    visualizerInput: '',
+    visualizerOp1: '×',
+    visualizerOp2: '×',
 };
 
 // ============================================
@@ -795,8 +796,20 @@ function initVisualizer() {
     startRenderLoop();
 }
 
-function handleVisualizerInput(input) {
-    const result = parseExpression(input);
+function handleVisualizerInput() {
+    // Read three input fields
+    const input1 = document.getElementById('visualizer-input-1').value.trim();
+    const input2 = document.getElementById('visualizer-input-2').value.trim();
+    const input3 = document.getElementById('visualizer-input-3').value.trim();
+
+    if (!input1 || !input2 || !input3) {
+        alert('Please enter all three numbers.');
+        return;
+    }
+
+    // Build expression from inputs and operators
+    const expression = `${input1} ${state.visualizerOp1} ${input2} ${state.visualizerOp2} ${input3}`;
+    const result = parseExpression(expression);
 
     if (!result.valid) {
         alert(result.error);
@@ -808,11 +821,12 @@ function handleVisualizerInput(input) {
         return;
     }
 
-    // Lock input and start animation
-    const inputEl = document.getElementById('visualizer-input');
-    const resetBtn = document.getElementById('visualizer-reset-btn');
-    inputEl.disabled = true;
-    resetBtn.disabled = false;
+    // Disable inputs during animation
+    document.getElementById('visualizer-input-1').disabled = true;
+    document.getElementById('visualizer-input-2').disabled = true;
+    document.getElementById('visualizer-input-3').disabled = true;
+    document.querySelectorAll('.visualizer-op-btn').forEach(btn => btn.disabled = true);
+    document.getElementById('visualizer-reset-btn').disabled = false;
 
     // Pick up the current spacing slider value before this run
     const spacingEl = document.getElementById('visualizer-spacing');
@@ -844,13 +858,15 @@ function handleVisualizerInput(input) {
 }
 
 function resetVisualizer() {
-    const inputEl = document.getElementById('visualizer-input');
-    const resetBtn = document.getElementById('visualizer-reset-btn');
-    const answerEl = document.getElementById('visualizer-answer');
+    // Reset input fields and re-enable
+    document.getElementById('visualizer-input-1').disabled = false;
+    document.getElementById('visualizer-input-2').disabled = false;
+    document.getElementById('visualizer-input-3').disabled = false;
+    document.querySelectorAll('.visualizer-op-btn').forEach(btn => btn.disabled = false);
+    document.getElementById('visualizer-reset-btn').disabled = true;
 
-    inputEl.value = '';
-    inputEl.disabled = false;
-    resetBtn.disabled = true;
+    // Hide answer display
+    const answerEl = document.getElementById('visualizer-answer');
     answerEl.classList.add('hidden');
     answerEl.textContent = '';
 
@@ -952,13 +968,23 @@ document.addEventListener('DOMContentLoaded', () => {
         resetVisualizer();
     });
 
-    document.getElementById('visualizer-input').addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            const input = e.target.value.trim();
-            if (input) {
-                handleVisualizerInput(input);
+    // Three input fields: Enter key on any triggers animation
+    ['visualizer-input-1', 'visualizer-input-2', 'visualizer-input-3'].forEach(id => {
+        document.getElementById(id).addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                handleVisualizerInput();
             }
-        }
+        });
+    });
+
+    // Operator buttons: toggle between × and +
+    document.querySelectorAll('.visualizer-op-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const opIndex = btn.dataset.opIndex;
+            const stateKey = `visualizerOp${opIndex}`;
+            state[stateKey] = state[stateKey] === '×' ? '+' : '×';
+            btn.textContent = state[stateKey];
+        });
     });
 
     document.getElementById('visualizer-reset-btn').addEventListener('click', resetVisualizer);

@@ -259,7 +259,7 @@ class MathAnimator {
                             for (let col = 0; col < a; col++) {
                                 const mesh = this.createCube(
                                     startX + col * s,
-                                    0.5 + layer * s,
+                                    -6.5 + layer * s,
                                     offsetZ + row * s,
                                     1,
                                     color
@@ -276,7 +276,7 @@ class MathAnimator {
                     for (let j = 0; j < group.value; j++) {
                         const mesh = this.createCube(
                             startX + j * s,
-                            0.5,
+                            -6.5,
                             0,
                             1,
                             color
@@ -321,13 +321,14 @@ class MathAnimator {
         const offsetZ = -(b - 1) * s / 2;
 
         // Create every cube up front at its final position and size — no scaling.
+        // Start y at -6.5 so the bottom layer drops exactly 3 cube heights.
         const cells = [];
         for (let layer = 0; layer < c; layer++) {
             for (let row = 0; row < b; row++) {
                 for (let col = 0; col < a; col++) {
                     const x = offsetX + col * s;
                     const z = offsetZ + row * s;
-                    const y = 0.5 + layer * s;
+                    const y = -6.5 + layer * s;
                     const mesh = this.createCube(x, y, z, 1, color);
                     mesh.material.transparent = true;
                     mesh.material.opacity = 0;
