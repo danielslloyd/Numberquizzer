@@ -814,6 +814,13 @@ function handleVisualizerInput(input) {
     inputEl.disabled = true;
     resetBtn.disabled = false;
 
+    // Pick up the current spacing slider value before this run
+    const spacingEl = document.getElementById('visualizer-spacing');
+    const spacing = parseFloat(spacingEl.value);
+    if (Number.isFinite(spacing) && spacing > 0) {
+        state.visualizerAnimator.spacing = spacing;
+    }
+
     // Get visual structure
     const visualStruct = getVisualStructure(result.ast);
 
@@ -955,6 +962,17 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     document.getElementById('visualizer-reset-btn').addEventListener('click', resetVisualizer);
+
+    // Spacing slider: keep displayed value in sync as the user drags
+    const spacingSlider = document.getElementById('visualizer-spacing');
+    const spacingValueEl = document.getElementById('visualizer-spacing-value');
+    if (spacingSlider && spacingValueEl) {
+        const updateSpacingLabel = () => {
+            spacingValueEl.textContent = parseFloat(spacingSlider.value).toFixed(1);
+        };
+        spacingSlider.addEventListener('input', updateSpacingLabel);
+        updateSpacingLabel();
+    }
 
     document.getElementById('visualizer-home-btn').addEventListener('click', () => {
         if (state.visualizerAnimator) {

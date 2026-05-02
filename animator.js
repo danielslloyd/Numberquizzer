@@ -43,6 +43,7 @@ class MathAnimator {
         this.isAnimating = false;
         this.animationFrameId = null;
         this.disposed = false;
+        this.spacing = 2;
 
         this.resizeHandler = () => this.onWindowResize();
         window.addEventListener('resize', this.resizeHandler);
@@ -186,27 +187,24 @@ class MathAnimator {
         this.isAnimating = true;
         this.clear();
 
+        const layers = c || 1;
         const colors = this.generateColors(1);
         const cubeColor = colors[0];
         const result = c ? a * b * c : a * b;
 
+        // Frame the camera for this stack before any cubes appear
+        this.setupCameraForBox(a, b, layers);
+
         try {
-            // 1. Draw and fill grid
-            await this.drawAndFillGrid(a, b, cubeColor);
+            // Place every cube at its final position; fade them all in over 2s
+            await this.fillBox(a, b, layers, cubeColor);
 
-            // 2. Extrude to 1-unit tall cubes
-            await this.extrudeToUnit(a, b, 1);
-
-            if (c) {
-                // 3. Stack additional layers along Y to form a 3D prism
-                await this.extrude3D(a, b, c, cubeColor);
-            }
-
-            // 4. Show label
+            // Show label above the stack
+            const topY = 1 + (layers - 1) * this.spacing;
             const expr = c ? `${a} × ${b} × ${c}` : `${a} × ${b}`;
-            this.createLabel(`${expr} = ${result}`, 0, 15, 0);
+            this.createLabel(`${expr} = ${result}`, 0, topY + 4, 0);
 
-            // 5. Drop physics
+            // Drop physics
             await this.dropPhysics();
 
             this.isAnimating = false;
@@ -220,66 +218,64 @@ class MathAnimator {
         this.isAnimating = true;
         this.clear();
 
+        const s = this.spacing;
+
         try {
-            // Render groups separately
             const renderedGroups = [];
             let totalResult = 0;
             let expressionStr = '';
             const colors = this.generateColors(Math.max(groups.length, 2));
 
+            // Make group separation scale with spacing so groups never overlap
+            let maxGroupWidth = 1;
+            for (const g of groups) {
+                if (g.type === 'multiply') {
+                    maxGroupWidth = Math.max(maxGroupWidth, ((g.a || 1) - 1) * s + 1);
+                } else if (g.type === 'number') {
+                    maxGroupWidth = Math.max(maxGroupWidth, ((g.value || 1) - 1) * s + 1);
+                }
+            }
+            const groupGap = maxGroupWidth + 2 * s + 2;
+
+            let maxTopY = 1;
+
             for (let i = 0; i < groups.length; i++) {
                 const group = groups[i];
                 const color = colors[i % colors.length];
+                const startX = (i - (groups.length - 1) / 2) * groupGap;
                 let groupResult = 0;
-                let groupMeshes = [];
+                const groupMeshes = [];
 
                 if (group.type === 'multiply') {
                     const a = group.a || 1;
                     const b = group.b || 1;
-                    const c = group.c || null;
-                    groupResult = c ? a * b * c : a * b;
+                    const c = group.c || 1;
+                    groupResult = a * b * c;
 
-                    // Create grid for this group
-                    const spacing = 1.5;
-                    const startX = (i - (groups.length - 1) / 2) * 10;
-                    for (let row = 0; row < b; row++) {
-                        for (let col = 0; col < a; col++) {
-                            const mesh = this.createCube(
-                                startX + col * spacing,
-                                0.5,
-                                row * spacing,
-                                1,
-                                color
-                            );
-                            groupMeshes.push(mesh);
-                        }
-                    }
+                    const offsetZ = -(b - 1) * s / 2;
 
-                    if (c) {
-                        // Add depth layers
-                        for (let layer = 1; layer < c; layer++) {
-                            for (let row = 0; row < b; row++) {
-                                for (let col = 0; col < a; col++) {
-                                    const mesh = this.createCube(
-                                        startX + col * spacing,
-                                        0.5,
-                                        row * spacing - layer * spacing,
-                                        1,
-                                        color
-                                    );
-                                    groupMeshes.push(mesh);
-                                }
+                    for (let layer = 0; layer < c; layer++) {
+                        for (let row = 0; row < b; row++) {
+                            for (let col = 0; col < a; col++) {
+                                const mesh = this.createCube(
+                                    startX + col * s,
+                                    0.5 + layer * s,
+                                    offsetZ + row * s,
+                                    1,
+                                    color
+                                );
+                                groupMeshes.push(mesh);
                             }
                         }
                     }
 
-                    expressionStr += (expressionStr ? ' + ' : '') + `${a}×${b}` + (c ? `×${c}` : '');
+                    expressionStr += (expressionStr ? ' + ' : '') + `${a}×${b}` + (c > 1 ? `×${c}` : '');
+                    maxTopY = Math.max(maxTopY, 1 + (c - 1) * s);
                 } else if (group.type === 'number') {
                     groupResult = group.value;
-                    const startX = (i - (groups.length - 1) / 2) * 10;
                     for (let j = 0; j < group.value; j++) {
                         const mesh = this.createCube(
-                            startX + j * 1.5,
+                            startX + j * s,
                             0.5,
                             0,
                             1,
@@ -293,17 +289,21 @@ class MathAnimator {
                 totalResult += groupResult;
                 renderedGroups.push({
                     meshes: groupMeshes,
-                    startX: (i - (groups.length - 1) / 2) * 10,
+                    startX,
                     groupIndex: i,
                     totalGroups: groups.length
                 });
             }
 
-            // Animate groups sliding together
+            // Frame camera to fit all groups in their initial spread positions
+            const totalWidth = (groups.length - 1) * groupGap + maxGroupWidth;
+            this.setupCameraForExtents(totalWidth, maxGroupWidth, maxTopY);
+
+            // Slide groups toward center
             await this.slideGroupsTogether(renderedGroups);
 
             // Show label
-            this.createLabel(`${expressionStr} = ${totalResult}`, 0, 15, 0);
+            this.createLabel(`${expressionStr} = ${totalResult}`, 0, maxTopY + 4, 0);
 
             // Drop physics
             await this.dropPhysics();
@@ -315,27 +315,31 @@ class MathAnimator {
         }
     }
 
-    async drawAndFillGrid(cols, rows, color) {
-        const spacing = 2;
-        const offsetX = -(cols - 1) * spacing / 2;
-        const offsetZ = -(rows - 1) * spacing / 2;
+    async fillBox(a, b, c, color) {
+        const s = this.spacing;
+        const offsetX = -(a - 1) * s / 2;
+        const offsetZ = -(b - 1) * s / 2;
 
-        const totalCells = cols * rows;
-        const fillDuration = 1500; // fixed total fill window
-        const cellFade = 250;
-        const stagger = totalCells > 1 ? (fillDuration - cellFade) / (totalCells - 1) : 0;
-
+        // Create every cube up front at its final position and size — no scaling.
         const cells = [];
-        for (let row = 0; row < rows; row++) {
-            for (let col = 0; col < cols; col++) {
-                const x = offsetX + col * spacing;
-                const z = offsetZ + row * spacing;
-                const mesh = this.createCube(x, 0.5, z, 1, color);
-                mesh.material.transparent = true;
-                mesh.material.opacity = 0;
-                cells.push(mesh);
+        for (let layer = 0; layer < c; layer++) {
+            for (let row = 0; row < b; row++) {
+                for (let col = 0; col < a; col++) {
+                    const x = offsetX + col * s;
+                    const z = offsetZ + row * s;
+                    const y = 0.5 + layer * s;
+                    const mesh = this.createCube(x, y, z, 1, color);
+                    mesh.material.transparent = true;
+                    mesh.material.opacity = 0;
+                    cells.push(mesh);
+                }
             }
         }
+
+        const total = cells.length;
+        const fillDuration = 2000; // fixed window regardless of cube count
+        const cellFade = 250;
+        const stagger = total > 1 ? (fillDuration - cellFade) / (total - 1) : 0;
 
         const startTime = Date.now();
         return new Promise(resolve => {
@@ -343,8 +347,7 @@ class MathAnimator {
                 const elapsed = Date.now() - startTime;
                 let allDone = true;
                 for (let i = 0; i < cells.length; i++) {
-                    const cellStart = i * stagger;
-                    const t = Math.max(0, Math.min(1, (elapsed - cellStart) / cellFade));
+                    const t = Math.max(0, Math.min(1, (elapsed - i * stagger) / cellFade));
                     cells[i].material.opacity = t;
                     if (t < 1) allDone = false;
                 }
@@ -358,66 +361,45 @@ class MathAnimator {
         });
     }
 
-    async extrudeToUnit(cols, rows, height) {
-        const duration = 500;
-        const start = Date.now();
-
-        return new Promise(resolve => {
-            const animate = () => {
-                const elapsed = Date.now() - start;
-                const t = Math.min(1, elapsed / duration);
-
-                for (const { mesh } of this.cubes) {
-                    mesh.scale.y = t;
-                    mesh.position.y = 0.5 * t;
-                }
-
-                if (t < 1) {
-                    requestAnimationFrame(animate);
-                } else {
-                    resolve();
-                }
-            };
-            animate();
-        });
+    setupCameraForBox(a, b, c) {
+        const xExtent = (a - 1) * this.spacing + 1;
+        const zExtent = (b - 1) * this.spacing + 1;
+        const topY = 1 + (c - 1) * this.spacing;
+        this.setupCameraForExtents(xExtent, zExtent, topY);
     }
 
-    async extrude3D(a, b, c, color) {
-        const spacing = 2;
-        const offsetX = -(a - 1) * spacing / 2;
-        const offsetZ = -(b - 1) * spacing / 2;
-        const verticalStep = spacing;
+    setupCameraForExtents(xExtent, zExtent, topY) {
+        // Frame so the floor center (y = -10) and top of the stack are both
+        // visible, with margin = 2 × current spacing on every side.
+        const margin = 2 * this.spacing;
+        const floorY = -10;
 
-        // Stack additional layers vertically along +Y, one at a time
-        for (let layer = 1; layer < c; layer++) {
-            const layerCubes = [];
-            for (let row = 0; row < b; row++) {
-                for (let col = 0; col < a; col++) {
-                    const x = offsetX + col * spacing;
-                    const z = offsetZ + row * spacing;
-                    const y = 0.5 + layer * verticalStep;
-                    const mesh = this.createCube(x, y, z, 1, color);
-                    mesh.material.transparent = true;
-                    mesh.material.opacity = 0;
-                    layerCubes.push(mesh);
-                }
-            }
+        const targetY = (topY + floorY) / 2;
+        const halfHeight = (topY - floorY) / 2 + margin;
+        const halfWidth = Math.max(xExtent, zExtent) / 2 + margin;
 
-            const duration = 350;
-            const start = Date.now();
-            await new Promise(resolve => {
-                const animate = () => {
-                    const t = Math.min(1, (Date.now() - start) / duration);
-                    for (const mesh of layerCubes) mesh.material.opacity = t;
-                    if (t < 1) {
-                        requestAnimationFrame(animate);
-                    } else {
-                        resolve();
-                    }
-                };
-                animate();
-            });
-        }
+        this.frameToShow(new THREE.Vector3(0, targetY, 0), halfWidth, halfHeight);
+    }
+
+    frameToShow(target, halfWidth, halfHeight) {
+        const fovRad = this.camera.fov * Math.PI / 180;
+        const aspect = this.camera.aspect || 1;
+        const tanHalfFov = Math.tan(fovRad / 2);
+
+        // Distance needed for vertical fit, and for horizontal fit
+        const distV = halfHeight / tanHalfFov;
+        const distH = halfWidth / (aspect * tanHalfFov);
+        const dist = Math.max(distV, distH);
+
+        // Camera tilted 30° above target, pulled back along +Z
+        const angle = Math.PI / 6;
+        this.camera.position.set(
+            target.x,
+            target.y + dist * Math.sin(angle),
+            target.z + dist * Math.cos(angle)
+        );
+        this.camera.lookAt(target.x, target.y, target.z);
+        this.camera.updateProjectionMatrix();
     }
 
     async slideGroupsTogether(groups) {
