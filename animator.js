@@ -80,6 +80,61 @@ class MathAnimator {
         floor.position.y = -10;
         floor.receiveShadow = true;
         this.scene.add(floor);
+
+        this.setupAxisLabels();
+    }
+
+    setupAxisLabels() {
+        // Axis origin tucked into the bottom-left-front corner so it's
+        // always visible and never collides with the cube grid.
+        const origin = new THREE.Vector3(-12, -9.5, 6);
+        const axisLength = 4;
+
+        const axes = new THREE.AxesHelper(axisLength);
+        axes.position.copy(origin);
+        // Make the helper render on top of the floor
+        axes.material.depthTest = false;
+        axes.renderOrder = 999;
+        this.scene.add(axes);
+
+        const makeLabel = (text, color) => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 128;
+            canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, 128, 128);
+            ctx.fillStyle = color;
+            ctx.font = 'bold 96px Arial, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(text, 64, 64);
+
+            const texture = new THREE.CanvasTexture(canvas);
+            texture.magFilter = THREE.LinearFilter;
+            texture.minFilter = THREE.LinearFilter;
+            const material = new THREE.SpriteMaterial({
+                map: texture,
+                depthTest: false,
+                transparent: true
+            });
+            const sprite = new THREE.Sprite(material);
+            sprite.scale.set(1.6, 1.6, 1);
+            sprite.renderOrder = 1000;
+            return sprite;
+        };
+
+        const offset = axisLength + 0.6;
+        const xLabel = makeLabel('X', '#d62828');
+        xLabel.position.set(origin.x + offset, origin.y, origin.z);
+        this.scene.add(xLabel);
+
+        const yLabel = makeLabel('Y', '#2a9d3f');
+        yLabel.position.set(origin.x, origin.y + offset, origin.z);
+        this.scene.add(yLabel);
+
+        const zLabel = makeLabel('Z', '#1d4ed8');
+        zLabel.position.set(origin.x, origin.y, origin.z + offset);
+        this.scene.add(zLabel);
     }
 
     createCube(x, y, z, size = 1, color = 0xff0000) {
@@ -131,19 +186,20 @@ class MathAnimator {
         this.isAnimating = true;
         this.clear();
 
-        const colors = this.generateColors(c ? c : 1);
+        const colors = this.generateColors(1);
+        const cubeColor = colors[0];
         const result = c ? a * b * c : a * b;
 
         try {
             // 1. Draw and fill grid
-            await this.drawAndFillGrid(a, b, colors[0]);
+            await this.drawAndFillGrid(a, b, cubeColor);
 
             // 2. Extrude to 1-unit tall cubes
             await this.extrudeToUnit(a, b, 1);
 
             if (c) {
-                // 3. Extrude into 3D prism
-                await this.extrude3D(a, b, c, colors);
+                // 3. Stack additional layers along Y to form a 3D prism
+                await this.extrude3D(a, b, c, cubeColor);
             }
 
             // 4. Show label
@@ -260,59 +316,50 @@ class MathAnimator {
     }
 
     async drawAndFillGrid(cols, rows, color) {
-        // Fade in empty grid cells
         const spacing = 2;
         const offsetX = -(cols - 1) * spacing / 2;
         const offsetZ = -(rows - 1) * spacing / 2;
 
-        const cellDuration = 50; // ms per cell
+        const totalCells = cols * rows;
+        const fillDuration = 1500; // fixed total fill window
+        const cellFade = 250;
+        const stagger = totalCells > 1 ? (fillDuration - cellFade) / (totalCells - 1) : 0;
+
+        const cells = [];
+        for (let row = 0; row < rows; row++) {
+            for (let col = 0; col < cols; col++) {
+                const x = offsetX + col * spacing;
+                const z = offsetZ + row * spacing;
+                const mesh = this.createCube(x, 0.5, z, 1, color);
+                mesh.material.transparent = true;
+                mesh.material.opacity = 0;
+                cells.push(mesh);
+            }
+        }
+
         const startTime = Date.now();
-
-        const createCell = () => {
-            let filledCount = 0;
-            const updateCell = () => {
+        return new Promise(resolve => {
+            const animate = () => {
                 const elapsed = Date.now() - startTime;
-                const targetCount = Math.floor(elapsed / cellDuration);
-
-                while (filledCount < targetCount && filledCount < cols * rows) {
-                    const row = Math.floor(filledCount / cols);
-                    const col = filledCount % cols;
-                    const x = offsetX + col * spacing;
-                    const z = offsetZ + row * spacing;
-
-                    const mesh = this.createCube(x, 0.5, z, 1, color);
-                    mesh.material.transparent = true;
-                    mesh.material.opacity = 0;
-
-                    const duration = 200;
-                    const start = Date.now();
-                    const animate = () => {
-                        const t = (Date.now() - start) / duration;
-                        if (t < 1) {
-                            mesh.material.opacity = Math.min(1, t);
-                            requestAnimationFrame(animate);
-                        }
-                    };
-                    animate();
-
-                    filledCount++;
+                let allDone = true;
+                for (let i = 0; i < cells.length; i++) {
+                    const cellStart = i * stagger;
+                    const t = Math.max(0, Math.min(1, (elapsed - cellStart) / cellFade));
+                    cells[i].material.opacity = t;
+                    if (t < 1) allDone = false;
                 }
-
-                if (filledCount < cols * rows) {
-                    requestAnimationFrame(updateCell);
+                if (allDone) {
+                    resolve();
+                } else {
+                    requestAnimationFrame(animate);
                 }
             };
-            updateCell();
-        };
-
-        return new Promise(resolve => {
-            createCell();
-            setTimeout(resolve, cols * rows * cellDuration + 300);
+            animate();
         });
     }
 
     async extrudeToUnit(cols, rows, height) {
-        const duration = 400;
+        const duration = 500;
         const start = Date.now();
 
         return new Promise(resolve => {
@@ -335,58 +382,42 @@ class MathAnimator {
         });
     }
 
-    async extrude3D(a, b, c, colors) {
+    async extrude3D(a, b, c, color) {
         const spacing = 2;
         const offsetX = -(a - 1) * spacing / 2;
         const offsetZ = -(b - 1) * spacing / 2;
+        const verticalStep = spacing;
 
-        // Add new layers for depth
+        // Stack additional layers vertically along +Y, one at a time
         for (let layer = 1; layer < c; layer++) {
+            const layerCubes = [];
             for (let row = 0; row < b; row++) {
                 for (let col = 0; col < a; col++) {
                     const x = offsetX + col * spacing;
                     const z = offsetZ + row * spacing;
-                    const mesh = this.createCube(x, 0.5, z - layer * spacing, 1, colors[layer % colors.length]);
+                    const y = 0.5 + layer * verticalStep;
+                    const mesh = this.createCube(x, y, z, 1, color);
                     mesh.material.transparent = true;
                     mesh.material.opacity = 0;
-
-                    const duration = 200;
-                    const start = Date.now();
-                    const animate = () => {
-                        const t = (Date.now() - start) / duration;
-                        if (t < 1) {
-                            mesh.material.opacity = Math.min(1, t);
-                            requestAnimationFrame(animate);
-                        }
-                    };
-                    animate();
+                    layerCubes.push(mesh);
                 }
             }
+
+            const duration = 350;
+            const start = Date.now();
+            await new Promise(resolve => {
+                const animate = () => {
+                    const t = Math.min(1, (Date.now() - start) / duration);
+                    for (const mesh of layerCubes) mesh.material.opacity = t;
+                    if (t < 1) {
+                        requestAnimationFrame(animate);
+                    } else {
+                        resolve();
+                    }
+                };
+                animate();
+            });
         }
-
-        // Orbit camera to show depth
-        const duration = 800;
-        const start = Date.now();
-        const initialCamPos = this.camera.position.clone();
-
-        return new Promise(resolve => {
-            const animate = () => {
-                const elapsed = Date.now() - start;
-                const t = Math.min(1, elapsed / duration);
-
-                const angle = (Math.PI / 6) * t;
-                this.camera.position.x = initialCamPos.x + Math.sin(angle) * 5;
-                this.camera.position.z = initialCamPos.z + Math.cos(angle) * 5;
-                this.camera.lookAt(0, 5, -3);
-
-                if (t < 1) {
-                    requestAnimationFrame(animate);
-                } else {
-                    resolve();
-                }
-            };
-            animate();
-        });
     }
 
     async slideGroupsTogether(groups) {
@@ -462,8 +493,6 @@ class MathAnimator {
                 iterations++;
 
                 if (this.physics.hasSettled() || iterations > maxIterations) {
-                    // Slow orbit camera around final pile
-                    this.startCameraOrbit();
                     resolve();
                 } else {
                     requestAnimationFrame(simulate);
@@ -471,25 +500,6 @@ class MathAnimator {
             };
             simulate();
         });
-    }
-
-    startCameraOrbit() {
-        const startAngle = 0;
-        const startTime = Date.now();
-        const orbitDuration = 4000;
-
-        const orbit = () => {
-            const elapsed = Date.now() - startTime;
-            const t = (elapsed % orbitDuration) / orbitDuration;
-            const angle = startAngle + t * Math.PI * 2;
-
-            this.camera.position.x = Math.cos(angle) * 15;
-            this.camera.position.z = Math.sin(angle) * 15;
-            this.camera.lookAt(0, 0, 0);
-
-            this.animationFrameId = requestAnimationFrame(orbit);
-        };
-        orbit();
     }
 
     generateColors(count) {
