@@ -790,6 +790,21 @@ body {
     background-color: #e0e0e0;
 }
 
+.visualizer-actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    flex-wrap: nowrap;
+}
+
+.visualizer-clear-btn {
+    width: 2.75rem;
+    min-width: 2.75rem;
+    padding: 0.7rem 0;
+    text-align: center;
+    font-size: 1rem;
+}
+
 .visualizer-spacing-bar {
     display: flex;
     align-items: center;
