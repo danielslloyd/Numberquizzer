@@ -42,7 +42,8 @@ class MathAnimator {
         this.setupLighting();
         this.setupEnvironment();
 
-        this.cubes = [];
+        this.cubeData = [];
+        this.instancedMesh = null;
         this.labels = [];
         this.physics = new PhysicsWorld();
         this.isAnimating = false;
@@ -85,6 +86,7 @@ class MathAnimator {
         console.log(`  Pixel ratio   : ${this.renderer.getPixelRatio()} (device DPR ${window.devicePixelRatio || 1})`);
         console.log(`  Max texture   : ${gl.getParameter(gl.MAX_TEXTURE_SIZE)}px`);
         console.log('  Three.js scene rendering runs on the GPU when acceleration is HARDWARE.');
+        console.log('  Cubes are batched into a single THREE.InstancedMesh — 1 draw call per scene.');
         console.log('  Cannon.js physics runs on the CPU (single-threaded JS) regardless.');
 
         if (isSoftware) {
@@ -185,20 +187,68 @@ class MathAnimator {
         this.scene.add(zLabel);
     }
 
-    createCube(x, y, z, size = 1, color = 0xff0000) {
-        const geometry = new THREE.BoxGeometry(size, size, size);
+    // Allocate a single THREE.InstancedMesh that will hold every cube for the
+    // current animation. One draw call covers all instances regardless of count.
+    _initInstancedMesh(count) {
+        if (this.instancedMesh) {
+            this.scene.remove(this.instancedMesh);
+            this.instancedMesh.geometry.dispose();
+            this.instancedMesh.material.dispose();
+            this.instancedMesh = null;
+        }
+
+        const geometry = new THREE.BoxGeometry(1, 1, 1);
         const material = new THREE.MeshStandardMaterial({
-            color,
+            color: 0xffffff, // white base — multiplied by instance color
             metalness: 0.3,
             roughness: 0.6
         });
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.position.set(x, y, z);
+
+        const mesh = new THREE.InstancedMesh(geometry, material, count);
         mesh.castShadow = true;
         mesh.receiveShadow = true;
+        // Disable frustum culling: physics scatters instances and the batch's
+        // bounds aren't recomputed each frame.
+        mesh.frustumCulled = false;
         this.scene.add(mesh);
-        this.cubes.push({ mesh, size, color });
+
+        this.instancedMesh = mesh;
+        this.cubeData = [];
+
+        console.log(
+            `[Render] Allocated InstancedMesh with capacity ${count} ` +
+            `(1 draw call covers every cube — GPU instancing)`
+        );
+
         return mesh;
+    }
+
+    // Write cubeData[i] into the i-th slot of the InstancedMesh's matrix buffer.
+    // Caller is responsible for setting instanceMatrix.needsUpdate after a batch.
+    _writeInstance(i) {
+        const data = this.cubeData[i];
+        MathAnimator._tmpScaleVec.set(data.scale, data.scale, data.scale);
+        MathAnimator._tmpMatrix.compose(data.position, data.quaternion, MathAnimator._tmpScaleVec);
+        this.instancedMesh.setMatrixAt(i, MathAnimator._tmpMatrix);
+    }
+
+    _markInstanceDirty() {
+        if (this.instancedMesh) {
+            this.instancedMesh.instanceMatrix.needsUpdate = true;
+        }
+    }
+
+    _addCube(x, y, z, color, scale = 1) {
+        const i = this.cubeData.length;
+        this.cubeData.push({
+            position: new THREE.Vector3(x, y, z),
+            quaternion: new THREE.Quaternion(),
+            scale,
+            color
+        });
+        this._writeInstance(i);
+        this.instancedMesh.setColorAt(i, color);
+        return i;
     }
 
     createLabel(text, x, y, z, size = 1) {
@@ -267,22 +317,28 @@ class MathAnimator {
         const s = this.spacing;
 
         try {
-            const renderedGroups = [];
             let totalResult = 0;
             let expressionStr = '';
             const colors = this.generateColors(Math.max(groups.length, 2));
 
-            // Make group separation scale with spacing so groups never overlap
+            // Pre-compute total cube count and max group width so we can size
+            // the InstancedMesh up front.
+            let totalCubes = 0;
             let maxGroupWidth = 1;
             for (const g of groups) {
                 if (g.type === 'multiply') {
+                    totalCubes += (g.a || 1) * (g.b || 1) * (g.c || 1);
                     maxGroupWidth = Math.max(maxGroupWidth, ((g.a || 1) - 1) * s + 1);
                 } else if (g.type === 'number') {
+                    totalCubes += (g.value || 1);
                     maxGroupWidth = Math.max(maxGroupWidth, ((g.value || 1) - 1) * s + 1);
                 }
             }
             const groupGap = maxGroupWidth + 2 * s + 2;
 
+            this._initInstancedMesh(totalCubes);
+
+            const renderedGroups = [];
             let maxTopY = 1;
 
             for (let i = 0; i < groups.length; i++) {
@@ -290,7 +346,7 @@ class MathAnimator {
                 const color = colors[i % colors.length];
                 const startX = (i - (groups.length - 1) / 2) * groupGap;
                 let groupResult = 0;
-                const groupMeshes = [];
+                const indices = []; // instance indices belonging to this group
 
                 if (group.type === 'multiply') {
                     const a = group.a || 1;
@@ -303,14 +359,14 @@ class MathAnimator {
                     for (let layer = 0; layer < c; layer++) {
                         for (let row = 0; row < b; row++) {
                             for (let col = 0; col < a; col++) {
-                                const mesh = this.createCube(
-                                    startX + col * s,
+                                const relX = col * s;
+                                const idx = this._addCube(
+                                    startX + relX,
                                     -6.5 + layer * s,
                                     offsetZ + row * s,
-                                    1,
                                     color
                                 );
-                                groupMeshes.push(mesh);
+                                indices.push({ idx, relX });
                             }
                         }
                     }
@@ -320,25 +376,30 @@ class MathAnimator {
                 } else if (group.type === 'number') {
                     groupResult = group.value;
                     for (let j = 0; j < group.value; j++) {
-                        const mesh = this.createCube(
-                            startX + j * s,
+                        const relX = j * s;
+                        const idx = this._addCube(
+                            startX + relX,
                             -6.5,
                             0,
-                            1,
                             color
                         );
-                        groupMeshes.push(mesh);
+                        indices.push({ idx, relX });
                     }
                     expressionStr += (expressionStr ? ' + ' : '') + group.value;
                 }
 
                 totalResult += groupResult;
                 renderedGroups.push({
-                    meshes: groupMeshes,
+                    indices,
                     startX,
                     groupIndex: i,
                     totalGroups: groups.length
                 });
+            }
+
+            this._markInstanceDirty();
+            if (this.instancedMesh.instanceColor) {
+                this.instancedMesh.instanceColor.needsUpdate = true;
             }
 
             // Frame camera to fit all groups in their initial spread positions
@@ -364,45 +425,48 @@ class MathAnimator {
         const s = this.spacing;
         const offsetX = -(a - 1) * s / 2;
         const offsetZ = -(b - 1) * s / 2;
+        const total = a * b * c;
 
-        // Create every cube up front at its final position and size — no scaling.
-        // Start y at -6.5 so the bottom layer drops exactly 3 cube heights.
-        // Disable castShadow until the cube is fully opaque so shadows don't
-        // appear before the blocks themselves during fade-in.
-        const cells = [];
+        // One InstancedMesh holds every cube for this expression.
+        this._initInstancedMesh(total);
+
+        // Create every instance at its final position with scale 0 (a zero-volume
+        // cube renders no fragments and casts no shadow, so we get the desired
+        // staggered reveal AND no shadow-before-block flash, without needing
+        // a custom shader for per-instance opacity).
         for (let layer = 0; layer < c; layer++) {
             for (let row = 0; row < b; row++) {
                 for (let col = 0; col < a; col++) {
                     const x = offsetX + col * s;
                     const z = offsetZ + row * s;
                     const y = -6.5 + layer * s;
-                    const mesh = this.createCube(x, y, z, 1, color);
-                    mesh.castShadow = false;
-                    mesh.material.transparent = true;
-                    mesh.material.opacity = 0;
-                    cells.push(mesh);
+                    this._addCube(x, y, z, color, 0);
                 }
             }
         }
+        this._markInstanceDirty();
+        if (this.instancedMesh.instanceColor) {
+            this.instancedMesh.instanceColor.needsUpdate = true;
+        }
 
-        const total = cells.length;
         const fillDuration = 2000; // fixed window regardless of cube count
-        const cellFade = 250;
-        const stagger = total > 1 ? (fillDuration - cellFade) / (total - 1) : 0;
+        const cellGrow = 250;
+        const stagger = total > 1 ? (fillDuration - cellGrow) / (total - 1) : 0;
 
         const startTime = Date.now();
         return new Promise(resolve => {
             const animate = () => {
                 const elapsed = Date.now() - startTime;
                 let allDone = true;
-                for (let i = 0; i < cells.length; i++) {
-                    const t = Math.max(0, Math.min(1, (elapsed - i * stagger) / cellFade));
-                    cells[i].material.opacity = t;
-                    if (t >= 1 && !cells[i].castShadow) {
-                        cells[i].castShadow = true;
+                for (let i = 0; i < total; i++) {
+                    const t = Math.max(0, Math.min(1, (elapsed - i * stagger) / cellGrow));
+                    if (this.cubeData[i].scale !== t) {
+                        this.cubeData[i].scale = t;
+                        this._writeInstance(i);
                     }
                     if (t < 1) allDone = false;
                 }
+                this._markInstanceDirty();
                 if (allDone) {
                     resolve();
                 } else {
@@ -463,16 +527,17 @@ class MathAnimator {
                 const elapsed = Date.now() - start;
                 const t = Math.min(1, elapsed / duration);
 
+                // Each group's center moves linearly from its startX toward 0.
+                // For an instance with offset relX from the group center, its
+                // current x is (startX * (1 - t) + relX).
                 for (const group of groups) {
-                    const targetX = 0;
-                    const moveDistance = Math.abs(group.startX - targetX);
-                    const direction = group.startX < 0 ? 1 : -1;
-                    const newX = group.startX + (moveDistance * t * direction);
-
-                    for (const mesh of group.meshes) {
-                        mesh.position.x = newX;
+                    const groupX = group.startX * (1 - t);
+                    for (const { idx, relX } of group.indices) {
+                        this.cubeData[idx].position.x = groupX + relX;
+                        this._writeInstance(idx);
                     }
                 }
+                this._markInstanceDirty();
 
                 if (t < 1) {
                     requestAnimationFrame(animate);
@@ -489,37 +554,41 @@ class MathAnimator {
         this.isAnimating = true;
         this.dropAborted = false;
 
-        // Snapshot mesh positions/orientations so RESET can snap back here
-        this.preDropState = this.cubes.map(({ mesh }) => ({
-            mesh,
-            position: mesh.position.clone(),
-            quaternion: mesh.quaternion.clone()
+        // Snapshot each cube's pre-drop position/orientation so RESET can
+        // snap back here. Quaternion is normally identity at this point but
+        // we clone in case a slide left some non-identity rotation.
+        this.preDropState = this.cubeData.map(d => ({
+            position: d.position.clone(),
+            quaternion: d.quaternion.clone()
         }));
 
-        // Create physics bodies at the meshes' current positions (no extra
-        // y offset — meshes already start at -6.5, three units above the
-        // floor's resting plane).
-        for (const { mesh, color, size } of this.cubes) {
+        // Create one CPU physics body per instance at the instance's current
+        // visual position (no extra y offset — instance is already at -6.5,
+        // three units above the floor's resting plane).
+        for (const data of this.cubeData) {
             this.physics.createCube(
-                mesh.position.x,
-                mesh.position.y,
-                mesh.position.z,
-                size,
-                color
+                data.position.x,
+                data.position.y,
+                data.position.z,
+                1,
+                data.color
             );
         }
 
         const maxIterations = 300;
         let iterations = 0;
 
-        // Per-frame timing: how much each frame spends in physics (CPU)
-        // vs mesh updates (CPU) — render itself runs separately on the GPU.
+        // Per-frame timing: how much each frame spends in CPU physics vs
+        // CPU instance-matrix updates. The actual GPU render is separate.
         const logEveryN = 60;
         let physicsTimeMs = 0;
         let meshUpdateTimeMs = 0;
         const dropStart = performance.now();
-        const cubeCount = this.cubes.length;
-        console.log(`[Drop] Starting physics simulation: ${cubeCount} bodies (CPU)`);
+        const cubeCount = this.cubeData.length;
+        console.log(
+            `[Drop] Starting physics simulation: ${cubeCount} bodies (CPU). ` +
+            `Visual is one InstancedMesh — render cost is roughly constant in cube count.`
+        );
 
         return new Promise(resolve => {
             const simulate = () => {
@@ -535,24 +604,26 @@ class MathAnimator {
                 physicsTimeMs += performance.now() - physStart;
 
                 const meshStart = performance.now();
-                for (let i = 0; i < this.cubes.length; i++) {
-                    const { mesh } = this.cubes[i];
+                for (let i = 0; i < this.cubeData.length; i++) {
                     const physicsBody = this.physics.bodies[i];
                     if (physicsBody) {
                         const state = this.physics.getBodyState(physicsBody.body);
-                        mesh.position.set(
+                        const data = this.cubeData[i];
+                        data.position.set(
                             state.position.x,
                             state.position.y,
                             state.position.z
                         );
-                        mesh.quaternion.set(
+                        data.quaternion.set(
                             state.quaternion.x,
                             state.quaternion.y,
                             state.quaternion.z,
                             state.quaternion.w
                         );
+                        this._writeInstance(i);
                     }
                 }
+                this._markInstanceDirty();
                 meshUpdateTimeMs += performance.now() - meshStart;
 
                 iterations++;
@@ -562,7 +633,7 @@ class MathAnimator {
                     const avgMesh = (meshUpdateTimeMs / logEveryN).toFixed(2);
                     console.log(
                         `[Drop] frame ${iterations}: avg physics step ${avgPhys}ms, ` +
-                        `mesh-sync ${avgMesh}ms (CPU work; GPU render is separate)`
+                        `instance-sync ${avgMesh}ms (CPU work; GPU render is separate)`
                     );
                     physicsTimeMs = 0;
                     meshUpdateTimeMs = 0;
@@ -590,11 +661,16 @@ class MathAnimator {
         // Break out of the simulation loop if it's still running
         this.dropAborted = true;
 
-        // Restore each mesh to its pre-drop position and orientation
-        for (const { mesh, position, quaternion } of this.preDropState) {
-            mesh.position.copy(position);
-            mesh.quaternion.copy(quaternion);
+        // Restore each instance to its pre-drop position and orientation
+        for (let i = 0; i < this.preDropState.length; i++) {
+            const snap = this.preDropState[i];
+            const data = this.cubeData[i];
+            if (!data) continue;
+            data.position.copy(snap.position);
+            data.quaternion.copy(snap.quaternion);
+            this._writeInstance(i);
         }
+        this._markInstanceDirty();
 
         // Drop physics bodies so a subsequent DROP starts clean
         this.physics.clear();
@@ -618,13 +694,14 @@ class MathAnimator {
     }
 
     clear() {
-        // Remove all cubes
-        for (const { mesh } of this.cubes) {
-            this.scene.remove(mesh);
-            mesh.geometry.dispose();
-            mesh.material.dispose();
+        // Drop the InstancedMesh holding all cubes
+        if (this.instancedMesh) {
+            this.scene.remove(this.instancedMesh);
+            this.instancedMesh.geometry.dispose();
+            this.instancedMesh.material.dispose();
+            this.instancedMesh = null;
         }
-        this.cubes = [];
+        this.cubeData = [];
 
         // Remove all labels
         for (const label of this.labels) {
@@ -686,3 +763,8 @@ class MathAnimator {
         }
     }
 }
+
+// Scratch objects shared across all MathAnimator instances — avoids
+// allocating thousands of Matrix4/Vector3 per frame during physics.
+MathAnimator._tmpMatrix = new THREE.Matrix4();
+MathAnimator._tmpScaleVec = new THREE.Vector3();
