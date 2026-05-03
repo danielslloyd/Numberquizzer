@@ -21,12 +21,17 @@ class MathAnimator {
         this.camera.position.set(0, 8, 12);
         this.camera.lookAt(0, 0, 0);
 
-        this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+        this.renderer = new THREE.WebGLRenderer({
+            antialias: true,
+            alpha: false,
+            powerPreference: 'high-performance'
+        });
         this.renderer.setSize(
             container.clientWidth || window.innerWidth,
             container.clientHeight || window.innerHeight
         );
-        this.renderer.setPixelRatio(window.devicePixelRatio || 1);
+        // Cap pixel ratio at 2 — uncapped retina would render 4× the pixels
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFShadowMap;
 
@@ -50,6 +55,45 @@ class MathAnimator {
 
         this.resizeHandler = () => this.onWindowResize();
         window.addEventListener('resize', this.resizeHandler);
+
+        this.logRendererInfo();
+    }
+
+    logRendererInfo() {
+        const gl = this.renderer.getContext();
+        const isWebGL2 = (typeof WebGL2RenderingContext !== 'undefined') && (gl instanceof WebGL2RenderingContext);
+        const debugInfo = gl.getExtension('WEBGL_debug_renderer_info');
+
+        let vendor = 'unknown';
+        let renderer = 'unknown';
+        if (debugInfo) {
+            vendor = gl.getParameter(debugInfo.UNMASKED_VENDOR_WEBGL);
+            renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL);
+        }
+
+        // Detect known software renderers
+        const softwarePatterns = /swiftshader|llvmpipe|software|microsoft basic render|ansi|mesa offscreen/i;
+        const isSoftware = softwarePatterns.test(renderer) || softwarePatterns.test(vendor);
+        const acceleration = isSoftware ? 'SOFTWARE (CPU rasterization)' : 'HARDWARE (GPU)';
+
+        console.log('%c[Visualizer] Renderer info', 'font-weight: bold; color: #2a9d3f');
+        console.log(`  WebGL version : ${isWebGL2 ? 'WebGL 2.0' : 'WebGL 1.0'}`);
+        console.log(`  GPU vendor    : ${vendor}`);
+        console.log(`  GPU renderer  : ${renderer}`);
+        console.log(`  Acceleration  : ${acceleration}`);
+        console.log(`  Power pref    : high-performance (asks for discrete GPU on dual-GPU systems)`);
+        console.log(`  Pixel ratio   : ${this.renderer.getPixelRatio()} (device DPR ${window.devicePixelRatio || 1})`);
+        console.log(`  Max texture   : ${gl.getParameter(gl.MAX_TEXTURE_SIZE)}px`);
+        console.log('  Three.js scene rendering runs on the GPU when acceleration is HARDWARE.');
+        console.log('  Cannon.js physics runs on the CPU (single-threaded JS) regardless.');
+
+        if (isSoftware) {
+            console.warn(
+                '[Visualizer] Browser is using SOFTWARE rendering. The GPU is NOT engaged. ' +
+                'Enable hardware acceleration in your browser settings (Chrome: chrome://gpu) ' +
+                'or check that your GPU drivers are installed.'
+            );
+        }
     }
 
     setupLighting() {
@@ -468,16 +512,29 @@ class MathAnimator {
         const maxIterations = 300;
         let iterations = 0;
 
+        // Per-frame timing: how much each frame spends in physics (CPU)
+        // vs mesh updates (CPU) — render itself runs separately on the GPU.
+        const logEveryN = 60;
+        let physicsTimeMs = 0;
+        let meshUpdateTimeMs = 0;
+        const dropStart = performance.now();
+        const cubeCount = this.cubes.length;
+        console.log(`[Drop] Starting physics simulation: ${cubeCount} bodies (CPU)`);
+
         return new Promise(resolve => {
             const simulate = () => {
                 if (this.dropAborted) {
                     this.isAnimating = false;
+                    console.log('[Drop] Aborted by RESET');
                     resolve();
                     return;
                 }
 
+                const physStart = performance.now();
                 this.physics.step();
+                physicsTimeMs += performance.now() - physStart;
 
+                const meshStart = performance.now();
                 for (let i = 0; i < this.cubes.length; i++) {
                     const { mesh } = this.cubes[i];
                     const physicsBody = this.physics.bodies[i];
@@ -496,11 +553,28 @@ class MathAnimator {
                         );
                     }
                 }
+                meshUpdateTimeMs += performance.now() - meshStart;
 
                 iterations++;
 
+                if (iterations % logEveryN === 0) {
+                    const avgPhys = (physicsTimeMs / logEveryN).toFixed(2);
+                    const avgMesh = (meshUpdateTimeMs / logEveryN).toFixed(2);
+                    console.log(
+                        `[Drop] frame ${iterations}: avg physics step ${avgPhys}ms, ` +
+                        `mesh-sync ${avgMesh}ms (CPU work; GPU render is separate)`
+                    );
+                    physicsTimeMs = 0;
+                    meshUpdateTimeMs = 0;
+                }
+
                 if (this.physics.hasSettled() || iterations > maxIterations) {
                     this.isAnimating = false;
+                    const totalMs = (performance.now() - dropStart).toFixed(0);
+                    console.log(
+                        `[Drop] Settled in ${iterations} steps over ${totalMs}ms ` +
+                        `(${cubeCount} bodies on CPU)`
+                    );
                     resolve();
                 } else {
                     requestAnimationFrame(simulate);

@@ -7,11 +7,26 @@ class PhysicsWorld {
         this.world.defaultContactMaterial.friction = 0.3;
         this.world.defaultContactMaterial.restitution = 0.2;
 
+        // SAPBroadphase (sweep-and-prune) is much faster than the default
+        // NaiveBroadphase (O(n²)) once we have more than a few dozen bodies.
+        if (typeof CANNON.SAPBroadphase === 'function') {
+            this.world.broadphase = new CANNON.SAPBroadphase(this.world);
+            this.broadphaseName = 'SAPBroadphase (sweep-and-prune)';
+        } else {
+            this.broadphaseName = 'NaiveBroadphase (O(n²) — fallback, SAP not available)';
+        }
+
         this.bodies = [];
         this.constraints = [];
         this.staticBodies = [];
 
         this.setupEnvironment();
+
+        console.log('%c[Physics] Engine info', 'font-weight: bold; color: #d62828');
+        console.log('  Engine     : Cannon.js (single-threaded JavaScript on the CPU)');
+        console.log(`  Broadphase : ${this.broadphaseName}`);
+        console.log('  Note: there is no GPU physics fallback in this stack. To move physics off');
+        console.log('  the render thread you would need a Web Worker port of Cannon.');
     }
 
     setupEnvironment() {
