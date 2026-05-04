@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=11">
+    <link rel="stylesheet" href="styles.css?v=14">
 </head>
 <body>
 
@@ -280,6 +280,11 @@
                     value="2"
                 >
                 <span id="visualizer-spacing-value">2.0</span>
+
+                <label class="visualizer-physics-toggle" title="Run Cannon physics on a Web Worker so the main thread stays free for rendering and UI">
+                    <input type="checkbox" id="visualizer-worker-toggle">
+                    <span>Background physics (Web Worker)</span>
+                </label>
             </div>
             <div id="visualizer-canvas-container" class="visualizer-canvas-container">
                 <!-- Three.js canvas will be inserted here -->
@@ -296,9 +301,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
 
-    <script src="parser.js?v=11"></script>
-    <script src="physics.js?v=11"></script>
-    <script src="animator.js?v=11"></script>
-    <script src="app.js?v=11"></script>
+    <script src="parser.js?v=14"></script>
+    <script src="physics.js?v=14"></script>
+    <script src="animator.js?v=14"></script>
+    <script src="app.js?v=14"></script>
 </body>
 </html>

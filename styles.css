@@ -831,6 +831,29 @@ body {
     font-variant-numeric: tabular-nums;
 }
 
+.visualizer-physics-toggle {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    cursor: pointer;
+    margin-left: 1.5rem;
+    user-select: none;
+    font-weight: 500;
+    font-size: 0.95rem;
+    white-space: nowrap;
+}
+
+.visualizer-physics-toggle input {
+    width: 1.1rem;
+    height: 1.1rem;
+    cursor: pointer;
+}
+
+.visualizer-physics-toggle span {
+    min-width: 0;
+    text-align: left;
+}
+
 .visualizer-canvas-container {
     flex: 1;
     width: 100%;
