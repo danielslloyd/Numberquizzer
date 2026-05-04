@@ -850,10 +850,29 @@ function handleVisualizerInput() {
     }, 1500);
 }
 
-function handleVisualizerDrop() {
-    if (state.visualizerAnimator) {
-        state.visualizerAnimator.startDrop();
+// Derive the cache-bust query string from the loaded app.js script URL,
+// so the physics worker stays in sync with the rest of the assets without
+// having to remember to bump it separately.
+function getAssetCacheVersion() {
+    const scripts = document.querySelectorAll('script[src*="app.js"]');
+    for (const s of scripts) {
+        const match = s.src.match(/app\.js\?(v=\d+)/);
+        if (match) return match[1];
     }
+    return 'v=1';
+}
+
+function handleVisualizerDrop() {
+    if (!state.visualizerAnimator) return;
+
+    // Pick up the current "Background physics" toggle and switch backends
+    // if it changed since last drop. Worker URL is cache-busted to match.
+    const workerToggle = document.getElementById('visualizer-worker-toggle');
+    const useWorker = !!(workerToggle && workerToggle.checked);
+    const workerUrl = `physics-worker.js?${getAssetCacheVersion()}`;
+    state.visualizerAnimator.setUseWorkerPhysics(useWorker, workerUrl);
+
+    state.visualizerAnimator.startDrop();
 }
 
 function handleVisualizerReset() {

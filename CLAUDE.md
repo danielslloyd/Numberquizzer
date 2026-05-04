@@ -8,10 +8,14 @@ No build step, no dependencies, no framework.
 ## File layout
 
 ```
-index.html       — all screens (home, quiz, results) + settings widget + sprite layer
-app.js           — all logic: state, deck generation, speech, animation, quiz flow
-styles.css       — all styles
-netlify.toml     — publish = ".", must-revalidate caching for all assets
+index.html         — all screens (home, quiz, results) + settings widget + sprite layer
+app.js             — all logic: state, deck generation, speech, animation, quiz flow
+styles.css         — all styles
+parser.js          — math visualizer expression parser (a × b + c)
+animator.js        — Three.js InstancedMesh scene + animation for the visualizer
+physics.js         — inline + Web Worker Cannon backends
+physics-worker.js  — Cannon running on a dedicated Web Worker (loaded via new Worker(...))
+netlify.toml       — publish = ".", must-revalidate caching for all assets
 ```
 
 ## Architecture

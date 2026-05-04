@@ -46,6 +46,8 @@ class MathAnimator {
         this.instancedMesh = null;
         this.labels = [];
         this.physics = new PhysicsWorld();
+        this.useWorkerPhysics = false;
+        this.physicsWorkerUrl = null; // set by setUseWorkerPhysics first time
         this.isAnimating = false;
         this.animationFrameId = null;
         this.disposed = false;
@@ -96,6 +98,27 @@ class MathAnimator {
                 'or check that your GPU drivers are installed.'
             );
         }
+    }
+
+    // Swap between inline (main-thread) Cannon and worker-thread Cannon.
+    // No-op if the requested backend is already active.
+    setUseWorkerPhysics(useWorker, workerUrl) {
+        if (useWorker === this.useWorkerPhysics && this.physics) return;
+
+        if (this.physics) {
+            this.physics.dispose();
+            this.physics = null;
+        }
+
+        if (useWorker) {
+            const url = workerUrl || this.physicsWorkerUrl;
+            this.physics = new PhysicsWorldWorker(url);
+            this.physicsWorkerUrl = url;
+        } else {
+            this.physics = new PhysicsWorld();
+        }
+
+        this.useWorkerPhysics = useWorker;
     }
 
     setupLighting() {
@@ -555,43 +578,37 @@ class MathAnimator {
         this.dropAborted = false;
 
         // Snapshot each cube's pre-drop position/orientation so RESET can
-        // snap back here. Quaternion is normally identity at this point but
-        // we clone in case a slide left some non-identity rotation.
+        // snap back here.
         this.preDropState = this.cubeData.map(d => ({
             position: d.position.clone(),
             quaternion: d.quaternion.clone()
         }));
 
-        // Create one CPU physics body per instance at the instance's current
-        // visual position (no extra y offset — instance is already at -6.5,
-        // three units above the floor's resting plane).
+        // Make sure the backend is initialized (worker boot is async).
+        await this.physics.waitReady();
+
+        // Reset and populate the backend with one body per instance.
+        this.physics.reset();
         for (const data of this.cubeData) {
-            this.physics.createCube(
-                data.position.x,
-                data.position.y,
-                data.position.z,
-                1,
-                data.color
-            );
+            this.physics.addCube(data.position.x, data.position.y, data.position.z, 1);
         }
 
         const maxIterations = 300;
         let iterations = 0;
 
-        // Per-frame timing: how much each frame spends in CPU physics vs
-        // CPU instance-matrix updates. The actual GPU render is separate.
         const logEveryN = 60;
         let physicsTimeMs = 0;
         let meshUpdateTimeMs = 0;
         const dropStart = performance.now();
         const cubeCount = this.cubeData.length;
+        const backendName = this.useWorkerPhysics ? 'Web Worker' : 'inline (main thread)';
         console.log(
-            `[Drop] Starting physics simulation: ${cubeCount} bodies (CPU). ` +
+            `[Drop] Starting physics simulation: ${cubeCount} bodies on backend "${backendName}". ` +
             `Visual is one InstancedMesh — render cost is roughly constant in cube count.`
         );
 
         return new Promise(resolve => {
-            const simulate = () => {
+            const simulate = async () => {
                 if (this.dropAborted) {
                     this.isAnimating = false;
                     console.log('[Drop] Aborted by RESET');
@@ -600,28 +617,23 @@ class MathAnimator {
                 }
 
                 const physStart = performance.now();
-                this.physics.step();
+                const result = await this.physics.stepAndGetStates();
+                if (this.dropAborted || result.stale) {
+                    this.isAnimating = false;
+                    resolve();
+                    return;
+                }
                 physicsTimeMs += performance.now() - physStart;
 
                 const meshStart = performance.now();
-                for (let i = 0; i < this.cubeData.length; i++) {
-                    const physicsBody = this.physics.bodies[i];
-                    if (physicsBody) {
-                        const state = this.physics.getBodyState(physicsBody.body);
-                        const data = this.cubeData[i];
-                        data.position.set(
-                            state.position.x,
-                            state.position.y,
-                            state.position.z
-                        );
-                        data.quaternion.set(
-                            state.quaternion.x,
-                            state.quaternion.y,
-                            state.quaternion.z,
-                            state.quaternion.w
-                        );
-                        this._writeInstance(i);
-                    }
+                const states = result.states;
+                const n = this.cubeData.length;
+                for (let i = 0; i < n; i++) {
+                    const base = i * 7;
+                    const data = this.cubeData[i];
+                    data.position.set(states[base], states[base + 1], states[base + 2]);
+                    data.quaternion.set(states[base + 3], states[base + 4], states[base + 5], states[base + 6]);
+                    this._writeInstance(i);
                 }
                 this._markInstanceDirty();
                 meshUpdateTimeMs += performance.now() - meshStart;
@@ -632,19 +644,19 @@ class MathAnimator {
                     const avgPhys = (physicsTimeMs / logEveryN).toFixed(2);
                     const avgMesh = (meshUpdateTimeMs / logEveryN).toFixed(2);
                     console.log(
-                        `[Drop] frame ${iterations}: avg physics step ${avgPhys}ms, ` +
-                        `instance-sync ${avgMesh}ms (CPU work; GPU render is separate)`
+                        `[Drop] frame ${iterations}: avg physics step ${avgPhys}ms ` +
+                        `(${backendName}), instance-sync ${avgMesh}ms`
                     );
                     physicsTimeMs = 0;
                     meshUpdateTimeMs = 0;
                 }
 
-                if (this.physics.hasSettled() || iterations > maxIterations) {
+                if (result.settled || iterations > maxIterations) {
                     this.isAnimating = false;
                     const totalMs = (performance.now() - dropStart).toFixed(0);
                     console.log(
                         `[Drop] Settled in ${iterations} steps over ${totalMs}ms ` +
-                        `(${cubeCount} bodies on CPU)`
+                        `(${cubeCount} bodies, backend "${backendName}")`
                     );
                     resolve();
                 } else {
@@ -744,6 +756,12 @@ class MathAnimator {
         }
 
         window.removeEventListener('resize', this.resizeHandler);
+
+        // Tear down the physics backend (terminates the worker if active)
+        if (this.physics) {
+            this.physics.dispose();
+            this.physics = null;
+        }
 
         // Dispose geometries and materials
         this.scene.traverse(obj => {
