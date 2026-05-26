@@ -1198,8 +1198,8 @@ function pgPDFMult(min, max, count, sheets) {
 
 function pgDrawCipherKeyTable(doc, rev, x, y, compact = false, cipherType = 'letter') {
     const alpha = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
-    const fs = compact ? 7 : 9;
-    const rowH = compact ? 6 : 8;
+    const fs = compact ? 10 : 12; // Larger font
+    const rowH = compact ? 8 : 10; // More vertical space
     const perCol = 13;
 
     doc.setFont('helvetica', 'normal');
@@ -1208,7 +1208,7 @@ function pgDrawCipherKeyTable(doc, rev, x, y, compact = false, cipherType = 'let
     for (let i = 0; i < 26; i++) {
         const row = i % perCol;
         const col = Math.floor(i / perCol);
-        const px = x + col * 35;
+        const px = x + col * 40; // More horizontal space
         const py = y + row * rowH;
 
         const ch = alpha[i];
@@ -1224,40 +1224,72 @@ function pgDrawCipherKeyTable(doc, rev, x, y, compact = false, cipherType = 'let
 }
 
 function pgDrawCipherTextWithBlanks(doc, encText, x, y, maxWidth) {
-    const glyphs = encText.split('');
+    const words = encText.split(' ');
     let currentX = x;
     let currentY = y;
-    const lineHeight = 8;
-    const charSpacing = 3;
+    const lineHeight = 14; // More space for writing blanks
+    const charSpacing = 4; // Space between characters
+    const wordSpacing = 8; // Space between words
 
     doc.setFont('courier', 'normal');
     doc.setFontSize(12);
 
-    for (const glyph of glyphs) {
-        if (glyph === ' ') {
-            currentX += charSpacing * 2;
-        } else {
-            doc.text(glyph, currentX, currentY);
-            doc.setLineWidth(0.3);
-            doc.line(currentX - 1, currentY + 2, currentX + 3, currentY + 2);
-            currentX += charSpacing;
-        }
+    for (let w = 0; w < words.length; w++) {
+        const word = words[w];
 
-        if (currentX > maxWidth) {
+        // Check if word fits on current line
+        const wordWidth = word.length * charSpacing + (word.length - 1) * (charSpacing / 2);
+        if (currentX + wordWidth > maxWidth && currentX > x) {
+            // Word doesn't fit, wrap to next line
             currentX = x;
             currentY += lineHeight;
         }
+
+        // Draw each character in the word
+        for (let c = 0; c < word.length; c++) {
+            const glyph = word[c];
+            doc.text(glyph, currentX, currentY);
+            // Draw blank line underneath for writing
+            doc.setLineWidth(0.5);
+            doc.line(currentX - 2, currentY + 4.5, currentX + 4, currentY + 4.5);
+            currentX += charSpacing;
+        }
+
+        // Add space between words
+        currentX += wordSpacing;
     }
 
-    return currentY;
+    return currentY + lineHeight;
 }
 
 function pgPDFCipher(text, chunkSize, cipherType = 'letter', glyphFont = 'dingbat', showKeyOnPage = false) {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ unit: 'mm', format: 'letter' });
-    const W = 215.9, M = 19;
-    const origChunks = pgChunkText(text, chunkSize);
+    const W = 215.9, M = 19, H = 279.4;
     const alpha = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
+
+    // Auto-split text into pages based on available space
+    const words = text.trim().split(/\s+/);
+    const pageChunks = [];
+    let currentChunk = [];
+    let currentLength = 0;
+    const maxCharsPerPage = 400; // Adjust based on average word length
+
+    for (const word of words) {
+        if (currentLength + word.length > maxCharsPerPage && currentChunk.length > 0) {
+            pageChunks.push(currentChunk.join(' '));
+            currentChunk = [word];
+            currentLength = word.length;
+        } else {
+            currentChunk.push(word);
+            currentLength += word.length + 1;
+        }
+    }
+    if (currentChunk.length > 0) {
+        pageChunks.push(currentChunk.join(' '));
+    }
+
+    const origChunks = pageChunks;
 
     // Generate ciphers based on type
     let ciphers;
@@ -1306,14 +1338,14 @@ function pgPDFCipher(text, chunkSize, cipherType = 'letter', glyphFont = 'dingba
             // Display with key table on the side
             doc.setFont('courier', 'normal');
             doc.setFontSize(11);
-            const textW = 110;
+            const textW = 100;
             pgDrawCipherTextWithBlanks(doc, enc, M, startY + 8, M + textW);
 
             // Key table on right
             doc.setFont('helvetica', 'bold');
-            doc.setFontSize(8);
-            doc.text('KEY:', M + textW + 8, startY);
-            pgDrawCipherKeyTable(doc, null, M + textW + 6, startY + 5, true, cipherType);
+            doc.setFontSize(9);
+            doc.text('KEY:', M + textW + 10, startY);
+            pgDrawCipherKeyTable(doc, null, M + textW + 8, startY + 5, false, cipherType);
         } else {
             // Just display encrypted text with blanks
             pgDrawCipherTextWithBlanks(doc, enc, M, startY + 8, W - M);
@@ -1355,7 +1387,10 @@ function pgPDFCipher(text, chunkSize, cipherType = 'letter', glyphFont = 'dingba
         doc.text(oLines, M, y);
     });
 
-    doc.save('cipher-puzzle.pdf');
+    // Open PDF in new tab instead of downloading
+    const pdfBlob = doc.output('blob');
+    const pdfUrl = URL.createObjectURL(pdfBlob);
+    window.open(pdfUrl, '_blank');
 }
 
 // --- UI ---
@@ -1390,11 +1425,10 @@ function pgGenerate() {
     } else if (type === 'cipher') {
         const text = document.getElementById('pg-cipher-text').value.trim();
         if (!text) { alert('Please paste some text for the cipher.'); return; }
-        const chunkSize = parseInt(document.getElementById('pg-cipher-chunk').value, 10);
         const cipherType = document.getElementById('pg-cipher-type').value;
         const glyphFont = document.getElementById('pg-cipher-glyph-font').value;
         const showKey = document.getElementById('pg-cipher-show-key').checked;
-        pgPDFCipher(text, chunkSize, cipherType, glyphFont, showKey);
+        pgPDFCipher(text, null, cipherType, glyphFont, showKey);
     }
 }
 

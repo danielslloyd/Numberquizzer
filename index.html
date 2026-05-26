@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=15">
+    <link rel="stylesheet" href="styles.css?v=16">
 </head>
 <body>
 
@@ -392,15 +392,6 @@
                 </div>
                 <textarea id="pg-cipher-text" class="pg-textarea" placeholder="Paste your text here…"></textarea>
                 <div class="setting-row">
-                    <label>Words per page</label>
-                    <select id="pg-cipher-chunk" class="setting-select">
-                        <option value="50">50</option>
-                        <option value="100" selected>100</option>
-                        <option value="150">150</option>
-                        <option value="200">200</option>
-                    </select>
-                </div>
-                <div class="setting-row">
                     <label class="cipher-checkbox-label">
                         <input type="checkbox" id="pg-cipher-show-key" class="pg-checkbox">
                         <span>Print key on each page</span>
@@ -408,7 +399,7 @@
                 </div>
             </div>
 
-            <button id="pg-generate-btn" class="btn btn-primary" style="width:100%">Download PDF</button>
+            <button id="pg-generate-btn" class="btn btn-primary" style="width:100%">Generate PDF</button>
             <button id="pg-home-btn" class="btn btn-secondary" style="width:100%">← Home</button>
         </div>
     </div>
@@ -424,6 +415,6 @@
     <script src="parser.js?v=15"></script>
     <script src="physics.js?v=15"></script>
     <script src="animator.js?v=15"></script>
-    <script src="app.js?v=16"></script>
+    <script src="app.js?v=17"></script>
 </body>
 </html>
