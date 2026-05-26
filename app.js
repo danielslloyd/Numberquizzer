@@ -898,6 +898,507 @@ function handleVisualizerClear() {
 }
 
 // ============================================
+// PUZZLE GENERATOR
+// ============================================
+
+// --- Sudoku ---
+
+function pgBoxDims(size) {
+    if (size === 4) return [2, 2];
+    if (size === 6) return [2, 3];
+    return [3, 3];
+}
+
+function pgSymbolToDisplay(num, size, symbolType) {
+    if (num === 0) return '';
+    if (symbolType === 'letters') {
+        const letters = size === 4 ? 'ABCD' : size === 6 ? 'ABCDEF' : 'ABCDEFGHI';
+        return letters[num - 1];
+    }
+    if (symbolType === 'multiples') {
+        return `1×${num}`;
+    }
+    return String(num);
+}
+
+function pgSudokuValid(grid, r, c, n, size) {
+    const [bh, bw] = pgBoxDims(size);
+    if (grid[r].includes(n)) return false;
+    for (let i = 0; i < size; i++) if (grid[i][c] === n) return false;
+    const br = Math.floor(r / bh) * bh;
+    const bc = Math.floor(c / bw) * bw;
+    for (let i = br; i < br + bh; i++)
+        for (let j = bc; j < bc + bw; j++)
+            if (grid[i][j] === n) return false;
+    return true;
+}
+
+function pgSudokuFill(grid, size) {
+    for (let r = 0; r < size; r++) {
+        for (let c = 0; c < size; c++) {
+            if (grid[r][c] === 0) {
+                const nums = shuffleArray([...Array(size)].map((_, i) => i + 1));
+                for (const n of nums) {
+                    if (pgSudokuValid(grid, r, c, n, size)) {
+                        grid[r][c] = n;
+                        if (pgSudokuFill(grid, size)) return true;
+                        grid[r][c] = 0;
+                    }
+                }
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+function pgMakeSudoku(size, diff) {
+    const g = Array.from({ length: size }, () => Array(size).fill(0));
+    pgSudokuFill(g, size);
+    const sol = g.map(r => [...r]);
+    const cuts = {
+        4: { easy: 4,  medium: 6,  hard: 8  },
+        6: { easy: 10, medium: 14, hard: 18 },
+        9: { easy: 36, medium: 46, hard: 52 },
+    };
+    const cells = shuffleArray([...Array(size * size)].map((_, i) => [Math.floor(i / size), i % size]));
+    const n = cuts[size][diff];
+    for (let i = 0; i < n; i++) g[cells[i][0]][cells[i][1]] = 0;
+    return { puz: g, sol };
+}
+
+// --- Multiplication ---
+
+function pgMakeMult(min, max, count) {
+    return Array.from({ length: count }, () => {
+        const a = min + Math.floor(Math.random() * (max - min + 1));
+        const b = min + Math.floor(Math.random() * (max - min + 1));
+        return { a, b, ans: a * b };
+    });
+}
+
+// --- Cipher ---
+
+// Glyph mappings (simplified Unicode characters)
+const CIPHER_GLYPHS = {
+    dingbat: ['✤', '✥', '✦', '✧', '★', '✪', '✫', '✬', '✭', '✮', '✯', '✰', '✱', '✲', '✳', '✴', '✵', '✶', '✷', '✸', '✹', '✺', '✻', '✼', '✽', '✾'],
+    rune: ['ᚠ', 'ᚡ', 'ᚢ', 'ᚣ', 'ᚤ', 'ᚥ', 'ᚦ', 'ᚧ', 'ᚨ', 'ᚩ', 'ᚪ', 'ᚫ', 'ᚬ', 'ᚭ', 'ᚮ', 'ᚯ', 'ᚰ', 'ᚱ', 'ᚲ', 'ᚳ', 'ᚴ', 'ᚵ', 'ᚶ', 'ᚷ', 'ᚸ', 'ᚹ'],
+    noto: ['🀀', '🀁', '🀂', '🀃', '🀄', '🀅', '🀆', '🀇', '🀈', '🀉', '🀊', '🀋', '🀌', '🀍', '🀎', '🀏', '🀐', '🀑', '🀒', '🀓', '🀔', '🀕', '🀖', '🀗', '🀘', '🀙'],
+};
+
+function pgMakeCipherMap() {
+    const A = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
+    const S = shuffleArray([...A]);
+    const fwd = {}, rev = {};
+    A.forEach((ch, i) => { fwd[ch] = S[i]; rev[S[i]] = ch; });
+    return { fwd, rev };
+}
+
+function pgMakeCipherMapNumber() {
+    const A = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
+    const S = shuffleArray([...Array(26).keys()].map(i => String(i + 1).padStart(2, '0')));
+    const fwd = {}, rev = {};
+    A.forEach((ch, i) => { fwd[ch] = S[i]; rev[S[i]] = ch; });
+    return { fwd, rev };
+}
+
+function pgMakeCipherMapGlyph(glyphType) {
+    const A = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
+    const glyphs = CIPHER_GLYPHS[glyphType] || CIPHER_GLYPHS.dingbat;
+    const S = shuffleArray([...glyphs]);
+    const fwd = {}, rev = {};
+    A.forEach((ch, i) => { fwd[ch] = S[i]; rev[S[i]] = ch; });
+    return { fwd, rev };
+}
+
+function pgEncrypt(text, fwd) {
+    return text.toUpperCase().replace(/[A-Z]/g, ch => fwd[ch]);
+}
+
+function pgEncryptWithSpaces(text, fwd) {
+    // Return text with each character separated by space for underscore placement
+    const encrypted = pgEncrypt(text, fwd);
+    return encrypted.split('').map(ch => ch === ' ' ? '  ' : ch).join(' ');
+}
+
+function pgChunkText(text, n) {
+    const words = text.trim().split(/\s+/).filter(Boolean);
+    const out = [];
+    for (let i = 0; i < words.length; i += n) out.push(words.slice(i, i + n).join(' '));
+    return out;
+}
+
+// --- PDF helpers ---
+
+function pgHeader(doc, title) {
+    const W = 215.9, M = 19;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.text(title, W / 2, 26, { align: 'center' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.text('Name: ______________________________', M, 36);
+    doc.text('Date: _____________', 152, 36);
+    doc.setLineWidth(0.4);
+    doc.line(M, 41, W - M, 41);
+    return 47;
+}
+
+function pgSudokuGrid(doc, grid, size, ox, oy, gs, symbolType = 'numbers') {
+    const [bh, bw] = pgBoxDims(size);
+    const cs = gs / size;
+    doc.setDrawColor(0);
+
+    // Thin cell lines
+    doc.setLineWidth(0.25);
+    for (let i = 0; i <= size; i++) {
+        doc.line(ox, oy + i * cs, ox + gs, oy + i * cs);
+        doc.line(ox + i * cs, oy, ox + i * cs, oy + gs);
+    }
+
+    // Thick box boundary lines
+    doc.setLineWidth(1.5);
+    for (let r = 0; r <= size; r += bh) doc.line(ox, oy + r * cs, ox + gs, oy + r * cs);
+    for (let c = 0; c <= size; c += bw) doc.line(ox + c * cs, oy, ox + c * cs, oy + gs);
+
+    // Clue symbols
+    const fs = symbolType === 'multiples' ? (size === 4 ? 20 : size === 6 ? 14 : 11) : (size === 4 ? 28 : size === 6 ? 22 : 16);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(fs);
+    for (let r = 0; r < size; r++)
+        for (let c = 0; c < size; c++)
+            if (grid[r][c]) {
+                const sym = pgSymbolToDisplay(grid[r][c], size, symbolType);
+                doc.text(sym, ox + c * cs + cs / 2, oy + r * cs + cs * 0.65, { align: 'center' });
+            }
+}
+
+function pgDrawMultProblems(doc, probs, startY, showAnswers, M, W) {
+    const cols = 3;
+    const colW = (W - M * 2) / cols;
+    const rowH = 18; // Space for stacked format
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+
+    probs.forEach((p, i) => {
+        const col = i % cols;
+        const row = Math.floor(i / cols);
+        const x = M + col * colW + 5;
+        const y = startY + row * rowH;
+
+        // Problem number
+        doc.text(`${i + 1}.`, x, y);
+
+        // Stacked format
+        doc.text(`${p.a}`, x + 12, y);
+        doc.text('×', x + 8, y + 4);
+        doc.text(String(p.b), x + 12, y + 4);
+        doc.setLineWidth(0.5);
+        doc.line(x + 8, y + 6, x + 18, y + 6);
+
+        const ans = showAnswers ? String(p.ans) : '___';
+        doc.text(ans, x + 12, y + 10);
+    });
+}
+
+function pgAnswerKeySeparator(doc) {
+    const W = 215.9;
+    doc.addPage();
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(36);
+    doc.text('ANSWER KEY', W / 2, 140, { align: 'center' });
+}
+
+// --- PDF builders ---
+
+function pgPDFSudoku(sheets, size, diff, symbolType = 'numbers') {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'mm', format: 'letter' });
+    const W = 215.9, M = 12, H = 279.4;
+    const label = `${size}×${size}`;
+    const diffTxt = diff[0].toUpperCase() + diff.slice(1);
+
+    // Generate all puzzles first
+    const totalPuzzles = sheets * 6; // 6 per page
+    const allPuzzles = Array.from({ length: totalPuzzles }, () => pgMakeSudoku(size, diff));
+
+    // Larger grid sizes for 2×3 layout
+    const gs = { 4: 55, 6: 65, 9: 75 }[size]; // Much larger grids
+    const colW = (W - M * 2) / 2;
+    const rowH = (H - M * 2 - 30) / 3; // 30mm for header
+
+    // Puzzle pages
+    for (let pageIdx = 0; pageIdx < sheets; pageIdx++) {
+        if (pageIdx > 0) doc.addPage();
+        const title = sheets > 1
+            ? `Sudoku ${label} — ${diffTxt} · Sheet ${pageIdx + 1} of ${sheets}`
+            : `Sudoku ${label} — ${diffTxt}`;
+        pgHeader(doc, title);
+
+        // Draw 6 grids in 2×3 layout
+        for (let gridIdx = 0; gridIdx < 6; gridIdx++) {
+            const puzzleIdx = pageIdx * 6 + gridIdx;
+            const col = gridIdx % 2;
+            const row = Math.floor(gridIdx / 2);
+            const ox = M + col * colW + (colW - gs) / 2;
+            const oy = 32 + row * rowH + (rowH - gs) / 2;
+            pgSudokuGrid(doc, allPuzzles[puzzleIdx].puz, size, ox, oy, gs, symbolType);
+        }
+    }
+
+    // Answer key
+    pgAnswerKeySeparator(doc);
+    for (let pageIdx = 0; pageIdx < sheets; pageIdx++) {
+        doc.addPage();
+        const title = sheets > 1
+            ? `Sudoku ${label} — Answer Key · Sheet ${pageIdx + 1}`
+            : `Sudoku ${label} — Answer Key`;
+        pgHeader(doc, title);
+
+        for (let gridIdx = 0; gridIdx < 6; gridIdx++) {
+            const puzzleIdx = pageIdx * 6 + gridIdx;
+            const col = gridIdx % 2;
+            const row = Math.floor(gridIdx / 2);
+            const ox = M + col * colW + (colW - gs) / 2;
+            const oy = 32 + row * rowH + (rowH - gs) / 2;
+            pgSudokuGrid(doc, allPuzzles[puzzleIdx].sol, size, ox, oy, gs, symbolType);
+        }
+    }
+
+    doc.save(`sudoku-${label}-${diff}.pdf`);
+}
+
+function pgPDFMult(min, max, count, sheets) {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'mm', format: 'letter' });
+    const W = 215.9, M = 19;
+    const allSheets = Array.from({ length: sheets }, () => pgMakeMult(min, max, count));
+
+    allSheets.forEach((probs, si) => {
+        if (si) doc.addPage();
+        const title = sheets > 1
+            ? `Multiplication Practice · Sheet ${si + 1} of ${sheets}`
+            : 'Multiplication Practice';
+        const y0 = pgHeader(doc, title);
+        pgDrawMultProblems(doc, probs, y0, false, M, W);
+    });
+
+    pgAnswerKeySeparator(doc);
+    allSheets.forEach((probs, si) => {
+        doc.addPage();
+        const title = sheets > 1
+            ? `Multiplication — Answer Key · Sheet ${si + 1}`
+            : 'Multiplication — Answer Key';
+        const y0 = pgHeader(doc, title);
+        pgDrawMultProblems(doc, probs, y0, true, M, W);
+    });
+
+    doc.save(`multiplication-${min}-to-${max}.pdf`);
+}
+
+function pgDrawCipherKeyTable(doc, rev, x, y, compact = false, cipherType = 'letter') {
+    const alpha = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
+    const fs = compact ? 7 : 9;
+    const rowH = compact ? 6 : 8;
+    const perCol = 13;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(fs);
+
+    for (let i = 0; i < 26; i++) {
+        const row = i % perCol;
+        const col = Math.floor(i / perCol);
+        const px = x + col * 35;
+        const py = y + row * rowH;
+
+        const ch = alpha[i];
+        let decoded = rev ? rev[ch] : '___';
+
+        // Format based on cipher type
+        if (cipherType === 'number' && decoded !== '___') {
+            decoded = decoded.padStart(2, '0');
+        }
+
+        doc.text(`${ch}→${decoded}`, px, py);
+    }
+}
+
+function pgDrawCipherTextWithBlanks(doc, encText, x, y, maxWidth) {
+    const glyphs = encText.split('');
+    let currentX = x;
+    let currentY = y;
+    const lineHeight = 8;
+    const charSpacing = 3;
+
+    doc.setFont('courier', 'normal');
+    doc.setFontSize(12);
+
+    for (const glyph of glyphs) {
+        if (glyph === ' ') {
+            currentX += charSpacing * 2;
+        } else {
+            doc.text(glyph, currentX, currentY);
+            doc.setLineWidth(0.3);
+            doc.line(currentX - 1, currentY + 2, currentX + 3, currentY + 2);
+            currentX += charSpacing;
+        }
+
+        if (currentX > maxWidth) {
+            currentX = x;
+            currentY += lineHeight;
+        }
+    }
+
+    return currentY;
+}
+
+function pgPDFCipher(text, chunkSize, cipherType = 'letter', glyphFont = 'dingbat', showKeyOnPage = false) {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'mm', format: 'letter' });
+    const W = 215.9, M = 19;
+    const origChunks = pgChunkText(text, chunkSize);
+    const alpha = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
+
+    // Generate ciphers based on type
+    let ciphers;
+    if (cipherType === 'letter') {
+        ciphers = origChunks.map(() => pgMakeCipherMap());
+    } else if (cipherType === 'number') {
+        ciphers = origChunks.map(() => pgMakeCipherMapNumber());
+    } else {
+        ciphers = origChunks.map(() => pgMakeCipherMapGlyph(glyphFont));
+    }
+
+    const encChunks = origChunks.map((ch, i) => pgEncrypt(ch, ciphers[i].fwd));
+
+    // Page 1: master decoding key
+    const y0 = pgHeader(doc, 'Code Breaker — Master Key');
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    const inst = `Each page has its own cipher. Look for patterns in the encoded text and use the key table to track your discoveries.${showKeyOnPage ? ' A key table appears on each page to help you.' : ''}`;
+    const instLines = doc.splitTextToSize(inst, W - M * 2);
+    doc.text(instLines, M, y0 + 2);
+
+    const tableY = y0 + instLines.length * 5 + 10;
+    const colW = (W - M * 2) / 3;
+    const perCol = 9;
+    const rowH = 9;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+    for (let i = 0; i < 26; i++) {
+        const col = Math.floor(i / perCol);
+        const row = i % perCol;
+        const x = M + col * colW;
+        const y = tableY + row * rowH;
+        doc.text(alpha[i], x, y);
+        doc.setFont('helvetica', 'normal');
+        doc.text('  →  ___', x + 5, y);
+        doc.setFont('helvetica', 'bold');
+    }
+
+    // Encoded text pages
+    encChunks.forEach((enc, i) => {
+        doc.addPage();
+        const startY = pgHeader(doc, `Encoded Text — Page ${i + 1} of ${encChunks.length}`);
+
+        if (showKeyOnPage) {
+            // Display with key table on the side
+            doc.setFont('courier', 'normal');
+            doc.setFontSize(11);
+            const textW = 110;
+            pgDrawCipherTextWithBlanks(doc, enc, M, startY + 8, M + textW);
+
+            // Key table on right
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(8);
+            doc.text('KEY:', M + textW + 8, startY);
+            pgDrawCipherKeyTable(doc, null, M + textW + 6, startY + 5, true, cipherType);
+        } else {
+            // Just display encrypted text with blanks
+            pgDrawCipherTextWithBlanks(doc, enc, M, startY + 8, W - M);
+        }
+    });
+
+    // Answer key
+    pgAnswerKeySeparator(doc);
+
+    origChunks.forEach((orig, i) => {
+        doc.addPage();
+        let y = pgHeader(doc, `Answer Key — Page ${i + 1}`);
+        y += 3;
+
+        const rev = ciphers[i].rev;
+        const mapping = alpha.map(ch => `${ch}→${rev[ch]}`).join('  ');
+
+        // Cipher mapping
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.text(`CIPHER KEY  (${cipherType === 'number' ? 'encoded → 01-26' : 'encoded → original'})`, M, y);
+        y += 6;
+
+        doc.setFont('courier', 'normal');
+        doc.setFontSize(8);
+        const mLines = doc.splitTextToSize(mapping, W - M * 2);
+        doc.text(mLines, M, y);
+        y += mLines.length * 4 + 8;
+
+        // Original text
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        doc.text(`ORIGINAL TEXT  (Page ${i + 1})`, M, y);
+        y += 7;
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(11);
+        const oLines = doc.splitTextToSize(orig, W - M * 2);
+        doc.text(oLines, M, y);
+    });
+
+    doc.save('cipher-puzzle.pdf');
+}
+
+// --- UI ---
+
+function pgSetType(type) {
+    document.querySelectorAll('.pg-type-btn').forEach(b => b.classList.toggle('active', b.dataset.type === type));
+    document.querySelectorAll('.pg-config').forEach(el => el.classList.add('hidden'));
+    document.getElementById(`pg-${type}-config`).classList.remove('hidden');
+}
+
+function pgGenerate() {
+    if (!window.jspdf) {
+        alert('PDF library is still loading — please try again in a moment.');
+        return;
+    }
+    const type = document.querySelector('.pg-type-btn.active').dataset.type;
+
+    if (type === 'sudoku') {
+        const size  = parseInt(document.getElementById('pg-sudoku-size').value, 10);
+        const symbols = document.getElementById('pg-sudoku-symbols').value;
+        const diff  = document.getElementById('pg-sudoku-diff').value;
+        const sheets = parseInt(document.getElementById('pg-sudoku-sheets').value, 10);
+        pgPDFSudoku(sheets, size, diff, symbols);
+
+    } else if (type === 'multiplication') {
+        const min    = Math.max(1, parseInt(document.getElementById('pg-mult-min').value, 10) || 1);
+        const max    = Math.max(min, parseInt(document.getElementById('pg-mult-max').value, 10) || 10);
+        const count  = parseInt(document.getElementById('pg-mult-count').value, 10);
+        const sheets = parseInt(document.getElementById('pg-mult-sheets').value, 10);
+        pgPDFMult(min, max, count, sheets);
+
+    } else if (type === 'cipher') {
+        const text = document.getElementById('pg-cipher-text').value.trim();
+        if (!text) { alert('Please paste some text for the cipher.'); return; }
+        const chunkSize = parseInt(document.getElementById('pg-cipher-chunk').value, 10);
+        const cipherType = document.getElementById('pg-cipher-type').value;
+        const glyphFont = document.getElementById('pg-cipher-glyph-font').value;
+        const showKey = document.getElementById('pg-cipher-show-key').checked;
+        pgPDFCipher(text, chunkSize, cipherType, glyphFont, showKey);
+    }
+}
+
+// ============================================
 // INIT
 // ============================================
 
@@ -1029,6 +1530,29 @@ document.addEventListener('DOMContentLoaded', () => {
             state.visualizerAnimator.dispose();
             state.visualizerAnimator = null;
         }
+        showScreen('home');
+        initHome();
+    });
+
+    // ---- Puzzle Generator ----
+    document.getElementById('puzzle-btn').addEventListener('click', () => {
+        showScreen('puzzle-generator');
+        pgSetType('sudoku');
+    });
+
+    document.querySelectorAll('.pg-type-btn').forEach(btn => {
+        btn.addEventListener('click', () => pgSetType(btn.dataset.type));
+    });
+
+    // Cipher type selector: show/hide glyph font option
+    document.getElementById('pg-cipher-type').addEventListener('change', (e) => {
+        const glyphSelector = document.getElementById('pg-cipher-glyph-selector');
+        glyphSelector.classList.toggle('hidden', e.target.value !== 'glyph');
+    });
+
+    document.getElementById('pg-generate-btn').addEventListener('click', pgGenerate);
+
+    document.getElementById('pg-home-btn').addEventListener('click', () => {
         showScreen('home');
         initHome();
     });

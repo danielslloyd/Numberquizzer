@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=14">
+    <link rel="stylesheet" href="styles.css?v=15">
 </head>
 <body>
 
@@ -78,6 +78,7 @@
             <button id="start-btn" class="btn btn-primary">Start</button>
             <button id="word-sort-btn" class="btn btn-secondary" style="width:100%">Word Sort</button>
             <button id="visualizer-btn" class="btn btn-secondary" style="width:100%">Math Visualizer</button>
+            <button id="puzzle-btn" class="btn btn-secondary" style="width:100%">Puzzle Generator</button>
         </div>
     </div>
 
@@ -294,16 +295,135 @@
         <button id="visualizer-home-btn" class="btn btn-secondary visualizer-home-btn">← Home</button>
     </div>
 
+    <!-- Puzzle Generator Screen -->
+    <div id="puzzle-generator-screen" class="screen pg-screen">
+        <div class="container pg-container">
+            <h1 class="app-title">Puzzle<br>Generator</h1>
+
+            <div class="pg-type-selector">
+                <button class="pg-type-btn active" data-type="sudoku">Sudoku</button>
+                <button class="pg-type-btn" data-type="multiplication">Multiply</button>
+                <button class="pg-type-btn" data-type="cipher">Cipher</button>
+            </div>
+
+            <!-- Sudoku config -->
+            <div id="pg-sudoku-config" class="pg-config">
+                <div class="setting-row">
+                    <label>Grid size</label>
+                    <select id="pg-sudoku-size" class="setting-select">
+                        <option value="4">4×4</option>
+                        <option value="6">6×6</option>
+                        <option value="9" selected>9×9</option>
+                    </select>
+                </div>
+                <div class="setting-row">
+                    <label>Symbols</label>
+                    <select id="pg-sudoku-symbols" class="setting-select">
+                        <option value="numbers" selected>Numbers</option>
+                        <option value="letters">Letters</option>
+                        <option value="multiples">Multiples</option>
+                    </select>
+                </div>
+                <div class="setting-row">
+                    <label>Difficulty</label>
+                    <select id="pg-sudoku-diff" class="setting-select">
+                        <option value="easy">Easy</option>
+                        <option value="medium" selected>Medium</option>
+                        <option value="hard">Hard</option>
+                    </select>
+                </div>
+                <div class="setting-row">
+                    <label>Sheets</label>
+                    <select id="pg-sudoku-sheets" class="setting-select">
+                        <option value="1" selected>1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                        <option value="5">5</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Multiplication config -->
+            <div id="pg-multiplication-config" class="pg-config hidden">
+                <div class="setting-row">
+                    <label>Min</label>
+                    <input type="number" id="pg-mult-min" class="pg-number-input" value="1" min="1" max="99">
+                </div>
+                <div class="setting-row">
+                    <label>Max</label>
+                    <input type="number" id="pg-mult-max" class="pg-number-input" value="10" min="1" max="99">
+                </div>
+                <div class="setting-row">
+                    <label>Problems per sheet</label>
+                    <select id="pg-mult-count" class="setting-select">
+                        <option value="20">20</option>
+                        <option value="30" selected>30</option>
+                        <option value="40">40</option>
+                    </select>
+                </div>
+                <div class="setting-row">
+                    <label>Sheets</label>
+                    <select id="pg-mult-sheets" class="setting-select">
+                        <option value="1" selected>1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Cipher config -->
+            <div id="pg-cipher-config" class="pg-config hidden">
+                <div class="setting-row">
+                    <label>Cipher type</label>
+                    <select id="pg-cipher-type" class="setting-select">
+                        <option value="letter" selected>Letter → Letter</option>
+                        <option value="number">Letter → Number</option>
+                        <option value="glyph">Letter → Glyph</option>
+                    </select>
+                </div>
+                <div id="pg-cipher-glyph-selector" class="setting-row hidden">
+                    <label>Glyph font</label>
+                    <select id="pg-cipher-glyph-font" class="setting-select">
+                        <option value="dingbat" selected>Dingbat</option>
+                        <option value="rune">Rune</option>
+                        <option value="noto">Noto Symbol</option>
+                    </select>
+                </div>
+                <textarea id="pg-cipher-text" class="pg-textarea" placeholder="Paste your text here…"></textarea>
+                <div class="setting-row">
+                    <label>Words per page</label>
+                    <select id="pg-cipher-chunk" class="setting-select">
+                        <option value="50">50</option>
+                        <option value="100" selected>100</option>
+                        <option value="150">150</option>
+                        <option value="200">200</option>
+                    </select>
+                </div>
+                <div class="setting-row">
+                    <label class="cipher-checkbox-label">
+                        <input type="checkbox" id="pg-cipher-show-key" class="pg-checkbox">
+                        <span>Print key on each page</span>
+                    </label>
+                </div>
+            </div>
+
+            <button id="pg-generate-btn" class="btn btn-primary" style="width:100%">Download PDF</button>
+            <button id="pg-home-btn" class="btn btn-secondary" style="width:100%">← Home</button>
+        </div>
+    </div>
+
     <!-- Sprite layer: fixed overlay for floating number particles -->
     <div id="sprite-layer" class="sprite-layer" aria-hidden="true"></div>
 
     <!-- Three.js and Physics Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
-    <script src="parser.js?v=14"></script>
-    <script src="physics.js?v=14"></script>
-    <script src="animator.js?v=14"></script>
-    <script src="app.js?v=14"></script>
+    <script src="parser.js?v=15"></script>
+    <script src="physics.js?v=15"></script>
+    <script src="animator.js?v=15"></script>
+    <script src="app.js?v=16"></script>
 </body>
 </html>
