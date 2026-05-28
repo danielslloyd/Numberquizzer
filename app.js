@@ -1059,6 +1059,37 @@ function pgDrawLayoutGrid(doc, x, y, w, h, cols, rows) {
     return { cellW, cellH };
 }
 
+/**
+ * Draw light gray gridlines for cipher puzzles - only in key and message areas,
+ * not in the blank space between them.
+ */
+function pgDrawCipherGrid(doc, x, y, w, h, cols, rows, keyRows) {
+    const cellW = w / cols;
+    const cellH = h / rows;
+    const messageStartRow = keyRows + 1;  // Account for blank row
+
+    doc.setDrawColor(200, 200, 200);  // Light gray
+    doc.setLineWidth(0.25);
+
+    // Draw vertical lines (full height)
+    for (let c = 0; c <= cols; c++) {
+        doc.line(x + c * cellW, y, x + c * cellW, y + h);
+    }
+
+    // Draw horizontal lines - in key area
+    for (let r = 0; r <= keyRows; r++) {
+        doc.line(x, y + r * cellH, x + w, y + r * cellH);
+    }
+
+    // Draw horizontal lines - in message area
+    const messageY = y + messageStartRow * cellH;
+    for (let r = messageStartRow; r <= rows; r++) {
+        doc.line(x, y + r * cellH, x + w, y + r * cellH);
+    }
+
+    doc.setDrawColor(0);
+}
+
 // --- PDF helpers ---
 
 function pgHeader(doc, title) {
@@ -1280,8 +1311,8 @@ function pgCipherSplitToPages(words, textW, rowH, gridH, charW, wordGap) {
  */
 function pgDrawCipherCells(doc, encChunk, gridX, gridY, cellW, cellH, textCols, totalRows) {
     const words = encChunk.trim().split(/\s+/).filter(Boolean);
-    const textY  = cellH * 0.48;   // char baseline from cell top
-    const lineY  = cellH * 0.82;   // underline from cell top
+    const textY  = cellH * 0.2;    // char at top of cell with margin
+    const lineY  = cellH * 0.8;    // blank underline near bottom
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(Math.min(9, cellH * 0.85));
@@ -1321,9 +1352,9 @@ function pgDrawCipherCells(doc, encChunk, gridX, gridY, cellW, cellH, textCols, 
  */
 function pgDrawCipherKeyTop(doc, revMap, gridX, gridY, cellW, cellH, gridCols, entriesPerRow, cipherType) {
     const alpha = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
-    const fs    = Math.min(7, cellH * 0.68);
-    const textY = cellH * 0.48;
-    const lineY = cellH * 0.82;
+    const fsLetter = Math.min(10, cellH * 1.0);  // Larger font for plain letters
+    const fsValue  = Math.min(11, cellH * 1.1);  // Even larger for cipher values
+    const textYTop = cellH * 0.2;  // Position near top of cell with margin
 
     doc.setLineWidth(0.4);
     doc.setDrawColor(0);
@@ -1339,25 +1370,23 @@ function pgDrawCipherKeyTop(doc, revMap, gridX, gridY, cellW, cellH, gridCols, e
         const letterY = gridY + row * cellH;
 
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(fs);
-        doc.text(ch, letterX + cellW / 2, letterY + textY, { align: 'center' });
-        doc.line(letterX + cellW * 0.12, letterY + lineY, letterX + cellW * 0.88, letterY + lineY);
+        doc.setFontSize(fsLetter);
+        doc.text(ch, letterX + cellW / 2, letterY + textYTop, { align: 'center' });
 
-        // Second cell: decoded equivalent
+        // Second cell: decoded equivalent (larger, no underline)
         if (revMap) {
             const decodedX = letterX + cellW;
             const decodedY = letterY;
 
             const decoded = revMap[ch];
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(fs - 1);
-            doc.text(decoded, decodedX + cellW / 2, decodedY + textY, { align: 'center' });
-            doc.line(decodedX + cellW * 0.12, decodedY + lineY, decodedX + cellW * 0.88, decodedY + lineY);
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(fsValue);
+            doc.text(decoded, decodedX + cellW / 2, decodedY + textYTop, { align: 'center' });
         }
     }
 }
 
-function pgPDFCipher(text, _unused, cipherType = 'letter', glyphFont = 'dingbat', gridSize = 'small', showKeyOnPage = false) {
+function pgPDFCipher(text, _unused, cipherType = 'letter', glyphFont = 'dingbat', gridSize = 'small', showGridlines = true, showKeyOnPage = false) {
     const { jsPDF } = window.jspdf;
     const doc  = new jsPDF({ unit: 'mm', format: 'letter' });
     const alpha = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
@@ -1365,14 +1394,14 @@ function pgPDFCipher(text, _unused, cipherType = 'letter', glyphFont = 'dingbat'
     // Grid size determines column count and cell dimensions
     let GRID_COLS, ENTRIES_PER_KEY_ROW;
     if (gridSize === 'large') {
-        GRID_COLS = 20;
-        ENTRIES_PER_KEY_ROW = 8;  // 16 cells / 2 per entry
+        GRID_COLS = 13;
+        ENTRIES_PER_KEY_ROW = 6;  // 12 cells / 2 per entry (leave 1 blank)
     } else if (gridSize === 'medium') {
-        GRID_COLS = 30;
-        ENTRIES_PER_KEY_ROW = 15;  // 30 cells / 2 per entry
+        GRID_COLS = 20;
+        ENTRIES_PER_KEY_ROW = 10;  // 20 cells / 2 per entry
     } else {  // small
-        GRID_COLS = 25;
-        ENTRIES_PER_KEY_ROW = 12;  // 24 cells / 2 per entry
+        GRID_COLS = 26;
+        ENTRIES_PER_KEY_ROW = 13;  // 26 cells / 2 per entry
     }
 
     // Calculate key dimensions
@@ -1407,8 +1436,10 @@ function pgPDFCipher(text, _unused, cipherType = 'letter', glyphFont = 'dingbat'
         // Draw the cipher key at the top
         pgDrawCipherKeyTop(doc, ciphers[i].rev, PG_GRID_X, keyY, cellW, cellH, GRID_COLS, ENTRIES_PER_KEY_ROW, cipherType);
 
-        // Draw grid with blank key area and message area
-        pgDrawLayoutGrid(doc, PG_GRID_X, keyY, PG_GRID_W, (TOTAL_KEY_AREA_ROWS + TEXT_ROWS) * cellH, GRID_COLS, TOTAL_KEY_AREA_ROWS + TEXT_ROWS);
+        // Draw grid with conditional gridlines
+        if (showGridlines) {
+            pgDrawCipherGrid(doc, PG_GRID_X, keyY, PG_GRID_W, (TOTAL_KEY_AREA_ROWS + TEXT_ROWS) * cellH, GRID_COLS, TOTAL_KEY_AREA_ROWS + TEXT_ROWS, KEY_ROWS);
+        }
 
         // Cipher text: starting below the key
         pgDrawCipherCells(doc, enc, PG_GRID_X, messageY, cellW, cellH, TEXT_COLS, TEXT_ROWS);
@@ -1481,8 +1512,9 @@ function pgGenerate() {
         const cipherType = document.getElementById('pg-cipher-type').value;
         const glyphFont = document.getElementById('pg-cipher-glyph-font').value;
         const gridSize = document.getElementById('pg-cipher-grid-size').value;
+        const showGridlines = document.getElementById('pg-cipher-gridlines').checked;
         const showKey = document.getElementById('pg-cipher-show-key').checked;
-        pgPDFCipher(text, null, cipherType, glyphFont, gridSize, showKey);
+        pgPDFCipher(text, null, cipherType, glyphFont, gridSize, showGridlines, showKey);
     }
 }
 
