@@ -1028,6 +1028,36 @@ function pgChunkText(text, n) {
     return out;
 }
 
+// --- PDF layout constants (letter paper, mm) ---
+
+const PG_DEBUG_GRID = true;   // ← set false to hide red grid lines for print
+const PG_W = 215.9, PG_H = 279.4, PG_M = 12;
+const PG_HEADER_Y = 47;                        // Y returned by pgHeader()
+const PG_GRID_X   = PG_M;
+const PG_GRID_Y   = PG_HEADER_Y;
+const PG_GRID_W   = PG_W - 2 * PG_M;          // 191.9 mm
+const PG_GRID_H   = PG_H - PG_HEADER_Y - PG_M; // ~220 mm
+
+/**
+ * Draw the invisible page grid.  When PG_DEBUG_GRID is true the lines appear
+ * as thin red guidelines so the layout is visible during development.
+ */
+function pgDrawLayoutGrid(doc, x, y, w, h, cols, rows) {
+    const cellW = w / cols;
+    const cellH = h / rows;
+    if (PG_DEBUG_GRID) {
+        doc.setDrawColor(210, 30, 30);
+        doc.setLineWidth(0.35);
+        for (let c = 0; c <= cols; c++)
+            doc.line(x + c * cellW, y, x + c * cellW, y + h);
+        for (let r = 0; r <= rows; r++)
+            doc.line(x, y + r * cellH, x + w, y + r * cellH);
+        doc.setDrawColor(0);
+        doc.setLineWidth(0.25);
+    }
+    return { cellW, cellH };
+}
+
 // --- PDF helpers ---
 
 function pgHeader(doc, title) {
@@ -1073,31 +1103,50 @@ function pgSudokuGrid(doc, grid, size, ox, oy, gs, symbolType = 'numbers') {
             }
 }
 
-function pgDrawMultProblems(doc, probs, startY, showAnswers, M, W) {
-    const cols = 3;
-    const colW = (W - M * 2) / cols;
-    const rowH = 18; // Space for stacked format
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
+/**
+ * Render multiplication problems into a COLS×ROWS grid.
+ * Numbers are right-aligned so decimal columns line up visually.
+ */
+function pgDrawMultProblems(doc, probs, gridX, gridY, gridW, gridH, showAnswers) {
+    const count = probs.length;
+    const COLS  = count > 30 ? 4 : 3;
+    const ROWS  = Math.ceil(count / COLS);
+    const { cellW, cellH } = pgDrawLayoutGrid(doc, gridX, gridY, gridW, gridH, COLS, ROWS);
 
     probs.forEach((p, i) => {
-        const col = i % cols;
-        const row = Math.floor(i / cols);
-        const x = M + col * colW + 5;
-        const y = startY + row * rowH;
+        if (i >= COLS * ROWS) return;
+        const col = i % COLS;
+        const row = Math.floor(i / COLS);
 
-        // Problem number
-        doc.text(`${i + 1}.`, x, y);
+        const cellLeft = gridX + col * cellW;
+        const cellTop  = gridY + row * cellH;
+        const numRight = cellLeft + cellW - 4;   // Numbers right-align here
+        const opX      = numRight - 19;          // × operator x-position
 
-        // Stacked format
-        doc.text(`${p.a}`, x + 12, y);
-        doc.text('×', x + 8, y + 4);
-        doc.text(String(p.b), x + 12, y + 4);
-        doc.setLineWidth(0.5);
-        doc.line(x + 8, y + 6, x + 18, y + 6);
+        // Problem index
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.text(`${i + 1}.`, cellLeft + 2, cellTop + 6.5);
 
-        const ans = showAnswers ? String(p.ans) : '___';
-        doc.text(ans, x + 12, y + 10);
+        // Top number
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(12);
+        doc.text(String(p.a), numRight, cellTop + 7, { align: 'right' });
+
+        // × operator + bottom number (right-aligned together)
+        doc.text('×', opX, cellTop + 13);
+        doc.text(String(p.b), numRight, cellTop + 13, { align: 'right' });
+
+        // Underline
+        doc.setLineWidth(0.7);
+        doc.setDrawColor(0);
+        doc.line(opX - 1, cellTop + 15, numRight, cellTop + 15);
+
+        // Answer (blank space when not showing answers)
+        if (showAnswers) {
+            doc.setFontSize(12);
+            doc.text(String(p.ans), numRight, cellTop + 21, { align: 'right' });
+        }
     });
 }
 
@@ -1113,65 +1162,50 @@ function pgAnswerKeySeparator(doc) {
 
 function pgPDFSudoku(sheets, size, diff, symbolType = 'numbers') {
     const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ unit: 'mm', format: 'letter' });
-    const W = 215.9, M = 12, H = 279.4;
-    const label = `${size}×${size}`;
+    const doc  = new jsPDF({ unit: 'mm', format: 'letter' });
+    const label   = `${size}×${size}`;
     const diffTxt = diff[0].toUpperCase() + diff.slice(1);
 
-    // Generate all puzzles first
-    const totalPuzzles = sheets * 6; // 6 per page
-    const allPuzzles = Array.from({ length: totalPuzzles }, () => pgMakeSudoku(size, diff));
+    const allPuzzles = Array.from({ length: sheets * 6 }, () => pgMakeSudoku(size, diff));
 
-    // Larger grid sizes for 2×3 layout
-    const gs = { 4: 55, 6: 65, 9: 75 }[size]; // Much larger grids
-    const colW = (W - M * 2) / 2;
-    const rowH = (H - M * 2 - 30) / 3; // 30mm for header
+    // 2-column × 3-row grid fills the printable content area
+    const COLS   = 2, ROWS = 3;
+    const cellW  = PG_GRID_W / COLS;
+    const cellH  = PG_GRID_H / ROWS;
+    const INSET  = 5;  // mm gap from grid line to puzzle edge
+    const puzSize = Math.min(cellW, cellH) - INSET * 2;
 
-    // Puzzle pages
-    for (let pageIdx = 0; pageIdx < sheets; pageIdx++) {
-        if (pageIdx > 0) doc.addPage();
+    const drawPage = (pageIdx, isSol) => {
+        if (pageIdx > 0 || isSol) doc.addPage();
+        const base  = isSol ? `Sudoku ${label} — Answer Key` : `Sudoku ${label} — ${diffTxt}`;
         const title = sheets > 1
-            ? `Sudoku ${label} — ${diffTxt} · Sheet ${pageIdx + 1} of ${sheets}`
-            : `Sudoku ${label} — ${diffTxt}`;
+            ? `${base} · Sheet ${pageIdx + 1}${!isSol ? ` of ${sheets}` : ''}`
+            : base;
         pgHeader(doc, title);
+        pgDrawLayoutGrid(doc, PG_GRID_X, PG_GRID_Y, PG_GRID_W, PG_GRID_H, COLS, ROWS);
 
-        // Draw 6 grids in 2×3 layout
-        for (let gridIdx = 0; gridIdx < 6; gridIdx++) {
-            const puzzleIdx = pageIdx * 6 + gridIdx;
-            const col = gridIdx % 2;
-            const row = Math.floor(gridIdx / 2);
-            const ox = M + col * colW + (colW - gs) / 2;
-            const oy = 32 + row * rowH + (rowH - gs) / 2;
-            pgSudokuGrid(doc, allPuzzles[puzzleIdx].puz, size, ox, oy, gs, symbolType);
+        for (let idx = 0; idx < 6; idx++) {
+            const col = idx % COLS;
+            const row = Math.floor(idx / COLS);
+            // Centre the puzzle square inside its grid cell
+            const ox = PG_GRID_X + col * cellW + (cellW - puzSize) / 2;
+            const oy = PG_GRID_Y + row * cellH + (cellH - puzSize) / 2;
+            const grid = isSol ? allPuzzles[pageIdx * 6 + idx].sol
+                                : allPuzzles[pageIdx * 6 + idx].puz;
+            pgSudokuGrid(doc, grid, size, ox, oy, puzSize, symbolType);
         }
-    }
+    };
 
-    // Answer key
+    for (let i = 0; i < sheets; i++) drawPage(i, false);
     pgAnswerKeySeparator(doc);
-    for (let pageIdx = 0; pageIdx < sheets; pageIdx++) {
-        doc.addPage();
-        const title = sheets > 1
-            ? `Sudoku ${label} — Answer Key · Sheet ${pageIdx + 1}`
-            : `Sudoku ${label} — Answer Key`;
-        pgHeader(doc, title);
+    for (let i = 0; i < sheets; i++) drawPage(i, true);
 
-        for (let gridIdx = 0; gridIdx < 6; gridIdx++) {
-            const puzzleIdx = pageIdx * 6 + gridIdx;
-            const col = gridIdx % 2;
-            const row = Math.floor(gridIdx / 2);
-            const ox = M + col * colW + (colW - gs) / 2;
-            const oy = 32 + row * rowH + (rowH - gs) / 2;
-            pgSudokuGrid(doc, allPuzzles[puzzleIdx].sol, size, ox, oy, gs, symbolType);
-        }
-    }
-
-    doc.save(`sudoku-${label}-${diff}.pdf`);
+    window.open(URL.createObjectURL(doc.output('blob')), '_blank');
 }
 
 function pgPDFMult(min, max, count, sheets) {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ unit: 'mm', format: 'letter' });
-    const W = 215.9, M = 19;
     const allSheets = Array.from({ length: sheets }, () => pgMakeMult(min, max, count));
 
     allSheets.forEach((probs, si) => {
@@ -1179,8 +1213,8 @@ function pgPDFMult(min, max, count, sheets) {
         const title = sheets > 1
             ? `Multiplication Practice · Sheet ${si + 1} of ${sheets}`
             : 'Multiplication Practice';
-        const y0 = pgHeader(doc, title);
-        pgDrawMultProblems(doc, probs, y0, false, M, W);
+        pgHeader(doc, title);
+        pgDrawMultProblems(doc, probs, PG_GRID_X, PG_GRID_Y, PG_GRID_W, PG_GRID_H, false);
     });
 
     pgAnswerKeySeparator(doc);
@@ -1189,17 +1223,17 @@ function pgPDFMult(min, max, count, sheets) {
         const title = sheets > 1
             ? `Multiplication — Answer Key · Sheet ${si + 1}`
             : 'Multiplication — Answer Key';
-        const y0 = pgHeader(doc, title);
-        pgDrawMultProblems(doc, probs, y0, true, M, W);
+        pgHeader(doc, title);
+        pgDrawMultProblems(doc, probs, PG_GRID_X, PG_GRID_Y, PG_GRID_W, PG_GRID_H, true);
     });
 
-    doc.save(`multiplication-${min}-to-${max}.pdf`);
+    window.open(URL.createObjectURL(doc.output('blob')), '_blank');
 }
 
-function pgDrawCipherKeyTable(doc, rev, x, y, compact = false, cipherType = 'letter') {
-    const alpha = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
-    const fs = compact ? 10 : 12; // Larger font
-    const rowH = compact ? 8 : 10; // More vertical space
+function pgDrawCipherKeyTable(doc, rev, x, y, compact = false, cipherType = 'letter', colSpacing = 40) {
+    const alpha  = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
+    const fs     = compact ? 10 : 12;
+    const rowH   = compact ? 8  : 10;
     const perCol = 13;
 
     doc.setFont('helvetica', 'normal');
@@ -1208,189 +1242,184 @@ function pgDrawCipherKeyTable(doc, rev, x, y, compact = false, cipherType = 'let
     for (let i = 0; i < 26; i++) {
         const row = i % perCol;
         const col = Math.floor(i / perCol);
-        const px = x + col * 40; // More horizontal space
-        const py = y + row * rowH;
+        const px  = x + col * colSpacing;
+        const py  = y + row * rowH;
 
         const ch = alpha[i];
         let decoded = rev ? rev[ch] : '___';
-
-        // Format based on cipher type
-        if (cipherType === 'number' && decoded !== '___') {
-            decoded = decoded.padStart(2, '0');
-        }
+        if (cipherType === 'number' && decoded !== '___') decoded = decoded.padStart(2, '0');
 
         doc.text(`${ch}→${decoded}`, px, py);
     }
 }
 
-function pgDrawCipherTextWithBlanks(doc, encText, x, y, maxWidth) {
-    const words = encText.split(' ');
-    let currentX = x;
-    let currentY = y;
-    const lineHeight = 14; // More space for writing blanks
-    const charSpacing = 4; // Space between characters
-    const wordSpacing = 8; // Space between words
-
-    doc.setFont('courier', 'normal');
-    doc.setFontSize(12);
-
-    for (let w = 0; w < words.length; w++) {
-        const word = words[w];
-
-        // Check if word fits on current line
-        const wordWidth = word.length * charSpacing + (word.length - 1) * (charSpacing / 2);
-        if (currentX + wordWidth > maxWidth && currentX > x) {
-            // Word doesn't fit, wrap to next line
-            currentX = x;
-            currentY += lineHeight;
-        }
-
-        // Draw each character in the word
-        for (let c = 0; c < word.length; c++) {
-            const glyph = word[c];
-            doc.text(glyph, currentX, currentY);
-            // Draw blank line underneath for writing
-            doc.setLineWidth(0.5);
-            doc.line(currentX - 2, currentY + 4.5, currentX + 4, currentY + 4.5);
-            currentX += charSpacing;
-        }
-
-        // Add space between words
-        currentX += wordSpacing;
-    }
-
-    return currentY + lineHeight;
-}
-
-function pgPDFCipher(text, chunkSize, cipherType = 'letter', glyphFont = 'dingbat', showKeyOnPage = false) {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ unit: 'mm', format: 'letter' });
-    const W = 215.9, M = 19, H = 279.4;
-    const alpha = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
-
-    // Auto-split text into pages based on available space
-    const words = text.trim().split(/\s+/);
-    const pageChunks = [];
-    let currentChunk = [];
-    let currentLength = 0;
-    const maxCharsPerPage = 400; // Adjust based on average word length
+/**
+ * Simulate word-wrap layout to build page chunks that respect the grid.
+ * Returns an array of strings — one per page.
+ */
+function pgCipherSplitToPages(words, textW, rowH, gridH, charW, wordGap) {
+    const rowsPerPage = Math.floor(gridH / rowH);
+    const pages = [];
+    let pageWords = [], row = 0, x = 0;
 
     for (const word of words) {
-        if (currentLength + word.length > maxCharsPerPage && currentChunk.length > 0) {
-            pageChunks.push(currentChunk.join(' '));
-            currentChunk = [word];
-            currentLength = word.length;
-        } else {
-            currentChunk.push(word);
-            currentLength += word.length + 1;
+        if (!word) continue;
+        const ww = word.length * charW + wordGap;
+        if (x + ww > textW && x > 0) { row++;  x = 0; }
+        if (row >= rowsPerPage) {
+            pages.push(pageWords.join(' '));
+            pageWords = [];  row = 0;
         }
+        pageWords.push(word);
+        x += ww;
     }
-    if (currentChunk.length > 0) {
-        pageChunks.push(currentChunk.join(' '));
+    if (pageWords.length) pages.push(pageWords.join(' '));
+    return pages;
+}
+
+/**
+ * Render encoded cipher text with answer blanks below each character.
+ * Words are kept intact; layout follows the grid row structure.
+ */
+function pgDrawCipherTextWithBlanks(doc, encText, textX, textY, textW, charW, wordGap, rowH) {
+    const words = encText.split(' ');
+    doc.setFont('courier', 'bold');
+    doc.setFontSize(11);
+
+    let row = 0, x = textX;
+
+    for (const word of words) {
+        if (!word) continue;
+        const ww = word.length * charW + wordGap;
+
+        // Wrap to next row if word doesn't fit
+        if (x + ww > textX + textW && x > textX) { row++;  x = textX; }
+
+        const charBaseY  = textY + row * rowH + 7;    // Text baseline in row
+        const blankLineY = charBaseY + 4.5;           // Underline for writing
+
+        for (let c = 0; c < word.length; c++) {
+            const cx = x + c * charW;
+            doc.text(word[c], cx + charW / 2, charBaseY, { align: 'center' });
+            doc.setLineWidth(0.5);
+            doc.setDrawColor(0);
+            doc.line(cx + 0.5, blankLineY, cx + charW - 0.5, blankLineY);
+        }
+        x += ww;
     }
+}
 
-    const origChunks = pageChunks;
+function pgPDFCipher(text, _unused, cipherType = 'letter', glyphFont = 'dingbat', showKeyOnPage = false) {
+    const { jsPDF } = window.jspdf;
+    const doc   = new jsPDF({ unit: 'mm', format: 'letter' });
+    const alpha = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
 
-    // Generate ciphers based on type
-    let ciphers;
-    if (cipherType === 'letter') {
-        ciphers = origChunks.map(() => pgMakeCipherMap());
-    } else if (cipherType === 'number') {
-        ciphers = origChunks.map(() => pgMakeCipherMapNumber());
-    } else {
-        ciphers = origChunks.map(() => pgMakeCipherMapGlyph(glyphFont));
-    }
+    // ── Cipher grid layout ────────────────────────────────────────────────
+    // Page is divided into 7 virtual columns:  5 for cipher text | 2 for key
+    const TOTAL_COLS = 7, TEXT_COLS = 5, KEY_COLS = 2;
+    const textW   = PG_GRID_W * TEXT_COLS / TOTAL_COLS;  // ~137 mm
+    const keyW    = PG_GRID_W * KEY_COLS  / TOTAL_COLS;  // ~55 mm
+    const CHAR_W  = 5.2;    // mm per encoded character (Courier bold 11pt)
+    const WORD_GAP = 7;     // mm gap between words
+    const ROW_H   = 14;     // mm per text row (glyph + write-in blank)
+    const ROWS    = Math.floor(PG_GRID_H / ROW_H);       // ≈15 rows / page
+    // ─────────────────────────────────────────────────────────────────────
 
+    // Split text into page chunks using actual grid geometry
+    const origChunks = pgCipherSplitToPages(
+        text.trim().split(/\s+/), textW, ROW_H, PG_GRID_H, CHAR_W, WORD_GAP
+    );
+
+    // One cipher per page
+    const ciphers = origChunks.map(() =>
+        cipherType === 'letter' ? pgMakeCipherMap()           :
+        cipherType === 'number' ? pgMakeCipherMapNumber()     :
+                                  pgMakeCipherMapGlyph(glyphFont)
+    );
     const encChunks = origChunks.map((ch, i) => pgEncrypt(ch, ciphers[i].fwd));
 
-    // Page 1: master decoding key
-    const y0 = pgHeader(doc, 'Code Breaker — Master Key');
+    // ── Page 1: master blank decoding sheet ──────────────────────────────
+    const masterY = pgHeader(doc, 'Code Breaker — Master Key');
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
-    const inst = `Each page has its own cipher. Look for patterns in the encoded text and use the key table to track your discoveries.${showKeyOnPage ? ' A key table appears on each page to help you.' : ''}`;
-    const instLines = doc.splitTextToSize(inst, W - M * 2);
-    doc.text(instLines, M, y0 + 2);
+    const inst = 'Each page uses its own unique cipher. Decode each page separately using the key table on the right.';
+    doc.text(doc.splitTextToSize(inst, PG_GRID_W), PG_GRID_X, masterY + 2);
 
-    const tableY = y0 + instLines.length * 5 + 10;
-    const colW = (W - M * 2) / 3;
-    const perCol = 9;
-    const rowH = 9;
-
+    const mkTableY = masterY + 14;
+    const mkColW   = PG_GRID_W / 3;
+    const mkPerCol = 9;
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
+    doc.setFontSize(12);
     for (let i = 0; i < 26; i++) {
-        const col = Math.floor(i / perCol);
-        const row = i % perCol;
-        const x = M + col * colW;
-        const y = tableY + row * rowH;
-        doc.text(alpha[i], x, y);
+        const col = Math.floor(i / mkPerCol);
+        const row = i % mkPerCol;
+        const kx  = PG_GRID_X + col * mkColW;
+        const ky  = mkTableY + row * 11;
+        doc.text(alpha[i], kx, ky);
         doc.setFont('helvetica', 'normal');
-        doc.text('  →  ___', x + 5, y);
+        doc.text('  →  ___', kx + 6, ky);
         doc.setFont('helvetica', 'bold');
     }
 
-    // Encoded text pages
+    // ── Encoded text pages ────────────────────────────────────────────────
+    // Key column spacing: divide the key area between 2 sub-columns
+    const keyColSpacing = (keyW - 4) / 2;   // ~25 mm each
+
     encChunks.forEach((enc, i) => {
         doc.addPage();
-        const startY = pgHeader(doc, `Encoded Text — Page ${i + 1} of ${encChunks.length}`);
+        const suffix = encChunks.length > 1 ? ` — Page ${i + 1} of ${encChunks.length}` : '';
+        pgHeader(doc, `Encoded Text${suffix}`);
 
-        if (showKeyOnPage) {
-            // Display with key table on the side
-            doc.setFont('courier', 'normal');
-            doc.setFontSize(11);
-            const textW = 100;
-            pgDrawCipherTextWithBlanks(doc, enc, M, startY + 8, M + textW);
+        // Full 7-column debug grid
+        pgDrawLayoutGrid(doc, PG_GRID_X, PG_GRID_Y, PG_GRID_W, PG_GRID_H, TOTAL_COLS, ROWS);
 
-            // Key table on right
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(9);
-            doc.text('KEY:', M + textW + 10, startY);
-            pgDrawCipherKeyTable(doc, null, M + textW + 8, startY + 5, false, cipherType);
-        } else {
-            // Just display encrypted text with blanks
-            pgDrawCipherTextWithBlanks(doc, enc, M, startY + 8, W - M);
-        }
-    });
+        // Cipher text in left TEXT_COLS columns
+        pgDrawCipherTextWithBlanks(
+            doc, enc,
+            PG_GRID_X, PG_GRID_Y, textW,
+            CHAR_W, WORD_GAP, ROW_H
+        );
 
-    // Answer key
-    pgAnswerKeySeparator(doc);
-
-    origChunks.forEach((orig, i) => {
-        doc.addPage();
-        let y = pgHeader(doc, `Answer Key — Page ${i + 1}`);
-        y += 3;
-
-        const rev = ciphers[i].rev;
-        const mapping = alpha.map(ch => `${ch}→${rev[ch]}`).join('  ');
-
-        // Cipher mapping
+        // Key in right KEY_COLS columns
+        const keyX = PG_GRID_X + textW + 3;
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(9);
-        doc.text(`CIPHER KEY  (${cipherType === 'number' ? 'encoded → 01-26' : 'encoded → original'})`, M, y);
+        doc.text('KEY', keyX, PG_GRID_Y + 4);
+
+        const revMap = showKeyOnPage ? ciphers[i].rev : null;
+        pgDrawCipherKeyTable(doc, revMap, keyX, PG_GRID_Y + 8, false, cipherType, keyColSpacing);
+    });
+
+    // ── Answer key pages ──────────────────────────────────────────────────
+    pgAnswerKeySeparator(doc);
+    origChunks.forEach((orig, i) => {
+        doc.addPage();
+        let y = pgHeader(doc, `Answer Key — Page ${i + 1}`) + 3;
+
+        const rev     = ciphers[i].rev;
+        const mapping = alpha.map(ch => `${ch}→${rev[ch]}`).join('  ');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
+        doc.text(`CIPHER KEY  (${cipherType === 'number' ? 'encoded → 01-26' : 'encoded → original'})`, PG_GRID_X, y);
         y += 6;
 
         doc.setFont('courier', 'normal');
         doc.setFontSize(8);
-        const mLines = doc.splitTextToSize(mapping, W - M * 2);
-        doc.text(mLines, M, y);
+        const mLines = doc.splitTextToSize(mapping, PG_GRID_W);
+        doc.text(mLines, PG_GRID_X, y);
         y += mLines.length * 4 + 8;
 
-        // Original text
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(10);
-        doc.text(`ORIGINAL TEXT  (Page ${i + 1})`, M, y);
+        doc.text(`ORIGINAL TEXT  (Page ${i + 1})`, PG_GRID_X, y);
         y += 7;
 
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(11);
-        const oLines = doc.splitTextToSize(orig, W - M * 2);
-        doc.text(oLines, M, y);
+        doc.text(doc.splitTextToSize(orig, PG_GRID_W), PG_GRID_X, y);
     });
 
-    // Open PDF in new tab instead of downloading
-    const pdfBlob = doc.output('blob');
-    const pdfUrl = URL.createObjectURL(pdfBlob);
-    window.open(pdfUrl, '_blank');
+    window.open(URL.createObjectURL(doc.output('blob')), '_blank');
 }
 
 // --- UI ---
