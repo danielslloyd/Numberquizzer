@@ -14,29 +14,31 @@ body {
     touch-action: manipulation;
 }
 
-/* Screens */
+/* Screens — invisible 3-row grid base */
 .screen {
     display: none;
     min-height: 100vh;
 }
 
 .screen.active {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    min-height: 100vh;
+    /* Row 1: optional top bar (auto)  |  Row 2: main content (grows)  |  Row 3: optional footer (auto) */
+    grid-template-rows: auto 1fr auto;
 }
 
-/* Container */
+/* Container — single centered column, always in the main row */
 .container {
     max-width: 480px;
     width: 100%;
     margin: 0 auto;
     padding: 3rem 2rem;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
+    display: grid;
+    grid-template-columns: 1fr;
+    justify-items: center;
+    align-content: center;
     gap: 2rem;
-    flex: 1;
-    justify-content: center;
+    grid-row: 2; /* Main (1fr) row */
 }
 
 /* Buttons */
@@ -291,7 +293,18 @@ body {
     border-color: #000000;
 }
 
-/* Quiz Screen */
+/* Quiz Screen — 3-area grid */
+#quiz-screen {
+    grid-template-areas:
+        "topbar"
+        "main"
+        "footer";
+}
+
+.quiz-top-bar   { grid-area: topbar; }
+.quiz-body      { grid-area: main; }
+.transcript-bar { grid-area: footer; }
+
 .quiz-top-bar {
     display: flex;
     justify-content: space-between;
@@ -342,11 +355,10 @@ body {
 }
 
 .quiz-body {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
+    display: grid;
+    grid-template-columns: 1fr;
+    justify-items: center;
+    align-content: center;
     padding: 1rem 2rem 2rem;
     gap: 1.5rem;
 }
@@ -615,13 +627,23 @@ body {
     width: 100%;
 }
 
+/* Word Sort Game — 2-area grid */
+#word-sort-game-screen {
+    grid-template-rows: auto 1fr; /* Only 2 rows — no footer */
+    grid-template-areas:
+        "topbar"
+        "main";
+}
+
+.ws-top-bar   { grid-area: topbar; }
+.ws-game-body { grid-area: main; }
+
 .ws-top-bar {
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 0.8rem 1.5rem;
     border-bottom: 3px solid #000000;
-    flex-shrink: 0;
 }
 
 .ws-diff-display {
@@ -633,11 +655,10 @@ body {
 }
 
 .ws-game-body {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
+    display: grid;
+    grid-template-columns: 1fr;
+    justify-items: center;
+    align-content: center;
     padding: 1.5rem 1.5rem 2rem;
     gap: 1.5rem;
 }
@@ -705,16 +726,18 @@ body {
     max-width: 340px;
 }
 
-/* Math Visualizer */
+/* Math Visualizer — single full-height row; home btn stays absolute */
 #visualizer-screen {
-    justify-content: flex-start;
+    grid-template-rows: 1fr;
     padding: 0;
     background-color: #ffffff;
+    position: relative; /* Anchor for .visualizer-home-btn */
+    overflow: hidden;
 }
 
 .visualizer-container {
     width: 100%;
-    height: calc(100vh - 60px);
+    min-height: 0; /* Let the grid row control height */
     display: flex;
     flex-direction: column;
 }
@@ -897,8 +920,10 @@ body {
     overflow-y: auto;
 }
 
+/* Puzzle generator: top-aligned scrollable content */
 .pg-container {
-    justify-content: flex-start;
+    grid-row: 1 / -1;     /* Span all 3 screen rows */
+    align-content: start; /* Items stack from top, not centred */
     padding-top: 2.5rem;
     padding-bottom: 3rem;
     gap: 1.5rem;
