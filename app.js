@@ -1115,10 +1115,11 @@ function pgSudokuGrid(doc, grid, size, ox, oy, gs, symbolType = 'numbers') {
         doc.line(ox + i * cs, oy, ox + i * cs, oy + gs);
     }
 
-    // Thick box boundary lines (drawn on top, ensuring corners connect)
-    doc.setLineWidth(1.5);
-    for (let r = 0; r <= size; r += bh) doc.line(ox, oy + r * cs, ox + gs, oy + r * cs);
-    for (let c = 0; c <= size; c += bw) doc.line(ox + c * cs, oy, ox + c * cs, oy + gs);
+    // Thick box boundary lines (drawn on top, extending slightly to ensure corners connect)
+    const margin = 0.05;  // Slight extension to ensure corners meet
+    doc.setLineWidth(1.0);  // Slightly thinner than before
+    for (let r = 0; r <= size; r += bh) doc.line(ox - margin, oy + r * cs, ox + gs + margin, oy + r * cs);
+    for (let c = 0; c <= size; c += bw) doc.line(ox + c * cs, oy - margin, ox + c * cs, oy + gs + margin);
 
     // Clue symbols (centered in cells)
     const fs = symbolType === 'multiples' ? (size === 4 ? 20 : size === 6 ? 14 : 11) : (size === 4 ? 28 : size === 6 ? 22 : 16);
@@ -1381,7 +1382,13 @@ function pgDrawCipherKeyTop(doc, revMap, gridX, gridY, cellW, cellH, gridCols, e
             const decoded = revMap[ch];
             doc.setFont('helvetica', 'bold');
             doc.setFontSize(fsValue);
-            doc.text(decoded, decodedX + cellW / 2, decodedY + textYTop, { align: 'center' });
+            try {
+                doc.text(decoded, decodedX + cellW / 2, decodedY + textYTop, { align: 'center' });
+            } catch (e) {
+                // If glyph can't be rendered (unicode issue), show a placeholder or skip
+                // For now, just skip rendering if it fails
+                console.warn(`Could not render glyph for ${ch}: ${e.message}`);
+            }
         }
     }
 }
