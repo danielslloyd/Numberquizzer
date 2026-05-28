@@ -1012,8 +1012,8 @@ function pgMakeCipherMapGlyph(glyphType) {
 }
 
 function pgEncrypt(text, fwd) {
-    // Remove all punctuation and non-letter characters (except spaces), then encrypt
-    return text.toUpperCase().replace(/[^A-Z ]/g, '').replace(/[A-Z]/g, ch => fwd[ch]);
+    // Encrypt letters, keep numbers and punctuation as-is, remove extra whitespace
+    return text.toUpperCase().replace(/[A-Z]/g, ch => fwd[ch]);
 }
 
 function pgEncryptWithSpaces(text, fwd) {
@@ -1064,14 +1064,12 @@ function pgDrawLayoutGrid(doc, x, y, w, h, cols, rows) {
 function pgHeader(doc, title) {
     const W = 215.9, M = 12;
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(11);
-    doc.text(title, W / 2, 10, { align: 'center' });
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    doc.text(`Name: ________________________     Date: ___________`, M, 14.5);
+    doc.setFontSize(10);
+    doc.text(title, M, 10);
+    doc.text(`Name: _________________     Date: _________`, W - 95, 10);
     doc.setLineWidth(0.4);
-    doc.line(M, 16.5, W - M, 16.5);
-    return 19;
+    doc.line(M, 12, W - M, 12);
+    return 15;
 }
 
 function pgSudokuGrid(doc, grid, size, ox, oy, gs, symbolType = 'numbers') {
@@ -1318,11 +1316,10 @@ function pgDrawCipherCells(doc, encChunk, gridX, gridY, cellW, cellH, textCols, 
 }
 
 /**
- * Draw the A–Z cipher key as a two-column grid to the right.
- * Column 1 (keyColStart): encrypted letters A-Z (one per row)
- * Column 2 (keyColStart+1): decoded equivalents
+ * Draw the A–Z cipher key at the top, with 2 cells per entry (cipher char + equivalent).
+ * Rows are filled from left to right based on ENTRIES_PER_KEY_ROW.
  */
-function pgDrawCipherKeyInCells(doc, revMap, gridX, gridY, cellW, cellH, keyColStart, cipherType) {
+function pgDrawCipherKeyTop(doc, revMap, gridX, gridY, cellW, cellH, gridCols, entriesPerRow, cipherType) {
     const alpha = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
     const fs    = Math.min(7, cellH * 0.68);
     const textY = cellH * 0.48;
@@ -1332,11 +1329,13 @@ function pgDrawCipherKeyInCells(doc, revMap, gridX, gridY, cellW, cellH, keyColS
     doc.setDrawColor(0);
 
     for (let i = 0; i < 26; i++) {
+        const row    = Math.floor(i / entriesPerRow);
+        const colPos = i % entriesPerRow;
         const ch = alpha[i];
-        const row = i;  // One row per letter (0-25)
 
-        // Column 1: encrypted letters
-        const letterX = gridX + keyColStart * cellW;
+        // Each entry uses 2 columns
+        const col = colPos * 2;
+        const letterX = gridX + col * cellW;
         const letterY = gridY + row * cellH;
 
         doc.setFont('helvetica', 'bold');
@@ -1344,10 +1343,10 @@ function pgDrawCipherKeyInCells(doc, revMap, gridX, gridY, cellW, cellH, keyColS
         doc.text(ch, letterX + cellW / 2, letterY + textY, { align: 'center' });
         doc.line(letterX + cellW * 0.12, letterY + lineY, letterX + cellW * 0.88, letterY + lineY);
 
-        // Column 2: decoded equivalents
+        // Second cell: decoded equivalent
         if (revMap) {
-            const decodedX = gridX + (keyColStart + 1) * cellW;
-            const decodedY = gridY + row * cellH;
+            const decodedX = letterX + cellW;
+            const decodedY = letterY;
 
             const decoded = revMap[ch];
             doc.setFont('helvetica', 'normal');
@@ -1358,20 +1357,38 @@ function pgDrawCipherKeyInCells(doc, revMap, gridX, gridY, cellW, cellH, keyColS
     }
 }
 
-function pgPDFCipher(text, _unused, cipherType = 'letter', glyphFont = 'dingbat', showKeyOnPage = false) {
+function pgPDFCipher(text, _unused, cipherType = 'letter', glyphFont = 'dingbat', gridSize = 'small', showKeyOnPage = false) {
     const { jsPDF } = window.jspdf;
     const doc  = new jsPDF({ unit: 'mm', format: 'letter' });
     const alpha = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
 
-    // 25-column grid: left 23 cols = cipher text, right 2 cols = key; 26 rows for A-Z
-    const GRID_COLS = 25, GRID_ROWS = 26;
-    const TEXT_COLS = 23, KEY_COL   = 23;
-    const cellW = PG_GRID_W / GRID_COLS;
-    const cellH = PG_GRID_H / GRID_ROWS;
+    // Grid size determines column count and cell dimensions
+    let GRID_COLS, ENTRIES_PER_KEY_ROW;
+    if (gridSize === 'large') {
+        GRID_COLS = 20;
+        ENTRIES_PER_KEY_ROW = 8;  // 16 cells / 2 per entry
+    } else if (gridSize === 'medium') {
+        GRID_COLS = 30;
+        ENTRIES_PER_KEY_ROW = 15;  // 30 cells / 2 per entry
+    } else {  // small
+        GRID_COLS = 25;
+        ENTRIES_PER_KEY_ROW = 12;  // 24 cells / 2 per entry
+    }
 
-    // Split source text into page-sized chunks (one cell per char, one cell gap between words)
+    // Calculate key dimensions
+    const KEY_ROWS = Math.ceil(26 / ENTRIES_PER_KEY_ROW);
+    const KEY_BLANK_ROWS = 1;  // Blank space between key and message
+    const TOTAL_KEY_AREA_ROWS = KEY_ROWS + KEY_BLANK_ROWS;
+    const cellW = PG_GRID_W / GRID_COLS;
+    const cellH = PG_GRID_H / (TOTAL_KEY_AREA_ROWS + 15);  // 15 rows for cipher text
+    const TEXT_COLS = GRID_COLS;
+    const TEXT_ROWS = 15;
+    const keyY = PG_GRID_Y;
+    const messageY = PG_GRID_Y + TOTAL_KEY_AREA_ROWS * cellH;
+
+    // Split source text into page-sized chunks
     const origChunks = pgCipherSplitToPages(
-        text.trim().split(/\s+/), TEXT_COLS * cellW, cellH, PG_GRID_H, cellW, cellW
+        text.trim().split(/\s+/), TEXT_COLS * cellW, cellH, TEXT_ROWS * cellH, cellW, cellW
     );
 
     const ciphers = origChunks.map(() =>
@@ -1387,14 +1404,14 @@ function pgPDFCipher(text, _unused, cipherType = 'letter', glyphFont = 'dingbat'
         const suffix = encChunks.length > 1 ? ` — Page ${i + 1} of ${encChunks.length}` : '';
         pgHeader(doc, `Encoded Text${suffix}`);
 
-        pgDrawLayoutGrid(doc, PG_GRID_X, PG_GRID_Y, PG_GRID_W, PG_GRID_H, GRID_COLS, GRID_ROWS);
+        // Draw the cipher key at the top
+        pgDrawCipherKeyTop(doc, ciphers[i].rev, PG_GRID_X, keyY, cellW, cellH, GRID_COLS, ENTRIES_PER_KEY_ROW, cipherType);
 
-        // Cipher text: one character per cell in left 23 columns
-        pgDrawCipherCells(doc, enc, PG_GRID_X, PG_GRID_Y, cellW, cellH, TEXT_COLS, GRID_ROWS);
+        // Draw grid with blank key area and message area
+        pgDrawLayoutGrid(doc, PG_GRID_X, keyY, PG_GRID_W, (TOTAL_KEY_AREA_ROWS + TEXT_ROWS) * cellH, GRID_COLS, TOTAL_KEY_AREA_ROWS + TEXT_ROWS);
 
-        // Key: right 2 columns, A-Z with blanks (or filled if showKeyOnPage)
-        const revMap = showKeyOnPage ? ciphers[i].rev : null;
-        pgDrawCipherKeyInCells(doc, revMap, PG_GRID_X, PG_GRID_Y, cellW, cellH, KEY_COL, cipherType);
+        // Cipher text: starting below the key
+        pgDrawCipherCells(doc, enc, PG_GRID_X, messageY, cellW, cellH, TEXT_COLS, TEXT_ROWS);
     });
 
     // ── Answer key pages ──────────────────────────────────────────────────
@@ -1407,10 +1424,10 @@ function pgPDFCipher(text, _unused, cipherType = 'letter', glyphFont = 'dingbat'
         const mapping = alpha.map(ch => `${ch}:${rev[ch]}`).join('   ');
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(9);
-        doc.text(`CIPHER KEY  (${cipherType === 'number' ? 'encoded: 01-26' : 'encoded: original'})`, PG_GRID_X, y);
+        doc.text(`CIPHER KEY`, PG_GRID_X, y);
         y += 6;
 
-        doc.setFont('courier', 'normal');
+        doc.setFont('helvetica', 'normal');
         doc.setFontSize(8);
         const mLines = doc.splitTextToSize(mapping, PG_GRID_W);
         doc.text(mLines, PG_GRID_X, y);
@@ -1463,8 +1480,9 @@ function pgGenerate() {
         if (!text) { alert('Please paste some text for the cipher.'); return; }
         const cipherType = document.getElementById('pg-cipher-type').value;
         const glyphFont = document.getElementById('pg-cipher-glyph-font').value;
+        const gridSize = document.getElementById('pg-cipher-grid-size').value;
         const showKey = document.getElementById('pg-cipher-show-key').checked;
-        pgPDFCipher(text, null, cipherType, glyphFont, showKey);
+        pgPDFCipher(text, null, cipherType, glyphFont, gridSize, showKey);
     }
 }
 
