@@ -1715,22 +1715,21 @@ function pgDrawCipherCells(doc, encChunk, gridX, gridY, cellW, cellH, textCols, 
         for (let c = 0; c < word.length; c++) {
             const char = word[c];
             const isLetter = /[A-Z]/.test(char);
+            const isDash = char === '-' || char === '—' || char === '–';
 
-            // Only advance column for letters; punctuation/numbers don't take up space
-            if (isLetter) {
+            if (isLetter || isDash) {
+                // Letters and dashes each occupy their own cell
                 if (col >= textCols) { row++; col = 0; }
                 if (row >= totalRows) break;
                 const cx = gridX + col * cellW;
                 const cy = gridY + row * cellH;
                 doc.text(char, cx + cellW / 2, cy + textY, { align: 'center' });
-                doc.line(cx + cellW * 0.12, cy + lineY, cx + cellW * 0.88, cy + lineY);
+                if (isLetter) {
+                    doc.line(cx + cellW * 0.12, cy + lineY, cx + cellW * 0.88, cy + lineY);
+                }
                 col++;
-            } else {
-                // Non-letters: draw at current position without taking up space
-                const cx = gridX + col * cellW;
-                const cy = gridY + row * cellH;
-                doc.text(char, cx + cellW / 2, cy + textY, { align: 'center' });
             }
+            // Other punctuation/numbers: skip entirely (don't draw, don't advance)
         }
 
         // One blank cell between words (only if we have space)
