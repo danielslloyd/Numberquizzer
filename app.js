@@ -1824,18 +1824,20 @@ function pgPDFCipher(text, _unused, cipherType = 'letter', glyphFont = 'dingbat'
     const doc  = new jsPDF({ unit: 'mm', format: 'letter' });
     const alpha = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
 
-    // Grid size determines column count and cell dimensions
-    let GRID_COLS;
+    // Grid size determines column count, rows, and cell dimensions
+    let GRID_COLS, TEXT_ROWS;
     if (gridSize === 'large') {
         GRID_COLS = 13;
+        TEXT_ROWS = 10;  // Fewer, taller rows for large grid
     } else if (gridSize === 'medium') {
         GRID_COLS = 20;
+        TEXT_ROWS = 14;
     } else {  // small
         GRID_COLS = 26;
+        TEXT_ROWS = 16;
     }
 
     // Key is now drawn separately (not in grid), so calculate grid dimensions for message only
-    const TEXT_ROWS = 16;  // Rows for cipher text grid
     const TEXT_COLS = GRID_COLS;
     const cellW = PG_GRID_W / GRID_COLS;
     const cellH = PG_GRID_H / (TEXT_ROWS + 3);  // Account for key space above
