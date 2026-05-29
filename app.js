@@ -27,6 +27,14 @@ const state = {
     visualizerAnimator: null,
     visualizerOp1: '×',
     visualizerOp2: '×',
+    tgMode:          null,
+    tgOpts:          {},
+    tgRounds:        [],
+    tgIndex:         0,
+    tgCorrect:       0,
+    tgStartTime:     null,
+    tgTimerInterval: null,
+    tgActive:        false,
 };
 
 // ============================================
@@ -263,8 +271,8 @@ function parseSpokenNumber(text, wordToNumber) {
 // ============================================
 
 // Flip the question card: rotate out, run callback to update content, rotate in.
-function flipCard(callback) {
-    const card = document.getElementById('question-display');
+function flipCard(callback, cardId = 'question-display') {
+    const card = document.getElementById(cardId);
 
     // Phase 1: rotate to 90° (hidden edge-on)
     card.style.transition = 'transform 0.14s ease-in';
@@ -428,13 +436,32 @@ function stopTimer() {
 }
 
 // ============================================
-// SCREENS
+// SCREENS & TAB BAR
 // ============================================
+
+const SCREEN_TAB = {
+    'home':              'flashcards',
+    'quiz':              'flashcards',
+    'results':           'flashcards',
+    'worksheets':        'worksheets',
+    'word-sort-menu':    'sorting',
+    'word-sort-game':    'sorting',
+    'word-sort-results': 'sorting',
+    'ciphers':           'ciphers',
+    'make-ten-menu':     'make-ten',
+    'tap-game':          'make-ten',
+    'tap-game-results':  'make-ten',
+    'ten-frame':         'ten-frame',
+    'visualizer':        'visualizer',
+    'sudoku':            'sudoku',
+};
 
 function showScreen(name) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     document.getElementById(`${name}-screen`).classList.add('active');
     document.getElementById('settings-widget').classList.toggle('hidden', name !== 'home');
+    const tab = SCREEN_TAB[name];
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
 }
 
 // ============================================
@@ -569,6 +596,196 @@ function endQuiz() {
         state.correctCount === state.questions.length ? 'Perfect!' : 'Done!';
 
     showScreen('results');
+}
+
+// ============================================
+// TAP GAMES (Make Ten · Within 20 · Missing Number)
+//
+// One engine drives three tap-to-answer mini-games. Each mode supplies a
+// round generator returning { tokens, answer, choices }:
+//   tokens  — full equation incl '=' with exactly one '?' blank
+//   answer  — the value that fills the blank
+//   choices — numbers shown as tappable buttons (must include answer)
+// ============================================
+
+const TAP_ROUNDS = 10;
+
+function tgRandInt(lo, hi) {
+    return lo + Math.floor(Math.random() * (hi - lo + 1));
+}
+
+
+const TAP_MODES = {
+    'make-ten': {
+        title: (o) => `Make ${o.target}`,
+        bestKey: (o) => `tapBest_makeTen_${o.target}`,
+        genRound(o) {
+            const known = tgRandInt(0, o.target);
+            const answer = o.target - known;
+            const choices = Array.from({ length: o.target + 1 }, (_, i) => i);
+            return { tokens: [String(known), '+', '?', '=', String(o.target)], answer, choices };
+        },
+    },
+};
+
+function tgLoadBest() {
+    const key = TAP_MODES[state.tgMode].bestKey(state.tgOpts);
+    const stored = localStorage.getItem(key);
+    return stored ? parseInt(stored, 10) : null;
+}
+
+function tgSaveBest(seconds) {
+    const key = TAP_MODES[state.tgMode].bestKey(state.tgOpts);
+    localStorage.setItem(key, seconds.toString());
+}
+
+function startTapGame(mode, opts = {}) {
+    state.tgMode = mode;
+    state.tgOpts = opts;
+    const def = TAP_MODES[mode];
+    state.tgRounds = Array.from({ length: TAP_ROUNDS }, () => def.genRound(opts));
+    state.tgIndex = 0;
+    state.tgCorrect = 0;
+
+    const card = document.getElementById('tg-question');
+    card.style.transition = 'none';
+    card.style.transform  = '';
+
+    document.getElementById('tg-title').textContent = def.title(opts);
+    document.getElementById('tg-timer-display').textContent = '00:00';
+    showScreen('tap-game');
+    tgRenderRound();
+    tgStartTimer();
+    state.tgActive = true;
+}
+
+function tgRenderRound() {
+    const round = state.tgRounds[state.tgIndex];
+    const card = document.getElementById('tg-question');
+    // Safe: tokens are generated numbers, operators, and the '?' blank
+    card.innerHTML = round.tokens.map(t => {
+        if (t === '?') return `<span class="tg-blank">?</span>`;
+        if (/^\d+$/.test(t)) return `<span class="tg-num">${t}</span>`;
+        return `<span class="tg-op">${t}</span>`;
+    }).join('');
+
+    document.getElementById('tg-progress-display').textContent =
+        `${state.tgIndex + 1} / ${TAP_ROUNDS}`;
+    const feedback = document.getElementById('tg-feedback');
+    feedback.textContent = '';
+    feedback.className = 'feedback-display';
+
+    const choices = document.getElementById('tg-choices');
+    choices.innerHTML = '';
+    round.choices.forEach(n => {
+        const btn = document.createElement('button');
+        btn.className = 'tg-choice';
+        btn.textContent = n;
+        btn.addEventListener('click', () => tgChoose(n, btn));
+        choices.appendChild(btn);
+    });
+}
+
+function tgChoose(value, btn) {
+    if (!state.tgActive) return;
+    const round = state.tgRounds[state.tgIndex];
+
+    if (value === round.answer) {
+        state.tgCorrect++;
+        state.tgIndex++;
+        state.tgActive = false;  // block taps during the flip
+        const next = () => {
+            if (state.tgIndex >= TAP_ROUNDS) {
+                tgEnd();
+            } else {
+                tgRenderRound();
+                state.tgActive = true;
+            }
+        };
+        flipCard(next, 'tg-question');
+    } else {
+        const feedback = document.getElementById('tg-feedback');
+        feedback.textContent = 'Try again!';
+        feedback.className = 'feedback-display incorrect';
+        btn.classList.add('tg-choice-wrong');
+        setTimeout(() => btn.classList.remove('tg-choice-wrong'), 400);
+    }
+}
+
+function tgStartTimer() {
+    state.tgStartTime = Date.now();
+    state.tgTimerInterval = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - state.tgStartTime) / 1000);
+        document.getElementById('tg-timer-display').textContent = formatTime(elapsed);
+    }, 200);
+}
+
+function tgEnd() {
+    state.tgActive = false;
+    clearInterval(state.tgTimerInterval);
+    const elapsed = Math.floor((Date.now() - state.tgStartTime) / 1000);
+
+    const best = tgLoadBest();
+    const isNewBest = best === null || elapsed < best;
+    if (isNewBest) tgSaveBest(elapsed);
+
+    document.getElementById('tg-final-time').textContent = formatTime(elapsed);
+    document.getElementById('tg-best-time').textContent = formatTime(isNewBest ? elapsed : best);
+    document.getElementById('tg-new-record').classList.toggle('hidden', !isNewBest);
+    document.getElementById('tg-results-title').textContent =
+        state.tgCorrect === TAP_ROUNDS ? 'Perfect!' : 'Done!';
+
+    showScreen('tap-game-results');
+}
+
+// ============================================
+// TEN FRAME BUILDER
+// ============================================
+
+function tfClampInput(id) {
+    const raw = parseInt(document.getElementById(id).value, 10);
+    if (isNaN(raw)) return 0;
+    return Math.max(0, Math.min(20, raw));
+}
+
+function tfShow() {
+    const a = tfClampInput('tf-input-a');
+    const b = tfClampInput('tf-input-b');
+    const total = a + b;
+
+    const frameCount = Math.max(1, Math.ceil(total / 10));
+    const container = document.getElementById('tf-frames');
+    container.innerHTML = '';
+
+    for (let f = 0; f < frameCount; f++) {
+        const frame = document.createElement('div');
+        frame.className = 'tf-frame';
+        for (let i = 0; i < 10; i++) {
+            const idx = f * 10 + i;  // 0-based dot index across all frames
+            const cell = document.createElement('div');
+            cell.className = 'tf-cell';
+            if (idx < total) {
+                const dot = document.createElement('span');
+                dot.className = idx < a ? 'tf-dot tf-dot-a' : 'tf-dot tf-dot-b';
+                cell.appendChild(dot);
+            }
+            frame.appendChild(cell);
+        }
+        container.appendChild(frame);
+    }
+
+    const sum = document.getElementById('tf-sum');
+    sum.textContent = `${a} + ${b} = ${total}`;
+    sum.classList.remove('hidden');
+}
+
+function tfClear() {
+    document.getElementById('tf-input-a').value = '';
+    document.getElementById('tf-input-b').value = '';
+    document.getElementById('tf-frames').innerHTML = '';
+    const sum = document.getElementById('tf-sum');
+    sum.classList.add('hidden');
+    sum.textContent = '';
 }
 
 // ============================================
@@ -1260,6 +1477,98 @@ function pgPDFMult(min, max, count, sheets) {
     window.open(URL.createObjectURL(doc.output('blob')), '_blank');
 }
 
+function pgMakeBonds(target, count) {
+    // Each bond: whole = target, one part shown, the other blank.
+    return Array.from({ length: count }, () => {
+        const known = Math.floor(Math.random() * (target + 1));  // 0..target
+        const missing = target - known;
+        const knownIsLeft = Math.random() < 0.5;
+        return { whole: target, known, missing, knownIsLeft };
+    });
+}
+
+/**
+ * Draw a single number-bond diagram centered in its cell.
+ * Whole circle on top, two part circles below connected by lines.
+ */
+function pgDrawBond(doc, bond, cx, cellTop, cellW, cellH, showAnswer) {
+    const r = Math.min(cellW, cellH) * 0.16;     // circle radius
+    const wholeY = cellTop + cellH * 0.30;       // whole circle center Y
+    const partY  = cellTop + cellH * 0.70;       // part circles center Y
+    const dx     = cellW * 0.26;                 // horizontal spread of parts
+    const leftX  = cx - dx;
+    const rightX = cx + dx;
+
+    doc.setDrawColor(0);
+    doc.setLineWidth(0.4);
+
+    // Connector lines (drawn first so circles sit on top)
+    doc.line(cx, wholeY + r, leftX, partY - r);
+    doc.line(cx, wholeY + r, rightX, partY - r);
+
+    // Circles
+    doc.circle(cx, wholeY, r);
+    doc.circle(leftX, partY, r);
+    doc.circle(rightX, partY, r);
+
+    // Values
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(Math.min(18, r * 3.2));
+    const ty = (y) => y + r * 0.45;  // vertical centering tweak
+
+    doc.text(String(bond.whole), cx, ty(wholeY), { align: 'center' });
+
+    const leftVal  = bond.knownIsLeft ? bond.known   : bond.missing;
+    const rightVal = bond.knownIsLeft ? bond.missing : bond.known;
+    const leftShown  = bond.knownIsLeft || showAnswer;
+    const rightShown = !bond.knownIsLeft || showAnswer;
+
+    if (leftShown)  doc.text(String(leftVal),  leftX,  ty(partY), { align: 'center' });
+    if (rightShown) doc.text(String(rightVal), rightX, ty(partY), { align: 'center' });
+}
+
+function pgDrawBonds(doc, bonds, gridX, gridY, gridW, gridH, showAnswers) {
+    const count = bonds.length;
+    const COLS  = 3;
+    const ROWS  = Math.ceil(count / COLS);
+    const { cellW, cellH } = pgDrawLayoutGrid(doc, gridX, gridY, gridW, gridH, COLS, ROWS);
+
+    bonds.forEach((bond, i) => {
+        const col = i % COLS;
+        const row = Math.floor(i / COLS);
+        const cx       = gridX + col * cellW + cellW / 2;
+        const cellTop  = gridY + row * cellH;
+        pgDrawBond(doc, bond, cx, cellTop, cellW, cellH, showAnswers);
+    });
+}
+
+function pgPDFBonds(target, count, sheets) {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'mm', format: 'letter' });
+    const allSheets = Array.from({ length: sheets }, () => pgMakeBonds(target, count));
+
+    allSheets.forEach((bonds, si) => {
+        if (si) doc.addPage();
+        const title = sheets > 1
+            ? `Number Bonds — Make ${target} · Sheet ${si + 1} of ${sheets}`
+            : `Number Bonds — Make ${target}`;
+        pgHeader(doc, title);
+        pgDrawBonds(doc, bonds, PG_GRID_X, PG_GRID_Y, PG_GRID_W, PG_GRID_H, false);
+    });
+
+    pgAnswerKeySeparator(doc);
+    allSheets.forEach((bonds, si) => {
+        doc.addPage();
+        const title = sheets > 1
+            ? `Number Bonds — Answer Key · Sheet ${si + 1}`
+            : `Number Bonds — Answer Key`;
+        pgHeader(doc, title);
+        pgDrawBonds(doc, bonds, PG_GRID_X, PG_GRID_Y, PG_GRID_W, PG_GRID_H, true);
+    });
+
+    window.open(URL.createObjectURL(doc.output('blob')), '_blank');
+}
+
 function pgDrawCipherKeyTable(doc, rev, x, y, compact = false, cipherType = 'letter', colSpacing = 40) {
     const alpha  = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
     const fs     = compact ? 10 : 12;
@@ -1484,50 +1793,89 @@ function pgPDFCipher(text, _unused, cipherType = 'letter', glyphFont = 'dingbat'
     window.open(URL.createObjectURL(doc.output('blob')), '_blank');
 }
 
-// --- UI ---
+// --- Per-screen generate functions ---
 
 function pgSetType(type) {
-    document.querySelectorAll('.pg-type-btn').forEach(b => b.classList.toggle('active', b.dataset.type === type));
-    document.querySelectorAll('.pg-config').forEach(el => el.classList.add('hidden'));
-    document.getElementById(`pg-${type}-config`).classList.remove('hidden');
+    // Used for worksheets tab (mult / bonds toggle)
+    document.querySelectorAll('#worksheets-screen .pg-type-btn')
+        .forEach(b => b.classList.toggle('active', b.dataset.type === type));
+    document.getElementById('pg-multiplication-config').classList.toggle('hidden', type !== 'multiplication');
+    document.getElementById('pg-bonds-config').classList.toggle('hidden', type !== 'bonds');
 }
 
-function pgGenerate() {
+function pgCheckJsPDF() {
     if (!window.jspdf) {
         alert('PDF library is still loading — please try again in a moment.');
-        return;
+        return false;
     }
-    const type = document.querySelector('.pg-type-btn.active').dataset.type;
+    return true;
+}
 
-    if (type === 'sudoku') {
-        const size  = parseInt(document.getElementById('pg-sudoku-size').value, 10);
-        const symbols = document.getElementById('pg-sudoku-symbols').value;
-        const diff  = document.getElementById('pg-sudoku-diff').value;
-        const sheets = parseInt(document.getElementById('pg-sudoku-sheets').value, 10);
-        pgPDFSudoku(sheets, size, diff, symbols);
+function pgGenerateSudoku() {
+    if (!pgCheckJsPDF()) return;
+    const size    = parseInt(document.getElementById('pg-sudoku-size').value, 10);
+    const symbols = document.getElementById('pg-sudoku-symbols').value;
+    const diff    = document.getElementById('pg-sudoku-diff').value;
+    const sheets  = parseInt(document.getElementById('pg-sudoku-sheets').value, 10);
+    pgPDFSudoku(sheets, size, diff, symbols);
+}
 
-    } else if (type === 'multiplication') {
+function pgGenerateWorksheets() {
+    if (!pgCheckJsPDF()) return;
+    const type = document.querySelector('#worksheets-screen .pg-type-btn.active').dataset.type;
+    if (type === 'multiplication') {
         const min    = Math.max(1, parseInt(document.getElementById('pg-mult-min').value, 10) || 1);
         const max    = Math.max(min, parseInt(document.getElementById('pg-mult-max').value, 10) || 10);
         const count  = parseInt(document.getElementById('pg-mult-count').value, 10);
         const sheets = parseInt(document.getElementById('pg-mult-sheets').value, 10);
         pgPDFMult(min, max, count, sheets);
-
-    } else if (type === 'cipher') {
-        const text = document.getElementById('pg-cipher-text').value.trim();
-        if (!text) { alert('Please paste some text for the cipher.'); return; }
-        const cipherType = document.getElementById('pg-cipher-type').value;
-        const glyphFont = document.getElementById('pg-cipher-glyph-font').value;
-        const gridSize = document.getElementById('pg-cipher-grid-size').value;
-        const showGridlines = document.getElementById('pg-cipher-gridlines').checked;
-        const showKey = document.getElementById('pg-cipher-show-key').checked;
-        pgPDFCipher(text, null, cipherType, glyphFont, gridSize, showGridlines, showKey);
+    } else if (type === 'bonds') {
+        const target = parseInt(document.getElementById('pg-bonds-target').value, 10);
+        const count  = parseInt(document.getElementById('pg-bonds-count').value, 10);
+        const sheets = parseInt(document.getElementById('pg-bonds-sheets').value, 10);
+        pgPDFBonds(target, count, sheets);
     }
+}
+
+function pgGenerateCiphers() {
+    if (!pgCheckJsPDF()) return;
+    const text = document.getElementById('pg-cipher-text').value.trim();
+    if (!text) { alert('Please paste some text for the cipher.'); return; }
+    const cipherType    = document.getElementById('pg-cipher-type').value;
+    const glyphFont     = document.getElementById('pg-cipher-glyph-font').value;
+    const gridSize      = document.getElementById('pg-cipher-grid-size').value;
+    const showGridlines = document.getElementById('pg-cipher-gridlines').checked;
+    const showKey       = document.getElementById('pg-cipher-show-key').checked;
+    pgPDFCipher(text, null, cipherType, glyphFont, gridSize, showGridlines, showKey);
 }
 
 // ============================================
 // INIT
 // ============================================
+
+// What to do when a tab is clicked (entry point for each tab)
+const TAB_ENTRY = {
+    'flashcards': () => { showScreen('home'); initHome(); },
+    'worksheets': () => { showScreen('worksheets'); pgSetType('multiplication'); },
+    'sorting':    () => { showScreen('word-sort-menu'); initWordSortMenu(); },
+    'ciphers':    () => showScreen('ciphers'),
+    'make-ten':   () => showScreen('make-ten-menu'),
+    'ten-frame':  () => { showScreen('ten-frame'); tfClear(); },
+    'visualizer': () => {
+        showScreen('visualizer');
+        initVisualizer();
+        handleVisualizerClear();
+    },
+    'sudoku':     () => showScreen('sudoku'),
+};
+
+function onTabLeave(fromTab) {
+    // Dispose the Three.js scene when navigating away from the visualizer
+    if (fromTab === 'visualizer' && state.visualizerAnimator) {
+        state.visualizerAnimator.dispose();
+        state.visualizerAnimator = null;
+    }
+}
 
 document.addEventListener('DOMContentLoaded', () => {
     const speechReady = initSpeechRecognition();
@@ -1541,7 +1889,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
     initHome();
 
-    // Operation toggles
+    // ---- Tab bar ----
+    document.getElementById('tab-bar').addEventListener('click', (e) => {
+        const btn = e.target.closest('.tab-btn');
+        if (!btn) return;
+        const toTab = btn.dataset.tab;
+        const fromTab = document.querySelector('.tab-btn.active')?.dataset.tab;
+        if (toTab === fromTab) return;
+        onTabLeave(fromTab);
+        TAB_ENTRY[toTab]?.();
+    });
+
+    // ---- Flashcards ----
     document.getElementById('op-toggles').addEventListener('click', (e) => {
         const btn = e.target.closest('.op-toggle');
         if (!btn) return;
@@ -1565,7 +1924,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('start-btn').addEventListener('click', startQuiz);
 
-    // Typed fallback
     const submitBtn = document.getElementById('submit-btn');
     if (submitBtn) {
         submitBtn.addEventListener('click', submitTyped);
@@ -1580,20 +1938,17 @@ document.addEventListener('DOMContentLoaded', () => {
         initHome();
     });
 
-    // ---- Word Sort ----
-    document.getElementById('word-sort-btn').addEventListener('click', () => {
-        showScreen('word-sort-menu');
-        initWordSortMenu();
-    });
+    // ---- Worksheets ----
+    document.getElementById('worksheets-screen')
+        .querySelectorAll('.pg-type-btn')
+        .forEach(btn => btn.addEventListener('click', () => pgSetType(btn.dataset.type)));
 
+    document.getElementById('worksheets-generate-btn').addEventListener('click', pgGenerateWorksheets);
+
+    // ---- Sorting ----
     document.getElementById('word-sort-menu-screen')
         .querySelectorAll('.ws-diff-btn')
         .forEach(btn => btn.addEventListener('click', () => startWordSort(btn.dataset.diff)));
-
-    document.getElementById('ws-home-btn').addEventListener('click', () => {
-        showScreen('home');
-        initHome();
-    });
 
     document.getElementById('ws-check-btn').addEventListener('click', wsCheckOrder);
 
@@ -1606,28 +1961,52 @@ document.addEventListener('DOMContentLoaded', () => {
         initWordSortMenu();
     });
 
-    document.getElementById('ws-home-from-results-btn').addEventListener('click', () => {
-        showScreen('home');
-        initHome();
+    // ---- Ciphers ----
+    document.getElementById('pg-cipher-type').addEventListener('change', (e) => {
+        document.getElementById('pg-cipher-glyph-selector')
+            .classList.toggle('hidden', e.target.value !== 'glyph');
     });
 
-    // ---- Math Visualizer ----
-    document.getElementById('visualizer-btn').addEventListener('click', () => {
-        showScreen('visualizer');
-        initVisualizer();
-        handleVisualizerClear();
+    document.getElementById('ciphers-generate-btn').addEventListener('click', pgGenerateCiphers);
+
+    // ---- Make Ten ----
+    document.getElementById('mt-target-btns').addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-target]');
+        if (!btn) return;
+        document.querySelectorAll('#mt-target-btns [data-target]')
+            .forEach(b => b.classList.toggle('active', b === btn));
     });
 
-    // Three input fields: Enter key on any triggers animation
-    ['visualizer-input-1', 'visualizer-input-2', 'visualizer-input-3'].forEach(id => {
+    document.getElementById('mt-start-btn').addEventListener('click', () => {
+        const sel = document.querySelector('#mt-target-btns [data-target].active');
+        const target = parseInt(sel ? sel.dataset.target : '10', 10);
+        startTapGame('make-ten', { target });
+    });
+
+    document.getElementById('tg-play-again-btn').addEventListener('click', () => {
+        startTapGame(state.tgMode, state.tgOpts);
+    });
+
+    document.getElementById('tg-results-home-btn').addEventListener('click', () => {
+        showScreen('make-ten-menu');
+    });
+
+    // ---- Ten Frame ----
+    document.getElementById('tf-show-btn').addEventListener('click', tfShow);
+    document.getElementById('tf-clear-btn').addEventListener('click', tfClear);
+    ['tf-input-a', 'tf-input-b'].forEach(id => {
         document.getElementById(id).addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                handleVisualizerInput();
-            }
+            if (e.key === 'Enter') tfShow();
         });
     });
 
-    // Operator buttons: toggle between × and +
+    // ---- Visualizer ----
+    ['visualizer-input-1', 'visualizer-input-2', 'visualizer-input-3'].forEach(id => {
+        document.getElementById(id).addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') handleVisualizerInput();
+        });
+    });
+
     document.querySelectorAll('.visualizer-op-btn').forEach(btn => {
         btn.addEventListener('click', () => {
             const opIndex = btn.dataset.opIndex;
@@ -1641,7 +2020,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('visualizer-drop-btn').addEventListener('click', handleVisualizerDrop);
     document.getElementById('visualizer-clear-btn').addEventListener('click', handleVisualizerClear);
 
-    // Spacing slider: keep displayed value in sync as the user drags
     const spacingSlider = document.getElementById('visualizer-spacing');
     const spacingValueEl = document.getElementById('visualizer-spacing-value');
     if (spacingSlider && spacingValueEl) {
@@ -1652,35 +2030,6 @@ document.addEventListener('DOMContentLoaded', () => {
         updateSpacingLabel();
     }
 
-    document.getElementById('visualizer-home-btn').addEventListener('click', () => {
-        if (state.visualizerAnimator) {
-            state.visualizerAnimator.dispose();
-            state.visualizerAnimator = null;
-        }
-        showScreen('home');
-        initHome();
-    });
-
-    // ---- Puzzle Generator ----
-    document.getElementById('puzzle-btn').addEventListener('click', () => {
-        showScreen('puzzle-generator');
-        pgSetType('sudoku');
-    });
-
-    document.querySelectorAll('.pg-type-btn').forEach(btn => {
-        btn.addEventListener('click', () => pgSetType(btn.dataset.type));
-    });
-
-    // Cipher type selector: show/hide glyph font option
-    document.getElementById('pg-cipher-type').addEventListener('change', (e) => {
-        const glyphSelector = document.getElementById('pg-cipher-glyph-selector');
-        glyphSelector.classList.toggle('hidden', e.target.value !== 'glyph');
-    });
-
-    document.getElementById('pg-generate-btn').addEventListener('click', pgGenerate);
-
-    document.getElementById('pg-home-btn').addEventListener('click', () => {
-        showScreen('home');
-        initHome();
-    });
+    // ---- Sudoku ----
+    document.getElementById('sudoku-generate-btn').addEventListener('click', pgGenerateSudoku);
 });
