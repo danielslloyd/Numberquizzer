@@ -1903,11 +1903,15 @@ function pgPDFCipher(text, _unused, cipherType = 'letter', glyphFont = 'dingbat'
 
             // Cipher key mapping (full, wrapped to multiple lines if needed)
             doc.setFont('helvetica', 'bold');
-            doc.setFontSize(8);
-            const keyLabel = `KEY (Page ${i + 1}): ${mapping}`;
-            const keyLines = doc.splitTextToSize(keyLabel, PG_GRID_W);
+            doc.setFontSize(9);
+            doc.text(`KEY (Page ${i + 1}):`, PG_GRID_X, y);
+            y += 3.5;
+
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(7.5);
+            const keyLines = doc.splitTextToSize(mapping, PG_GRID_W);
             doc.text(keyLines, PG_GRID_X, y);
-            y += keyLines.length * 3.5 + 2;
+            y += keyLines.length * 3 + 2;
 
             // Original text preview
             doc.setFont('helvetica', 'normal');
