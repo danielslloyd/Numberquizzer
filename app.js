@@ -1490,7 +1490,7 @@ function pgPDFSudoku(sheets, size, diff, symbolType = 'numbers') {
     window.open(URL.createObjectURL(doc.output('blob')), '_blank');
 }
 
-function pgPDFMult(min, max, count, sheets) {
+function pgPDFMult(min, max, count, sheets, includeAnswerKey = false) {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ unit: 'mm', format: 'letter' });
     const allSheets = Array.from({ length: sheets }, () => pgMakeMult(min, max, count));
@@ -1502,17 +1502,34 @@ function pgPDFMult(min, max, count, sheets) {
             : 'Multiplication Practice';
         pgHeader(doc, title);
         pgDrawMultProblems(doc, probs, PG_GRID_X, PG_GRID_Y, PG_GRID_W, PG_GRID_H, false);
+
+        // If including answer key inline, append it on same or next page
+        if (includeAnswerKey) {
+            let y = PG_GRID_Y + PG_GRID_H + 5;
+            if (y > PG_H - 40) {
+                doc.addPage();
+                y = pgHeader(doc, 'Answer Keys') + 3;
+            }
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(9);
+            doc.text(`Answers — Sheet ${si + 1}:`, PG_GRID_X, y);
+            y += 4;
+            pgDrawMultProblems(doc, probs, PG_GRID_X, y, PG_GRID_W, PG_H - y - 10, true);
+        }
     });
 
-    pgAnswerKeySeparator(doc);
-    allSheets.forEach((probs, si) => {
-        doc.addPage();
-        const title = sheets > 1
-            ? `Multiplication — Answer Key · Sheet ${si + 1}`
-            : 'Multiplication — Answer Key';
-        pgHeader(doc, title);
-        pgDrawMultProblems(doc, probs, PG_GRID_X, PG_GRID_Y, PG_GRID_W, PG_GRID_H, true);
-    });
+    if (!includeAnswerKey) {
+        // Original behavior: separate answer key pages
+        pgAnswerKeySeparator(doc);
+        allSheets.forEach((probs, si) => {
+            doc.addPage();
+            const title = sheets > 1
+                ? `Multiplication — Answer Key · Sheet ${si + 1}`
+                : 'Multiplication — Answer Key';
+            pgHeader(doc, title);
+            pgDrawMultProblems(doc, probs, PG_GRID_X, PG_GRID_Y, PG_GRID_W, PG_GRID_H, true);
+        });
+    }
 
     window.open(URL.createObjectURL(doc.output('blob')), '_blank');
 }
@@ -1582,7 +1599,7 @@ function pgDrawBonds(doc, bonds, gridX, gridY, gridW, gridH, showAnswers) {
     });
 }
 
-function pgPDFBonds(target, count, sheets) {
+function pgPDFBonds(target, count, sheets, includeAnswerKey = false) {
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF({ unit: 'mm', format: 'letter' });
     const allSheets = Array.from({ length: sheets }, () => pgMakeBonds(target, count));
@@ -1594,17 +1611,34 @@ function pgPDFBonds(target, count, sheets) {
             : `Number Bonds — Make ${target}`;
         pgHeader(doc, title);
         pgDrawBonds(doc, bonds, PG_GRID_X, PG_GRID_Y, PG_GRID_W, PG_GRID_H, false);
+
+        // If including answer key inline, append it on same or next page
+        if (includeAnswerKey) {
+            let y = PG_GRID_Y + PG_GRID_H + 5;
+            if (y > PG_H - 40) {
+                doc.addPage();
+                y = pgHeader(doc, 'Answer Keys') + 3;
+            }
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(9);
+            doc.text(`Answers — Sheet ${si + 1}:`, PG_GRID_X, y);
+            y += 4;
+            pgDrawBonds(doc, bonds, PG_GRID_X, y, PG_GRID_W, PG_H - y - 10, true);
+        }
     });
 
-    pgAnswerKeySeparator(doc);
-    allSheets.forEach((bonds, si) => {
-        doc.addPage();
-        const title = sheets > 1
-            ? `Number Bonds — Answer Key · Sheet ${si + 1}`
-            : `Number Bonds — Answer Key`;
-        pgHeader(doc, title);
-        pgDrawBonds(doc, bonds, PG_GRID_X, PG_GRID_Y, PG_GRID_W, PG_GRID_H, true);
-    });
+    if (!includeAnswerKey) {
+        // Original behavior: separate answer key pages
+        pgAnswerKeySeparator(doc);
+        allSheets.forEach((bonds, si) => {
+            doc.addPage();
+            const title = sheets > 1
+                ? `Number Bonds — Answer Key · Sheet ${si + 1}`
+                : `Number Bonds — Answer Key`;
+            pgHeader(doc, title);
+            pgDrawBonds(doc, bonds, PG_GRID_X, PG_GRID_Y, PG_GRID_W, PG_GRID_H, true);
+        });
+    }
 
     window.open(URL.createObjectURL(doc.output('blob')), '_blank');
 }
@@ -1785,7 +1819,7 @@ function pgDrawCipherKeyTop(doc, revMap, gridX, gridY, cellW, cellH, gridCols, e
     }
 }
 
-function pgPDFCipher(text, _unused, cipherType = 'letter', glyphFont = 'dingbat', gridSize = 'small', showGridlines = true, showKeyOnPage = false) {
+function pgPDFCipher(text, _unused, cipherType = 'letter', glyphFont = 'dingbat', gridSize = 'small', showGridlines = true, showKeyOnPage = false, includeAnswerKey = false) {
     const { jsPDF } = window.jspdf;
     const doc  = new jsPDF({ unit: 'mm', format: 'letter' });
     const alpha = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
@@ -1838,34 +1872,74 @@ function pgPDFCipher(text, _unused, cipherType = 'letter', glyphFont = 'dingbat'
         pgDrawCipherCells(doc, enc, PG_GRID_X, messageY, cellW, cellH, TEXT_COLS, TEXT_ROWS);
     });
 
-    // ── Answer key pages ──────────────────────────────────────────────────
-    pgAnswerKeySeparator(doc);
-    origChunks.forEach((orig, i) => {
-        doc.addPage();
-        let y = pgHeader(doc, `Answer Key — Page ${i + 1}`) + 3;
+    // ── Answer key section ────────────────────────────────────────────────
+    if (includeAnswerKey) {
+        // Append answer keys at the end without separate page header or page breaks
+        let keyPageAdded = false;
+        let y = PG_GRID_Y;
 
-        const rev     = ciphers[i].rev;
-        const mapping = alpha.map(ch => `${ch}:${rev[ch]}`).join('   ');
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(9);
-        doc.text(`CIPHER KEY`, PG_GRID_X, y);
-        y += 6;
+        origChunks.forEach((orig, i) => {
+            const rev     = ciphers[i].rev;
+            const mapping = alpha.map(ch => `${ch}:${rev[ch]}`).join('   ');
 
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(8);
-        const mLines = doc.splitTextToSize(mapping, PG_GRID_W);
-        doc.text(mLines, PG_GRID_X, y);
-        y += mLines.length * 4 + 8;
+            // Add a new page only for the first answer key
+            if (!keyPageAdded) {
+                doc.addPage();
+                y = pgHeader(doc, 'Answer Keys');
+                keyPageAdded = true;
+            } else {
+                // Add some vertical space between answer keys
+                y += 8;
+                // Check if there's enough space, otherwise add a new page
+                if (y > PG_H - 40) {
+                    doc.addPage();
+                    y = pgHeader(doc, 'Answer Keys');
+                }
+            }
 
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(10);
-        doc.text(`ORIGINAL TEXT  (Page ${i + 1})`, PG_GRID_X, y);
-        y += 7;
+            // Cipher key mapping (compact format)
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(9);
+            doc.text(`KEY (Page ${i + 1}): ${mapping.slice(0, 60)}${mapping.length > 60 ? '...' : ''}`, PG_GRID_X, y);
+            y += 5;
 
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(11);
-        doc.text(doc.splitTextToSize(orig, PG_GRID_W), PG_GRID_X, y);
-    });
+            // Original text preview
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(8);
+            const origPreview = orig.substring(0, 80) + (orig.length > 80 ? '...' : '');
+            doc.text(`Original: ${origPreview}`, PG_GRID_X, y);
+            y += 4;
+        });
+    } else {
+        // Original behavior: separate answer key pages with full formatting
+        pgAnswerKeySeparator(doc);
+        origChunks.forEach((orig, i) => {
+            doc.addPage();
+            let y = pgHeader(doc, `Answer Key — Page ${i + 1}`) + 3;
+
+            const rev     = ciphers[i].rev;
+            const mapping = alpha.map(ch => `${ch}:${rev[ch]}`).join('   ');
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(9);
+            doc.text(`CIPHER KEY`, PG_GRID_X, y);
+            y += 6;
+
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(8);
+            const mLines = doc.splitTextToSize(mapping, PG_GRID_W);
+            doc.text(mLines, PG_GRID_X, y);
+            y += mLines.length * 4 + 8;
+
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(10);
+            doc.text(`ORIGINAL TEXT  (Page ${i + 1})`, PG_GRID_X, y);
+            y += 7;
+
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(11);
+            doc.text(doc.splitTextToSize(orig, PG_GRID_W), PG_GRID_X, y);
+        });
+    }
 
     window.open(URL.createObjectURL(doc.output('blob')), '_blank');
 }
@@ -1903,17 +1977,18 @@ function pgGenerateWorksheets() {
     if (!pgCheckJsPDF()) return;
     const type = document.querySelector('#worksheets-screen .pg-type-btn.active').dataset.type;
     const activeConfig = document.getElementById(`pg-${type}-config`);
+    const includeAnswerKey = activeConfig.querySelector('.pg-answer-key').checked;
 
     if (type === 'bonds') {
         const target = parseInt(activeConfig.querySelector('select').value, 10);
         const count  = parseInt(activeConfig.querySelectorAll('select')[1].value, 10);
         const sheets = parseInt(activeConfig.querySelectorAll('select')[2].value, 10);
-        pgPDFBonds(target, count, sheets);
+        pgPDFBonds(target, count, sheets, includeAnswerKey);
     } else if (type === 'multiplication') {
         const max    = parseInt(activeConfig.querySelector('.pg-max-group .op-toggle.active')?.dataset.max || '10', 10);
         const count  = parseInt(activeConfig.querySelector('.pg-count').value, 10);
         const sheets = parseInt(activeConfig.querySelector('.pg-sheets').value, 10);
-        pgPDFMult(1, max, count, sheets);
+        pgPDFMult(1, max, count, sheets, includeAnswerKey);
     } else {
         alert(`${type} worksheets coming soon!`);
     }
@@ -1923,12 +1998,13 @@ function pgGenerateCiphers() {
     if (!pgCheckJsPDF()) return;
     const text = document.getElementById('pg-cipher-text').value.trim();
     if (!text) { alert('Please paste some text for the cipher.'); return; }
-    const cipherType    = document.getElementById('pg-cipher-type').value;
-    const glyphFont     = document.getElementById('pg-cipher-glyph-font').value;
-    const gridSize      = document.getElementById('pg-cipher-grid-size').value;
-    const showGridlines = document.getElementById('pg-cipher-gridlines').checked;
-    const showKey       = document.getElementById('pg-cipher-show-key').checked;
-    pgPDFCipher(text, null, cipherType, glyphFont, gridSize, showGridlines, showKey);
+    const cipherType      = document.getElementById('pg-cipher-type').value;
+    const glyphFont       = document.getElementById('pg-cipher-glyph-font').value;
+    const gridSize        = document.getElementById('pg-cipher-grid-size').value;
+    const showGridlines   = document.getElementById('pg-cipher-gridlines').checked;
+    const showKey         = document.getElementById('pg-cipher-show-key').checked;
+    const includeAnswerKey = document.getElementById('pg-cipher-answer-key').checked;
+    pgPDFCipher(text, null, cipherType, glyphFont, gridSize, showGridlines, showKey, includeAnswerKey);
 }
 
 // ============================================
