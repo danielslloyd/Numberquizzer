@@ -1828,7 +1828,7 @@ function pgPDFCipher(text, _unused, cipherType = 'letter', glyphFont = 'dingbat'
     let GRID_COLS, TEXT_ROWS;
     if (gridSize === 'large') {
         GRID_COLS = 13;
-        TEXT_ROWS = 10;  // Fewer, taller rows for large grid
+        TEXT_ROWS = 11;  // Fewer, taller rows for large grid
     } else if (gridSize === 'medium') {
         GRID_COLS = 20;
         TEXT_ROWS = 14;
@@ -1858,7 +1858,7 @@ function pgPDFCipher(text, _unused, cipherType = 'letter', glyphFont = 'dingbat'
 
     // ── Encoded text pages ────────────────────────────────────────────────
     encChunks.forEach((enc, i) => {
-        doc.addPage();
+        if (i > 0) doc.addPage();  // Only add page for 2nd+ iterations; use default first page
         const suffix = encChunks.length > 1 ? ` — Page ${i + 1} of ${encChunks.length}` : '';
         pgHeader(doc, `Encoded Text${suffix}`);
 
@@ -1899,16 +1899,18 @@ function pgPDFCipher(text, _unused, cipherType = 'letter', glyphFont = 'dingbat'
                 }
             }
 
-            // Cipher key mapping (compact format)
+            // Cipher key mapping (full, wrapped to multiple lines if needed)
             doc.setFont('helvetica', 'bold');
-            doc.setFontSize(9);
-            doc.text(`KEY (Page ${i + 1}): ${mapping.slice(0, 60)}${mapping.length > 60 ? '...' : ''}`, PG_GRID_X, y);
-            y += 5;
+            doc.setFontSize(8);
+            const keyLabel = `KEY (Page ${i + 1}): ${mapping}`;
+            const keyLines = doc.splitTextToSize(keyLabel, PG_GRID_W);
+            doc.text(keyLines, PG_GRID_X, y);
+            y += keyLines.length * 3.5 + 2;
 
             // Original text preview
             doc.setFont('helvetica', 'normal');
             doc.setFontSize(8);
-            const origPreview = orig.substring(0, 80) + (orig.length > 80 ? '...' : '');
+            const origPreview = orig.substring(0, 100) + (orig.length > 100 ? '...' : '');
             doc.text(`Original: ${origPreview}`, PG_GRID_X, y);
             y += 4;
         });
