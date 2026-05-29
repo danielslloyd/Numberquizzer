@@ -1679,21 +1679,64 @@ function pgDrawCipherCells(doc, encChunk, gridX, gridY, cellW, cellH, textCols, 
         if (row >= totalRows) break;
 
         for (let c = 0; c < word.length; c++) {
-            if (col >= textCols) { row++; col = 0; }
-            if (row >= totalRows) break;
-            const cx = gridX + col * cellW;
-            const cy = gridY + row * cellH;
-            doc.text(word[c], cx + cellW / 2, cy + textY, { align: 'center' });
-            doc.line(cx + cellW * 0.12, cy + lineY, cx + cellW * 0.88, cy + lineY);
-            col++;
+            const char = word[c];
+            const isLetter = /[A-Z]/.test(char);
+
+            // Only advance column for letters; punctuation/numbers don't take up space
+            if (isLetter) {
+                if (col >= textCols) { row++; col = 0; }
+                if (row >= totalRows) break;
+                const cx = gridX + col * cellW;
+                const cy = gridY + row * cellH;
+                doc.text(char, cx + cellW / 2, cy + textY, { align: 'center' });
+                doc.line(cx + cellW * 0.12, cy + lineY, cx + cellW * 0.88, cy + lineY);
+                col++;
+            } else {
+                // Non-letters: draw at current position without taking up space
+                const cx = gridX + col * cellW;
+                const cy = gridY + row * cellH;
+                doc.text(char, cx + cellW / 2, cy + textY, { align: 'center' });
+            }
         }
 
-        // One blank cell between words
+        // One blank cell between words (only if we have space)
         if (wi < words.length - 1) {
             col++;
             if (col >= textCols) { row++; col = 0; }
         }
     }
+}
+
+/**
+ * Draw cipher key separate from grid in 2 rows, as pairs with = between them.
+ * Pairs are closer together, larger font, no grid cells.
+ */
+function pgDrawCipherKeySeparate(doc, revMap, keyX, keyY, cipherType) {
+    const alpha = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
+
+    // Split into 2 rows of 13 pairs each
+    const row1 = alpha.slice(0, 13);
+    const row2 = alpha.slice(13, 26);
+
+    // Large font to fit in 2 rows
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+
+    const lineHeight = 8;
+    const pairWidth = 14.8;  // Fixed width per pair to fit 13 pairs in ~195mm
+
+    [row1, row2].forEach((row, rowIdx) => {
+        const y = keyY + rowIdx * lineHeight;
+
+        for (let i = 0; i < row.length; i++) {
+            const ch = row[i];
+            const mapped = revMap[ch];
+            const x = keyX + i * pairWidth;
+
+            // Draw "A=X  B=Y  C=Z..."
+            doc.text(`${ch}=${mapped}`, x, y);
+        }
+    });
 }
 
 /**
@@ -1748,28 +1791,22 @@ function pgPDFCipher(text, _unused, cipherType = 'letter', glyphFont = 'dingbat'
     const alpha = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
 
     // Grid size determines column count and cell dimensions
-    let GRID_COLS, ENTRIES_PER_KEY_ROW;
+    let GRID_COLS;
     if (gridSize === 'large') {
         GRID_COLS = 13;
-        ENTRIES_PER_KEY_ROW = 6;  // 12 cells / 2 per entry (leave 1 blank)
     } else if (gridSize === 'medium') {
         GRID_COLS = 20;
-        ENTRIES_PER_KEY_ROW = 10;  // 20 cells / 2 per entry
     } else {  // small
         GRID_COLS = 26;
-        ENTRIES_PER_KEY_ROW = 13;  // 26 cells / 2 per entry
     }
 
-    // Calculate key dimensions
-    const KEY_ROWS = Math.ceil(26 / ENTRIES_PER_KEY_ROW);
-    const KEY_BLANK_ROWS = 1;  // Blank space between key and message
-    const TOTAL_KEY_AREA_ROWS = KEY_ROWS + KEY_BLANK_ROWS;
-    const cellW = PG_GRID_W / GRID_COLS;
-    const cellH = PG_GRID_H / (TOTAL_KEY_AREA_ROWS + 15);  // 15 rows for cipher text
+    // Key is now drawn separately (not in grid), so calculate grid dimensions for message only
+    const TEXT_ROWS = 16;  // Rows for cipher text grid
     const TEXT_COLS = GRID_COLS;
-    const TEXT_ROWS = 15;
-    const keyY = PG_GRID_Y;
-    const messageY = PG_GRID_Y + TOTAL_KEY_AREA_ROWS * cellH;
+    const cellW = PG_GRID_W / GRID_COLS;
+    const cellH = PG_GRID_H / (TEXT_ROWS + 3);  // Account for key space above
+    const keyY = PG_GRID_Y;  // Key at top
+    const messageY = PG_GRID_Y + 25;  // Grid below the key
 
     // Split source text into page-sized chunks
     const origChunks = pgCipherSplitToPages(
@@ -1789,15 +1826,15 @@ function pgPDFCipher(text, _unused, cipherType = 'letter', glyphFont = 'dingbat'
         const suffix = encChunks.length > 1 ? ` — Page ${i + 1} of ${encChunks.length}` : '';
         pgHeader(doc, `Encoded Text${suffix}`);
 
-        // Draw the cipher key at the top
-        pgDrawCipherKeyTop(doc, ciphers[i].rev, PG_GRID_X, keyY, cellW, cellH, GRID_COLS, ENTRIES_PER_KEY_ROW, cipherType);
+        // Draw the cipher key separately (above the grid, not in it)
+        pgDrawCipherKeySeparate(doc, ciphers[i].rev, PG_GRID_X, keyY, cipherType);
 
-        // Draw grid with conditional gridlines
+        // Draw grid with conditional gridlines (only for message, not key)
         if (showGridlines) {
-            pgDrawCipherGrid(doc, PG_GRID_X, keyY, PG_GRID_W, (TOTAL_KEY_AREA_ROWS + TEXT_ROWS) * cellH, GRID_COLS, TOTAL_KEY_AREA_ROWS + TEXT_ROWS, KEY_ROWS);
+            pgDrawCipherGrid(doc, PG_GRID_X, messageY, PG_GRID_W, TEXT_ROWS * cellH, GRID_COLS, TEXT_ROWS, 0);
         }
 
-        // Cipher text: starting below the key
+        // Cipher text: in the grid starting at messageY
         pgDrawCipherCells(doc, enc, PG_GRID_X, messageY, cellW, cellH, TEXT_COLS, TEXT_ROWS);
     });
 
