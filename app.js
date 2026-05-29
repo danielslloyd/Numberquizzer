@@ -15,6 +15,8 @@ const state = {
     shuffle: true,
     animations: true,
     showTranscript: true,
+    progressBar: true,
+    bestTimePacer: null,
     recognition: null,
     isListening: false,
     speechSupported: false,
@@ -418,15 +420,34 @@ function startListening() {
 }
 
 // ============================================
+// PROGRESS BAR
+// ============================================
+
+function updateProgressBar() {
+    if (!state.progressBar) return;
+    const pct = state.questions.length > 0
+        ? (state.currentIndex / state.questions.length) * 100
+        : 0;
+    document.getElementById('progress-bar-fill').style.width = `${pct}%`;
+}
+
+function updateGhost(elapsedMs) {
+    if (!state.progressBar || state.bestTimePacer === null) return;
+    const pct = Math.min((elapsedMs / (state.bestTimePacer * 1000)) * 100, 100);
+    document.getElementById('progress-bar-ghost').style.left = `${pct}%`;
+}
+
+// ============================================
 // TIMER
 // ============================================
 
 function startTimer() {
     state.startTime = Date.now();
     state.timerInterval = setInterval(() => {
-        const elapsed = Math.floor((Date.now() - state.startTime) / 1000);
-        document.getElementById('timer-display').textContent = formatTime(elapsed);
-    }, 200);
+        const elapsed = Date.now() - state.startTime;
+        document.getElementById('timer-display').textContent = formatTime(Math.floor(elapsed / 1000));
+        updateGhost(elapsed);
+    }, 100);
 }
 
 function stopTimer() {
@@ -462,6 +483,8 @@ function showScreen(name) {
     document.getElementById('settings-widget').classList.toggle('hidden', name !== 'home');
     const tab = SCREEN_TAB[name];
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+    // Progress bar is only shown during the quiz
+    document.getElementById('progress-bar-container').classList.toggle('hidden', name !== 'quiz');
 }
 
 // ============================================
@@ -485,8 +508,13 @@ function startQuiz() {
     state.operations = getSelectedOps();
     state.maxNumber   = parseInt(document.getElementById('max-number').value, 10);
     state.shuffle     = document.getElementById('shuffle-toggle').checked;
-    state.animations  = document.getElementById('animations-toggle').checked;
+    state.animations     = document.getElementById('animations-toggle').checked;
     state.showTranscript = document.getElementById('transcript-toggle').checked;
+    state.progressBar    = document.getElementById('progress-bar-toggle').checked;
+
+    // Pacer: saved best time for this exact config, or null if no best or bar is off
+    const savedBest = loadBestTime(state.operations, state.maxNumber);
+    state.bestTimePacer = (state.progressBar && savedBest !== null) ? savedBest : null;
 
     let questions = generateAllQuestions(state.operations, state.maxNumber);
     if (state.shuffle) questions = shuffleArray(questions);
@@ -505,7 +533,17 @@ function startQuiz() {
 
     document.getElementById('timer-display').textContent = '00:00';
     showScreen('quiz');
+
+    // Set up progress bar
+    const bar = document.getElementById('progress-bar-container');
+    bar.classList.toggle('hidden', !state.progressBar);
+    document.getElementById('progress-bar-fill').style.width = '0%';
+    const ghost = document.getElementById('progress-bar-ghost');
+    ghost.classList.toggle('hidden', state.bestTimePacer === null);
+    ghost.style.left = '0%';
+
     renderQuestion();
+    updateProgressBar();
     startTimer();
     state.quizActive = true;
 
@@ -544,6 +582,8 @@ function advanceQuestion() {
     state.currentIndex++;
 
     spawnSprites(answeredQ);
+
+    updateProgressBar();
 
     const next = () => {
         if (state.currentIndex >= state.questions.length) endQuiz();

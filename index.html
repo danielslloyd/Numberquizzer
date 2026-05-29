@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=19">
+    <link rel="stylesheet" href="styles.css?v=20">
 </head>
 <body>
 
@@ -22,6 +22,12 @@
         <button class="tab-btn" data-tab="visualizer">Visualizer</button>
         <button class="tab-btn" data-tab="sudoku">Sudoku</button>
     </nav>
+
+    <!-- Progress bar — fixed very top, quiz only -->
+    <div id="progress-bar-container" class="progress-bar-container hidden">
+        <div id="progress-bar-fill" class="progress-bar-fill"></div>
+        <div id="progress-bar-ghost" class="progress-bar-ghost hidden"></div>
+    </div>
 
     <!-- Settings widget — flashcards tab only -->
     <div id="settings-widget" class="settings-widget">
@@ -44,6 +50,13 @@
                 <span>Animations</span>
                 <label class="toggle-switch">
                     <input type="checkbox" id="animations-toggle" checked>
+                    <span class="toggle-track"></span>
+                </label>
+            </div>
+            <div class="panel-row">
+                <span>Progress bar</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="progress-bar-toggle" checked>
                     <span class="toggle-track"></span>
                 </label>
             </div>
@@ -502,6 +515,6 @@
     <script src="parser.js?v=15"></script>
     <script src="physics.js?v=15"></script>
     <script src="animator.js?v=15"></script>
-    <script src="app.js?v=26"></script>
+    <script src="app.js?v=27"></script>
 </body>
 </html>
