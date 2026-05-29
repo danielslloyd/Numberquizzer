@@ -1840,13 +1840,15 @@ function pgPDFCipher(text, _unused, cipherType = 'letter', glyphFont = 'dingbat'
     // Key is now drawn separately (not in grid), so calculate grid dimensions for message only
     const TEXT_COLS = GRID_COLS;
     const cellW = PG_GRID_W / GRID_COLS;
-    const cellH = PG_GRID_H / (TEXT_ROWS + 3);  // Account for key space above
+    const keyHeight = 25;  // Space for key above grid
+    const cellH = (PG_GRID_H - keyHeight) / TEXT_ROWS;  // Remaining height divided by rows
     const keyY = PG_GRID_Y;  // Key at top
-    const messageY = PG_GRID_Y + 25;  // Grid below the key
+    const messageY = PG_GRID_Y + keyHeight;  // Grid below the key
+    const gridHeight = TEXT_ROWS * cellH;  // Actual available grid height
 
     // Split source text into page-sized chunks
     const origChunks = pgCipherSplitToPages(
-        text.trim().split(/\s+/), TEXT_COLS * cellW, cellH, TEXT_ROWS * cellH, cellW, cellW
+        text.trim().split(/\s+/), TEXT_COLS * cellW, cellH, gridHeight, cellW, cellW
     );
 
     const ciphers = origChunks.map(() =>
