@@ -1913,12 +1913,12 @@ function pgPDFCipher(text, _unused, cipherType = 'letter', glyphFont = 'dingbat'
             doc.text(keyLines, PG_GRID_X, y);
             y += keyLines.length * 3 + 2;
 
-            // Original text preview
+            // Original text (full, wrapped)
             doc.setFont('helvetica', 'normal');
             doc.setFontSize(8);
-            const origPreview = orig.substring(0, 100) + (orig.length > 100 ? '...' : '');
-            doc.text(`Original: ${origPreview}`, PG_GRID_X, y);
-            y += 4;
+            const origLines = doc.splitTextToSize(`Original: ${orig}`, PG_GRID_W);
+            doc.text(origLines, PG_GRID_X, y);
+            y += origLines.length * 3 + 2;
         });
     } else {
         // Original behavior: separate answer key pages with full formatting
