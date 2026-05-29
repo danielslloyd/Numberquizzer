@@ -493,7 +493,7 @@ function showScreen(name) {
 
 function initHome() {
     const ops = getSelectedOps();
-    const max = parseInt(document.getElementById('max-number').value, 10);
+    const max = parseInt(document.querySelector('#max-number-group .op-toggle.active')?.dataset.max || '10', 10);
     const bestTime = ops.length > 0 ? loadBestTime(ops, max) : null;
     document.getElementById('best-time-home').textContent =
         bestTime !== null ? formatTime(bestTime) : '--:--';
@@ -506,7 +506,7 @@ function initHome() {
 
 function startQuiz() {
     state.operations = getSelectedOps();
-    state.maxNumber   = parseInt(document.getElementById('max-number').value, 10);
+    state.maxNumber   = parseInt(document.querySelector('#max-number-group .op-toggle.active')?.dataset.max || '10', 10);
     state.shuffle     = document.getElementById('shuffle-toggle').checked;
     state.animations     = document.getElementById('animations-toggle').checked;
     state.showTranscript = document.getElementById('transcript-toggle').checked;
@@ -1836,11 +1836,13 @@ function pgPDFCipher(text, _unused, cipherType = 'letter', glyphFont = 'dingbat'
 // --- Per-screen generate functions ---
 
 function pgSetType(type) {
-    // Used for worksheets tab (mult / bonds toggle)
+    // Show active button and hide all configs except the selected type
     document.querySelectorAll('#worksheets-screen .pg-type-btn')
         .forEach(b => b.classList.toggle('active', b.dataset.type === type));
-    document.getElementById('pg-multiplication-config').classList.toggle('hidden', type !== 'multiplication');
-    document.getElementById('pg-bonds-config').classList.toggle('hidden', type !== 'bonds');
+    ['addition', 'subtraction', 'multiplication', 'division', 'bonds'].forEach(t => {
+        const el = document.getElementById(`pg-${t}-config`);
+        if (el) el.classList.toggle('hidden', t !== type);
+    });
 }
 
 function pgCheckJsPDF() {
@@ -1863,17 +1865,20 @@ function pgGenerateSudoku() {
 function pgGenerateWorksheets() {
     if (!pgCheckJsPDF()) return;
     const type = document.querySelector('#worksheets-screen .pg-type-btn.active').dataset.type;
-    if (type === 'multiplication') {
-        const min    = Math.max(1, parseInt(document.getElementById('pg-mult-min').value, 10) || 1);
-        const max    = Math.max(min, parseInt(document.getElementById('pg-mult-max').value, 10) || 10);
-        const count  = parseInt(document.getElementById('pg-mult-count').value, 10);
-        const sheets = parseInt(document.getElementById('pg-mult-sheets').value, 10);
-        pgPDFMult(min, max, count, sheets);
-    } else if (type === 'bonds') {
-        const target = parseInt(document.getElementById('pg-bonds-target').value, 10);
-        const count  = parseInt(document.getElementById('pg-bonds-count').value, 10);
-        const sheets = parseInt(document.getElementById('pg-bonds-sheets').value, 10);
+    const activeConfig = document.getElementById(`pg-${type}-config`);
+
+    if (type === 'bonds') {
+        const target = parseInt(activeConfig.querySelector('select').value, 10);
+        const count  = parseInt(activeConfig.querySelectorAll('select')[1].value, 10);
+        const sheets = parseInt(activeConfig.querySelectorAll('select')[2].value, 10);
         pgPDFBonds(target, count, sheets);
+    } else if (type === 'multiplication') {
+        const max    = parseInt(activeConfig.querySelector('.pg-max-group .op-toggle.active')?.dataset.max || '10', 10);
+        const count  = parseInt(activeConfig.querySelector('.pg-count').value, 10);
+        const sheets = parseInt(activeConfig.querySelector('.pg-sheets').value, 10);
+        pgPDFMult(1, max, count, sheets);
+    } else {
+        alert(`${type} worksheets coming soon!`);
     }
 }
 
@@ -1896,7 +1901,7 @@ function pgGenerateCiphers() {
 // What to do when a tab is clicked (entry point for each tab)
 const TAB_ENTRY = {
     'flashcards': () => { showScreen('home'); initHome(); },
-    'worksheets': () => { showScreen('worksheets'); pgSetType('multiplication'); },
+    'worksheets': () => { showScreen('worksheets'); pgSetType('addition'); },
     'sorting':    () => { showScreen('word-sort-menu'); initWordSortMenu(); },
     'ciphers':    () => showScreen('ciphers'),
     'make-ten':   () => showScreen('make-ten-menu'),
@@ -1948,7 +1953,13 @@ document.addEventListener('DOMContentLoaded', () => {
         initHome();
     });
 
-    document.getElementById('max-number').addEventListener('change', initHome);
+    document.getElementById('max-number-group').addEventListener('click', (e) => {
+        const btn = e.target.closest('.op-toggle');
+        if (!btn) return;
+        document.querySelectorAll('#max-number-group .op-toggle')
+            .forEach(b => b.classList.toggle('active', b === btn));
+        initHome();
+    });
 
     // Settings burger
     const settingsBtn   = document.getElementById('settings-btn');
@@ -1984,6 +1995,17 @@ document.addEventListener('DOMContentLoaded', () => {
         .forEach(btn => btn.addEventListener('click', () => pgSetType(btn.dataset.type)));
 
     document.getElementById('worksheets-generate-btn').addEventListener('click', pgGenerateWorksheets);
+
+    document.getElementById('worksheets-screen')
+        .querySelectorAll('.pg-max-group')
+        .forEach(group => {
+            group.addEventListener('click', (e) => {
+                const btn = e.target.closest('.op-toggle');
+                if (!btn) return;
+                group.querySelectorAll('.op-toggle')
+                    .forEach(b => b.classList.toggle('active', b === btn));
+            });
+        });
 
     // ---- Sorting ----
     document.getElementById('word-sort-menu-screen')
@@ -2032,12 +2054,9 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // ---- Ten Frame ----
-    document.getElementById('tf-show-btn').addEventListener('click', tfShow);
     document.getElementById('tf-clear-btn').addEventListener('click', tfClear);
     ['tf-input-a', 'tf-input-b'].forEach(id => {
-        document.getElementById(id).addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') tfShow();
-        });
+        document.getElementById(id).addEventListener('input', tfShow);
     });
 
     // ---- Visualizer ----

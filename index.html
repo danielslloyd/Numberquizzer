@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=20">
+    <link rel="stylesheet" href="styles.css?v=21">
 </head>
 <body>
 
@@ -93,13 +93,13 @@
                         <button class="op-toggle" data-op="division">÷</button>
                     </div>
                 </div>
-                <div class="setting-row">
-                    <label for="max-number">Numbers up to</label>
-                    <select id="max-number" class="setting-select">
-                        <option value="5">5</option>
-                        <option value="10" selected>10</option>
-                        <option value="20">20</option>
-                    </select>
+                <div class="setting-block">
+                    <div class="setting-block-label">Numbers up to</div>
+                    <div class="op-toggles" id="max-number-group">
+                        <button class="op-toggle" data-max="5">5</button>
+                        <button class="op-toggle active" data-max="10">10</button>
+                        <button class="op-toggle" data-max="20">20</button>
+                    </div>
                 </div>
             </div>
 
@@ -167,22 +167,25 @@
     <div id="worksheets-screen" class="screen pg-screen">
         <div class="container pg-container">
             <div class="pg-type-selector">
-                <button class="pg-type-btn active" data-type="multiplication">Multiply</button>
+                <button class="pg-type-btn active" data-type="addition">Add</button>
+                <button class="pg-type-btn" data-type="subtraction">Sub</button>
+                <button class="pg-type-btn" data-type="multiplication">Multiply</button>
+                <button class="pg-type-btn" data-type="division">Divide</button>
                 <button class="pg-type-btn" data-type="bonds">Bonds</button>
             </div>
 
-            <div id="pg-multiplication-config" class="pg-config">
-                <div class="setting-row">
-                    <label>Min</label>
-                    <input type="number" id="pg-mult-min" class="pg-number-input" value="1" min="1" max="99">
-                </div>
-                <div class="setting-row">
-                    <label>Max</label>
-                    <input type="number" id="pg-mult-max" class="pg-number-input" value="10" min="1" max="99">
+            <div id="pg-addition-config" class="pg-config">
+                <div class="setting-block">
+                    <div class="setting-block-label">Numbers up to</div>
+                    <div class="op-toggles" class="pg-max-group">
+                        <button class="op-toggle" data-max="5">5</button>
+                        <button class="op-toggle active" data-max="10">10</button>
+                        <button class="op-toggle" data-max="20">20</button>
+                    </div>
                 </div>
                 <div class="setting-row">
                     <label>Problems per sheet</label>
-                    <select id="pg-mult-count" class="setting-select">
+                    <select class="pg-count setting-select">
                         <option value="20">20</option>
                         <option value="30" selected>30</option>
                         <option value="40">40</option>
@@ -190,7 +193,88 @@
                 </div>
                 <div class="setting-row">
                     <label>Sheets</label>
-                    <select id="pg-mult-sheets" class="setting-select">
+                    <select class="pg-sheets setting-select">
+                        <option value="1" selected>1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="pg-subtraction-config" class="pg-config hidden">
+                <div class="setting-block">
+                    <div class="setting-block-label">Numbers up to</div>
+                    <div class="op-toggles" class="pg-max-group">
+                        <button class="op-toggle" data-max="5">5</button>
+                        <button class="op-toggle active" data-max="10">10</button>
+                        <button class="op-toggle" data-max="20">20</button>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <label>Problems per sheet</label>
+                    <select class="pg-count setting-select">
+                        <option value="20">20</option>
+                        <option value="30" selected>30</option>
+                        <option value="40">40</option>
+                    </select>
+                </div>
+                <div class="setting-row">
+                    <label>Sheets</label>
+                    <select class="pg-sheets setting-select">
+                        <option value="1" selected>1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="pg-multiplication-config" class="pg-config hidden">
+                <div class="setting-block">
+                    <div class="setting-block-label">Numbers up to</div>
+                    <div class="op-toggles" class="pg-max-group">
+                        <button class="op-toggle" data-max="5">5</button>
+                        <button class="op-toggle active" data-max="10">10</button>
+                        <button class="op-toggle" data-max="20">20</button>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <label>Problems per sheet</label>
+                    <select class="pg-count setting-select">
+                        <option value="20">20</option>
+                        <option value="30" selected>30</option>
+                        <option value="40">40</option>
+                    </select>
+                </div>
+                <div class="setting-row">
+                    <label>Sheets</label>
+                    <select class="pg-sheets setting-select">
+                        <option value="1" selected>1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="pg-division-config" class="pg-config hidden">
+                <div class="setting-block">
+                    <div class="setting-block-label">Numbers up to</div>
+                    <div class="op-toggles" class="pg-max-group">
+                        <button class="op-toggle" data-max="5">5</button>
+                        <button class="op-toggle active" data-max="10">10</button>
+                        <button class="op-toggle" data-max="20">20</button>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <label>Problems per sheet</label>
+                    <select class="pg-count setting-select">
+                        <option value="20">20</option>
+                        <option value="30" selected>30</option>
+                        <option value="40">40</option>
+                    </select>
+                </div>
+                <div class="setting-row">
+                    <label>Sheets</label>
+                    <select class="pg-sheets setting-select">
                         <option value="1" selected>1</option>
                         <option value="2">2</option>
                         <option value="3">3</option>
@@ -416,7 +500,6 @@
                 <input type="number" id="tf-input-a" class="tf-input" min="0" max="20" placeholder="0">
                 <span class="tf-plus">+</span>
                 <input type="number" id="tf-input-b" class="tf-input" min="0" max="20" placeholder="0">
-                <button id="tf-show-btn" class="btn btn-primary tf-show-btn">Show</button>
             </div>
             <div id="tf-frames" class="tf-frames"></div>
             <div id="tf-sum" class="tf-sum hidden"></div>
@@ -515,6 +598,6 @@
     <script src="parser.js?v=15"></script>
     <script src="physics.js?v=15"></script>
     <script src="animator.js?v=15"></script>
-    <script src="app.js?v=27"></script>
+    <script src="app.js?v=28"></script>
 </body>
 </html>
