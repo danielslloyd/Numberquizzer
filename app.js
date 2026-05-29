@@ -1717,19 +1717,16 @@ function pgDrawCipherCells(doc, encChunk, gridX, gridY, cellW, cellH, textCols, 
             const isLetter = /[A-Z]/.test(char);
             const isDash = char === '-' || char === '—' || char === '–';
 
-            if (isLetter || isDash) {
-                // Letters and dashes each occupy their own cell
-                if (col >= textCols) { row++; col = 0; }
-                if (row >= totalRows) break;
-                const cx = gridX + col * cellW;
-                const cy = gridY + row * cellH;
-                doc.text(char, cx + cellW / 2, cy + textY, { align: 'center' });
-                if (isLetter) {
-                    doc.line(cx + cellW * 0.12, cy + lineY, cx + cellW * 0.88, cy + lineY);
-                }
-                col++;
+            // Every character occupies its own cell; only letters get an underline
+            if (col >= textCols) { row++; col = 0; }
+            if (row >= totalRows) break;
+            const cx = gridX + col * cellW;
+            const cy = gridY + row * cellH;
+            doc.text(char, cx + cellW / 2, cy + textY, { align: 'center' });
+            if (isLetter) {
+                doc.line(cx + cellW * 0.12, cy + lineY, cx + cellW * 0.88, cy + lineY);
             }
-            // Other punctuation/numbers: skip entirely (don't draw, don't advance)
+            col++;
         }
 
         // One blank cell between words (only if we have space)
