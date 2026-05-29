@@ -7,11 +7,29 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=14">
+    <link rel="stylesheet" href="styles.css?v=21">
 </head>
 <body>
 
-    <!-- Settings widget — fixed top-right, home screen only -->
+    <!-- Tab Bar — always visible -->
+    <nav class="tab-bar" id="tab-bar">
+        <button class="tab-btn active" data-tab="flashcards">Flash Cards</button>
+        <button class="tab-btn" data-tab="worksheets">Worksheets</button>
+        <button class="tab-btn" data-tab="sorting">Sorting</button>
+        <button class="tab-btn" data-tab="ciphers">Ciphers</button>
+        <button class="tab-btn" data-tab="make-ten">Make Ten</button>
+        <button class="tab-btn" data-tab="ten-frame">Ten Frame</button>
+        <button class="tab-btn" data-tab="visualizer">Visualizer</button>
+        <button class="tab-btn" data-tab="sudoku">Sudoku</button>
+    </nav>
+
+    <!-- Progress bar — fixed very top, quiz only -->
+    <div id="progress-bar-container" class="progress-bar-container hidden">
+        <div id="progress-bar-fill" class="progress-bar-fill"></div>
+        <div id="progress-bar-ghost" class="progress-bar-ghost hidden"></div>
+    </div>
+
+    <!-- Settings widget — flashcards tab only -->
     <div id="settings-widget" class="settings-widget">
         <button id="settings-btn" class="settings-btn" aria-label="Settings">
             <svg width="22" height="16" viewBox="0 0 22 16" fill="none">
@@ -36,6 +54,13 @@
                 </label>
             </div>
             <div class="panel-row">
+                <span>Progress bar</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="progress-bar-toggle" checked>
+                    <span class="toggle-track"></span>
+                </label>
+            </div>
+            <div class="panel-row">
                 <span>Show transcript</span>
                 <label class="toggle-switch">
                     <input type="checkbox" id="transcript-toggle" checked>
@@ -45,7 +70,10 @@
         </div>
     </div>
 
-    <!-- Home Screen -->
+    <!-- =====================================================
+         FLASHCARDS TAB
+         ===================================================== -->
+
     <div id="home-screen" class="screen active">
         <div class="container">
             <h1 class="app-title">Math<br>Flash Cards</h1>
@@ -65,23 +93,20 @@
                         <button class="op-toggle" data-op="division">÷</button>
                     </div>
                 </div>
-                <div class="setting-row">
-                    <label for="max-number">Numbers up to</label>
-                    <select id="max-number" class="setting-select">
-                        <option value="5">5</option>
-                        <option value="10" selected>10</option>
-                        <option value="20">20</option>
-                    </select>
+                <div class="setting-block">
+                    <div class="setting-block-label">Numbers up to</div>
+                    <div class="op-toggles" id="max-number-group">
+                        <button class="op-toggle" data-max="5">5</button>
+                        <button class="op-toggle active" data-max="10">10</button>
+                        <button class="op-toggle" data-max="20">20</button>
+                    </div>
                 </div>
             </div>
 
             <button id="start-btn" class="btn btn-primary">Start</button>
-            <button id="word-sort-btn" class="btn btn-secondary" style="width:100%">Word Sort</button>
-            <button id="visualizer-btn" class="btn btn-secondary" style="width:100%">Math Visualizer</button>
         </div>
     </div>
 
-    <!-- Quiz Screen -->
     <div id="quiz-screen" class="screen">
         <div class="quiz-top-bar">
             <div id="progress-display" class="progress-display">1 / 10</div>
@@ -95,40 +120,24 @@
                 </svg>
             </button>
         </div>
-
         <div class="quiz-body">
-            <!-- card-wrap provides perspective for 3D flip -->
             <div class="card-wrap">
                 <div id="question-display" class="question-display"></div>
             </div>
-
-            <!-- Typed fallback (shown only if speech unsupported) -->
             <div class="answer-row hidden" id="typed-section">
-                <input
-                    type="number"
-                    id="answer-input"
-                    class="answer-input"
-                    placeholder="?"
-                    min="0"
-                    autocomplete="off"
-                >
+                <input type="number" id="answer-input" class="answer-input" placeholder="?" min="0" autocomplete="off">
                 <button id="submit-btn" class="btn btn-primary submit-btn">OK</button>
             </div>
-
             <div id="feedback-display" class="feedback-display"></div>
         </div>
-
-        <!-- Transcript feed at the bottom -->
         <div id="transcript-bar" class="transcript-bar">
             <p id="listening-text" class="listening-text"></p>
         </div>
     </div>
 
-    <!-- Results Screen -->
     <div id="results-screen" class="screen">
         <div class="container">
             <h1 id="results-title" class="results-title">Done!</h1>
-
             <div class="results-stats">
                 <div class="stat">
                     <div class="stat-label">Your Time</div>
@@ -143,21 +152,189 @@
                     <div id="best-time-results" class="stat-value">--:--</div>
                 </div>
             </div>
-
             <div id="new-record-badge" class="new-record hidden">New Best Time!</div>
-
             <div class="results-actions">
                 <button id="play-again-btn" class="btn btn-primary">Play Again</button>
-                <button id="home-btn" class="btn btn-secondary">Home</button>
+                <button id="home-btn" class="btn btn-secondary">← Settings</button>
             </div>
         </div>
     </div>
 
-    <!-- Word Sort: Menu Screen -->
+    <!-- =====================================================
+         WORKSHEETS TAB (multiplication + number bonds)
+         ===================================================== -->
+
+    <div id="worksheets-screen" class="screen pg-screen">
+        <div class="container pg-container">
+            <div class="pg-type-selector">
+                <button class="pg-type-btn active" data-type="addition">Add</button>
+                <button class="pg-type-btn" data-type="subtraction">Sub</button>
+                <button class="pg-type-btn" data-type="multiplication">Multiply</button>
+                <button class="pg-type-btn" data-type="division">Divide</button>
+                <button class="pg-type-btn" data-type="bonds">Bonds</button>
+            </div>
+
+            <div id="pg-addition-config" class="pg-config">
+                <div class="setting-block">
+                    <div class="setting-block-label">Numbers up to</div>
+                    <div class="op-toggles" class="pg-max-group">
+                        <button class="op-toggle" data-max="5">5</button>
+                        <button class="op-toggle active" data-max="10">10</button>
+                        <button class="op-toggle" data-max="20">20</button>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <label>Problems per sheet</label>
+                    <select class="pg-count setting-select">
+                        <option value="20">20</option>
+                        <option value="30" selected>30</option>
+                        <option value="40">40</option>
+                    </select>
+                </div>
+                <div class="setting-row">
+                    <label>Sheets</label>
+                    <select class="pg-sheets setting-select">
+                        <option value="1" selected>1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                    </select>
+                </div>
+                <div class="setting-row">
+                    <label><input type="checkbox" class="pg-answer-key"> Include answer key</label>
+                </div>
+            </div>
+
+            <div id="pg-subtraction-config" class="pg-config hidden">
+                <div class="setting-block">
+                    <div class="setting-block-label">Numbers up to</div>
+                    <div class="op-toggles" class="pg-max-group">
+                        <button class="op-toggle" data-max="5">5</button>
+                        <button class="op-toggle active" data-max="10">10</button>
+                        <button class="op-toggle" data-max="20">20</button>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <label>Problems per sheet</label>
+                    <select class="pg-count setting-select">
+                        <option value="20">20</option>
+                        <option value="30" selected>30</option>
+                        <option value="40">40</option>
+                    </select>
+                </div>
+                <div class="setting-row">
+                    <label>Sheets</label>
+                    <select class="pg-sheets setting-select">
+                        <option value="1" selected>1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                    </select>
+                </div>
+                <div class="setting-row">
+                    <label><input type="checkbox" class="pg-answer-key"> Include answer key</label>
+                </div>
+            </div>
+
+            <div id="pg-multiplication-config" class="pg-config hidden">
+                <div class="setting-block">
+                    <div class="setting-block-label">Numbers up to</div>
+                    <div class="op-toggles" class="pg-max-group">
+                        <button class="op-toggle" data-max="5">5</button>
+                        <button class="op-toggle active" data-max="10">10</button>
+                        <button class="op-toggle" data-max="20">20</button>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <label>Problems per sheet</label>
+                    <select class="pg-count setting-select">
+                        <option value="20">20</option>
+                        <option value="30" selected>30</option>
+                        <option value="40">40</option>
+                    </select>
+                </div>
+                <div class="setting-row">
+                    <label>Sheets</label>
+                    <select class="pg-sheets setting-select">
+                        <option value="1" selected>1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                    </select>
+                </div>
+                <div class="setting-row">
+                    <label><input type="checkbox" class="pg-answer-key"> Include answer key</label>
+                </div>
+            </div>
+
+            <div id="pg-division-config" class="pg-config hidden">
+                <div class="setting-block">
+                    <div class="setting-block-label">Numbers up to</div>
+                    <div class="op-toggles" class="pg-max-group">
+                        <button class="op-toggle" data-max="5">5</button>
+                        <button class="op-toggle active" data-max="10">10</button>
+                        <button class="op-toggle" data-max="20">20</button>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <label>Problems per sheet</label>
+                    <select class="pg-count setting-select">
+                        <option value="20">20</option>
+                        <option value="30" selected>30</option>
+                        <option value="40">40</option>
+                    </select>
+                </div>
+                <div class="setting-row">
+                    <label>Sheets</label>
+                    <select class="pg-sheets setting-select">
+                        <option value="1" selected>1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                    </select>
+                </div>
+                <div class="setting-row">
+                    <label><input type="checkbox" class="pg-answer-key"> Include answer key</label>
+                </div>
+            </div>
+
+            <div id="pg-bonds-config" class="pg-config hidden">
+                <div class="setting-row">
+                    <label>Make</label>
+                    <select id="pg-bonds-target" class="setting-select">
+                        <option value="5">5</option>
+                        <option value="10" selected>10</option>
+                        <option value="20">20</option>
+                    </select>
+                </div>
+                <div class="setting-row">
+                    <label>Problems per sheet</label>
+                    <select id="pg-bonds-count" class="setting-select">
+                        <option value="6">6</option>
+                        <option value="9" selected>9</option>
+                        <option value="12">12</option>
+                    </select>
+                </div>
+                <div class="setting-row">
+                    <label>Sheets</label>
+                    <select id="pg-bonds-sheets" class="setting-select">
+                        <option value="1" selected>1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                    </select>
+                </div>
+                <div class="setting-row">
+                    <label><input type="checkbox" class="pg-answer-key"> Include answer key</label>
+                </div>
+            </div>
+
+            <button id="worksheets-generate-btn" class="btn btn-primary" style="width:100%">Generate PDF</button>
+        </div>
+    </div>
+
+    <!-- =====================================================
+         SORTING TAB
+         ===================================================== -->
+
     <div id="word-sort-menu-screen" class="screen">
         <div class="container">
             <h1 class="app-title">Word<br>Sort</h1>
-
             <div class="ws-best-panel">
                 <div class="ws-best-row">
                     <span class="ws-best-label">BASIC</span>
@@ -176,19 +353,15 @@
                     <span id="ws-best-numbers" class="ws-best-value">--:--</span>
                 </div>
             </div>
-
             <div class="ws-diff-btns">
                 <button class="btn btn-primary ws-diff-btn" data-diff="basic">Basic</button>
                 <button class="btn btn-secondary ws-diff-btn" data-diff="intermediate">Intermediate</button>
                 <button class="btn btn-secondary ws-diff-btn" data-diff="advanced">Advanced</button>
-                <button class="btn btn-secondary ws-diff-btn" data-diff="numbers">Numbers (-9999 to 9999)</button>
+                <button class="btn btn-secondary ws-diff-btn" data-diff="numbers">Numbers (−9999 to 9999)</button>
             </div>
-
-            <button id="ws-home-btn" class="btn btn-secondary" style="width:100%">← Home</button>
         </div>
     </div>
 
-    <!-- Word Sort: Game Screen -->
     <div id="word-sort-game-screen" class="screen">
         <div class="ws-top-bar">
             <div id="ws-diff-display" class="ws-diff-display">BASIC</div>
@@ -201,11 +374,9 @@
         </div>
     </div>
 
-    <!-- Word Sort: Results Screen -->
     <div id="word-sort-results-screen" class="screen">
         <div class="container">
             <h1 id="ws-results-title" class="results-title">Sorted!</h1>
-
             <div class="results-stats">
                 <div class="stat">
                     <div class="stat-label">Your Time</div>
@@ -220,48 +391,156 @@
                     <div id="ws-final-diff" class="stat-value">BASIC</div>
                 </div>
             </div>
-
             <div id="ws-new-record-badge" class="new-record hidden">New Best Time!</div>
-
             <div class="results-actions">
                 <button id="ws-play-again-btn" class="btn btn-primary">Play Again</button>
                 <button id="ws-menu-btn" class="btn btn-secondary">Change Difficulty</button>
-                <button id="ws-home-from-results-btn" class="btn btn-secondary">Home</button>
             </div>
         </div>
     </div>
 
-    <!-- Math Visualizer Screen -->
+    <!-- =====================================================
+         CIPHERS TAB
+         ===================================================== -->
+
+    <div id="ciphers-screen" class="screen pg-screen">
+        <div class="container pg-container">
+            <div id="pg-cipher-config" class="pg-config">
+                <div class="setting-row">
+                    <label>Cipher type</label>
+                    <select id="pg-cipher-type" class="setting-select">
+                        <option value="letter" selected>Letter → Letter</option>
+                        <option value="number">Letter → Number</option>
+                        <option value="glyph">Letter → Glyph</option>
+                    </select>
+                </div>
+                <div id="pg-cipher-glyph-selector" class="setting-row hidden">
+                    <label>Glyph font</label>
+                    <select id="pg-cipher-glyph-font" class="setting-select">
+                        <option value="dingbat" selected>Dingbat</option>
+                        <option value="rune">Rune</option>
+                        <option value="noto">Noto Symbol</option>
+                    </select>
+                </div>
+                <div class="setting-row">
+                    <label>Grid size</label>
+                    <select id="pg-cipher-grid-size" class="setting-select">
+                        <option value="small" selected>Small</option>
+                        <option value="medium">Medium</option>
+                        <option value="large">Large</option>
+                    </select>
+                </div>
+                <textarea id="pg-cipher-text" class="pg-textarea" placeholder="Paste your text here…"></textarea>
+                <div class="setting-row">
+                    <label class="cipher-checkbox-label">
+                        <input type="checkbox" id="pg-cipher-gridlines" class="pg-checkbox" checked>
+                        <span>Show gridlines</span>
+                    </label>
+                </div>
+                <div class="setting-row">
+                    <label class="cipher-checkbox-label">
+                        <input type="checkbox" id="pg-cipher-show-key" class="pg-checkbox">
+                        <span>Print key on each page</span>
+                    </label>
+                </div>
+                <div class="setting-row">
+                    <label class="cipher-checkbox-label">
+                        <input type="checkbox" id="pg-cipher-answer-key" class="pg-checkbox">
+                        <span>Include answer key</span>
+                    </label>
+                </div>
+            </div>
+            <button id="ciphers-generate-btn" class="btn btn-primary" style="width:100%">Generate PDF</button>
+        </div>
+    </div>
+
+    <!-- =====================================================
+         MAKE TEN TAB
+         ===================================================== -->
+
+    <div id="make-ten-menu-screen" class="screen">
+        <div class="container">
+            <h1 class="app-title">Make<br>Ten</h1>
+            <p class="mt-subtitle">Tap the number that completes the total!</p>
+            <div class="setting-block">
+                <div class="setting-block-label">Make</div>
+                <div class="mt-target-btns" id="mt-target-btns">
+                    <button class="op-toggle" data-target="5">5</button>
+                    <button class="op-toggle active" data-target="10">10</button>
+                    <button class="op-toggle" data-target="20">20</button>
+                </div>
+            </div>
+            <button id="mt-start-btn" class="btn btn-primary">Start</button>
+        </div>
+    </div>
+
+    <div id="tap-game-screen" class="screen">
+        <div class="quiz-top-bar">
+            <div id="tg-progress-display" class="progress-display">1 / 10</div>
+            <div id="tg-title" class="tg-title"></div>
+            <div id="tg-timer-display" class="timer-display">00:00</div>
+        </div>
+        <div class="quiz-body">
+            <div class="card-wrap">
+                <div id="tg-question" class="tg-question"></div>
+            </div>
+            <div id="tg-choices" class="tg-choices"></div>
+            <div id="tg-feedback" class="feedback-display"></div>
+        </div>
+    </div>
+
+    <div id="tap-game-results-screen" class="screen">
+        <div class="container">
+            <h1 id="tg-results-title" class="results-title">Done!</h1>
+            <div class="results-stats">
+                <div class="stat">
+                    <div class="stat-label">Your Time</div>
+                    <div id="tg-final-time" class="stat-value">00:00</div>
+                </div>
+                <div class="stat">
+                    <div class="stat-label">Best Time</div>
+                    <div id="tg-best-time" class="stat-value">--:--</div>
+                </div>
+            </div>
+            <div id="tg-new-record" class="new-record hidden">New Best Time!</div>
+            <div class="results-actions">
+                <button id="tg-play-again-btn" class="btn btn-primary">Play Again</button>
+                <button id="tg-results-home-btn" class="btn btn-secondary">← Menu</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- =====================================================
+         TEN FRAME TAB
+         ===================================================== -->
+
+    <div id="ten-frame-screen" class="screen">
+        <div class="container tf-container">
+            <h1 class="app-title">Ten<br>Frame</h1>
+            <div class="tf-input-row">
+                <input type="number" id="tf-input-a" class="tf-input" min="0" max="20" placeholder="0">
+                <span class="tf-plus">+</span>
+                <input type="number" id="tf-input-b" class="tf-input" min="0" max="20" placeholder="0">
+            </div>
+            <div id="tf-frames" class="tf-frames"></div>
+            <div id="tf-sum" class="tf-sum hidden"></div>
+            <button id="tf-clear-btn" class="btn btn-secondary tf-clear-btn">Clear</button>
+        </div>
+    </div>
+
+    <!-- =====================================================
+         VISUALIZER TAB
+         ===================================================== -->
+
     <div id="visualizer-screen" class="screen">
         <div class="visualizer-container">
             <div class="visualizer-input-bar">
                 <div class="visualizer-inputs-row">
-                    <input
-                        type="number"
-                        id="visualizer-input-1"
-                        class="visualizer-input-field"
-                        autocomplete="off"
-                        min="1"
-                        max="20"
-                    >
+                    <input type="number" id="visualizer-input-1" class="visualizer-input-field" autocomplete="off" min="1" max="20">
                     <button class="visualizer-op-btn" data-op-index="1" title="Click to toggle × / +">×</button>
-                    <input
-                        type="number"
-                        id="visualizer-input-2"
-                        class="visualizer-input-field"
-                        autocomplete="off"
-                        min="1"
-                        max="20"
-                    >
+                    <input type="number" id="visualizer-input-2" class="visualizer-input-field" autocomplete="off" min="1" max="20">
                     <button class="visualizer-op-btn" data-op-index="2" title="Click to toggle × / +">×</button>
-                    <input
-                        type="number"
-                        id="visualizer-input-3"
-                        class="visualizer-input-field"
-                        autocomplete="off"
-                        min="1"
-                        max="20"
-                    >
+                    <input type="number" id="visualizer-input-3" class="visualizer-input-field" autocomplete="off" min="1" max="20">
                 </div>
                 <div class="visualizer-actions">
                     <button id="visualizer-reset-btn" class="btn btn-secondary" title="Snap blocks back to formation">RESET</button>
@@ -271,27 +550,62 @@
             </div>
             <div class="visualizer-spacing-bar">
                 <label for="visualizer-spacing">Spacing</label>
-                <input
-                    type="range"
-                    id="visualizer-spacing"
-                    min="1"
-                    max="4"
-                    step="0.1"
-                    value="2"
-                >
+                <input type="range" id="visualizer-spacing" min="1" max="4" step="0.1" value="2">
                 <span id="visualizer-spacing-value">2.0</span>
-
                 <label class="visualizer-physics-toggle" title="Run Cannon physics on a Web Worker so the main thread stays free for rendering and UI">
                     <input type="checkbox" id="visualizer-worker-toggle">
                     <span>Background physics (Web Worker)</span>
                 </label>
             </div>
-            <div id="visualizer-canvas-container" class="visualizer-canvas-container">
-                <!-- Three.js canvas will be inserted here -->
-            </div>
+            <div id="visualizer-canvas-container" class="visualizer-canvas-container"></div>
             <div id="visualizer-answer" class="visualizer-answer hidden"></div>
         </div>
-        <button id="visualizer-home-btn" class="btn btn-secondary visualizer-home-btn">← Home</button>
+    </div>
+
+    <!-- =====================================================
+         SUDOKU TAB
+         ===================================================== -->
+
+    <div id="sudoku-screen" class="screen pg-screen">
+        <div class="container pg-container">
+            <div id="pg-sudoku-config" class="pg-config">
+                <div class="setting-row">
+                    <label>Grid size</label>
+                    <select id="pg-sudoku-size" class="setting-select">
+                        <option value="4">4×4</option>
+                        <option value="6">6×6</option>
+                        <option value="9" selected>9×9</option>
+                    </select>
+                </div>
+                <div class="setting-row">
+                    <label>Symbols</label>
+                    <select id="pg-sudoku-symbols" class="setting-select">
+                        <option value="numbers" selected>Numbers</option>
+                        <option value="letters">Letters</option>
+                        <option value="multiples">Multiples</option>
+                    </select>
+                </div>
+                <div class="setting-row">
+                    <label>Difficulty</label>
+                    <select id="pg-sudoku-diff" class="setting-select">
+                        <option value="easy">Easy</option>
+                        <option value="medium" selected>Medium</option>
+                        <option value="hard">Hard</option>
+                    </select>
+                </div>
+                <div class="setting-row">
+                    <label>Sheets</label>
+                    <select id="pg-sudoku-sheets" class="setting-select">
+                        <option value="1" selected>1</option>
+                        <option value="2">2</option>
+                        <option value="3">3</option>
+                        <option value="4">4</option>
+                        <option value="5">5</option>
+                    </select>
+                </div>
+            </div>
+            <button id="sudoku-generate-btn" class="btn btn-primary" style="width:100%">Generate PDF</button>
+        </div>
     </div>
 
     <!-- Sprite layer: fixed overlay for floating number particles -->
@@ -300,10 +614,11 @@
     <!-- Three.js and Physics Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
-    <script src="parser.js?v=14"></script>
-    <script src="physics.js?v=14"></script>
-    <script src="animator.js?v=14"></script>
-    <script src="app.js?v=14"></script>
+    <script src="parser.js?v=15"></script>
+    <script src="physics.js?v=15"></script>
+    <script src="animator.js?v=15"></script>
+    <script src="app.js?v=37"></script>
 </body>
 </html>

@@ -590,6 +590,17 @@ class MathAnimator {
         // Reset and populate the backend with one body per instance.
         this.physics.reset();
         for (const data of this.cubeData) {
+            // Apply slight random rotation to each cube
+            const randomAxis = new THREE.Vector3(
+                Math.random() - 0.5,
+                Math.random() - 0.5,
+                Math.random() - 0.5
+            ).normalize();
+            const randomAngle = (Math.random() - 0.5) * 0.3;  // Small angle (-0.15 to 0.15 radians)
+            const randomQuat = new THREE.Quaternion();
+            randomQuat.setFromAxisAngle(randomAxis, randomAngle);
+            data.quaternion.multiplyQuaternions(randomQuat, data.quaternion);
+
             this.physics.addCube(data.position.x, data.position.y, data.position.z, 1);
         }
 

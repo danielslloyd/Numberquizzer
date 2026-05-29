@@ -12,31 +12,88 @@ body {
     line-height: 1.4;
     min-height: 100vh;
     touch-action: manipulation;
-}
-
-/* Screens */
-.screen {
-    display: none;
-    min-height: 100vh;
-}
-
-.screen.active {
     display: flex;
     flex-direction: column;
 }
 
-/* Container */
+/* ============================================================
+   TAB BAR
+   ============================================================ */
+
+.tab-bar {
+    flex-shrink: 0;
+    display: flex;
+    overflow-x: auto;
+    border-bottom: 3px solid #000000;
+    background: #ffffff;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    /* Hide scrollbar but keep scrollability */
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+}
+
+.tab-bar::-webkit-scrollbar {
+    display: none;
+}
+
+.tab-btn {
+    flex-shrink: 0;
+    padding: 0.65rem 1.1rem;
+    border: none;
+    border-right: 2px solid #000000;
+    background: #ffffff;
+    color: #000000;
+    font-family: inherit;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color 0.1s ease, color 0.1s ease;
+}
+
+.tab-btn:last-child {
+    border-right: none;
+}
+
+.tab-btn:hover {
+    background: #f5f5f5;
+}
+
+.tab-btn.active {
+    background: #000000;
+    color: #ffffff;
+}
+
+/* Screens — invisible 3-row grid base */
+.screen {
+    display: none;
+    flex: 1;
+}
+
+.screen.active {
+    display: grid;
+    flex: 1;
+    min-height: 0; /* allow grid to shrink within flex parent */
+    /* Row 1: optional top bar (auto)  |  Row 2: main content (grows)  |  Row 3: optional footer (auto) */
+    grid-template-rows: auto 1fr auto;
+}
+
+/* Container — single centered column, always in the main row */
 .container {
     max-width: 480px;
     width: 100%;
     margin: 0 auto;
     padding: 3rem 2rem;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
+    display: grid;
+    grid-template-columns: 1fr;
+    justify-items: center;
+    align-content: center;
     gap: 2rem;
-    flex: 1;
-    justify-content: center;
+    grid-row: 2; /* Main (1fr) row */
 }
 
 /* Buttons */
@@ -201,7 +258,7 @@ body {
 /* Settings burger widget */
 .settings-widget {
     position: fixed;
-    top: 1rem;
+    top: calc(44px + 0.4rem); /* clear the tab bar */
     right: 1rem;
     z-index: 200;
 }
@@ -291,7 +348,49 @@ body {
     border-color: #000000;
 }
 
-/* Quiz Screen */
+/* Progress bar — fixed at very top of viewport, quiz only */
+.progress-bar-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: rgba(0, 0, 0, 0.08);
+    z-index: 600;
+    overflow: visible;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    background: #000000;
+    width: 0%;
+    /* Jumps instantly on each card advance — no transition */
+}
+
+/* Ghost pacer: red tick that races at the saved best-time speed */
+.progress-bar-ghost {
+    position: absolute;
+    top: -4px;
+    width: 2px;
+    height: 12px;
+    background: #cc0000;
+    transform: translateX(-50%);
+    left: 0%;
+    transition: left 0.1s linear;
+}
+
+/* Quiz Screen — 3-area grid */
+#quiz-screen {
+    grid-template-areas:
+        "topbar"
+        "main"
+        "footer";
+}
+
+.quiz-top-bar   { grid-area: topbar; }
+.quiz-body      { grid-area: main; }
+.transcript-bar { grid-area: footer; }
+
 .quiz-top-bar {
     display: flex;
     justify-content: space-between;
@@ -342,11 +441,10 @@ body {
 }
 
 .quiz-body {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
+    display: grid;
+    grid-template-columns: 1fr;
+    justify-items: center;
+    align-content: center;
     padding: 1rem 2rem 2rem;
     gap: 1.5rem;
 }
@@ -615,13 +713,23 @@ body {
     width: 100%;
 }
 
+/* Word Sort Game — 2-area grid */
+#word-sort-game-screen {
+    grid-template-rows: auto 1fr; /* Only 2 rows — no footer */
+    grid-template-areas:
+        "topbar"
+        "main";
+}
+
+.ws-top-bar   { grid-area: topbar; }
+.ws-game-body { grid-area: main; }
+
 .ws-top-bar {
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 0.8rem 1.5rem;
     border-bottom: 3px solid #000000;
-    flex-shrink: 0;
 }
 
 .ws-diff-display {
@@ -633,11 +741,10 @@ body {
 }
 
 .ws-game-body {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
+    display: grid;
+    grid-template-columns: 1fr;
+    justify-items: center;
+    align-content: center;
     padding: 1.5rem 1.5rem 2rem;
     gap: 1.5rem;
 }
@@ -705,16 +812,18 @@ body {
     max-width: 340px;
 }
 
-/* Math Visualizer */
+/* Math Visualizer — single full-height row; home btn stays absolute */
 #visualizer-screen {
-    justify-content: flex-start;
+    grid-template-rows: 1fr;
     padding: 0;
     background-color: #ffffff;
+    position: relative; /* Anchor for .visualizer-home-btn */
+    overflow: hidden;
 }
 
 .visualizer-container {
     width: 100%;
-    height: calc(100vh - 60px);
+    min-height: 0; /* Let the grid row control height */
     display: flex;
     flex-direction: column;
 }
@@ -887,4 +996,303 @@ body {
     bottom: 2rem;
     left: 2rem;
     z-index: 10;
+}
+
+/* ============================================================
+   PUZZLE GENERATOR
+   ============================================================ */
+
+.pg-screen {
+    overflow-y: auto;
+}
+
+/* Puzzle generator: top-aligned scrollable content */
+.pg-container {
+    grid-row: 1 / -1;     /* Span all 3 screen rows */
+    align-content: start; /* Items stack from top, not centred */
+    padding-top: 2.5rem;
+    padding-bottom: 3rem;
+    gap: 1.5rem;
+}
+
+.pg-type-selector {
+    display: flex;
+    width: 100%;
+    max-width: 320px;
+}
+
+.pg-type-btn {
+    flex: 1;
+    padding: 0.7rem 0;
+    border: 2px solid #000000;
+    border-right: none;
+    font-size: 0.82rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    background: #ffffff;
+    color: #000000;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background-color 0.12s;
+}
+
+.pg-type-btn:last-child {
+    border-right: 2px solid #000000;
+}
+
+.pg-type-btn:hover {
+    background: #f5f5f5;
+}
+
+.pg-type-btn.active {
+    background: #000000;
+    color: #ffffff;
+}
+
+.pg-config {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    width: 100%;
+    max-width: 320px;
+}
+
+.pg-config .setting-row {
+    border-top: none;
+    border-bottom: 2px solid #000000;
+    border-left: 2px solid #000000;
+    border-right: 2px solid #000000;
+}
+
+.pg-config .setting-row:first-child {
+    border-top: 2px solid #000000;
+}
+
+.pg-textarea {
+    width: 100%;
+    max-width: 320px;
+    height: 160px;
+    font-size: 0.9rem;
+    font-family: inherit;
+    border: 2px solid #000000;
+    padding: 0.75rem;
+    resize: vertical;
+    display: block;
+}
+
+.pg-textarea:focus {
+    outline: none;
+    border-width: 3px;
+}
+
+.pg-number-input {
+    font-size: 1.1rem;
+    font-weight: 700;
+    border: none;
+    background: transparent;
+    font-family: inherit;
+    padding: 0.1rem 0.3rem;
+    width: 64px;
+    text-align: right;
+    -moz-appearance: textfield;
+}
+
+.pg-number-input::-webkit-inner-spin-button,
+.pg-number-input::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+}
+
+.pg-number-input:focus {
+    outline: none;
+}
+
+.pg-checkbox {
+    width: 1.1rem;
+    height: 1.1rem;
+    cursor: pointer;
+    margin-right: 0.5rem;
+}
+
+.cipher-checkbox-label {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    font-size: 0.95rem;
+    font-weight: 600;
+    user-select: none;
+}
+
+/* ============================================================
+   TAP GAMES (Make Ten · Within 20 · Missing Number)
+   ============================================================ */
+
+.mt-subtitle {
+    text-align: center;
+    font-size: 1.1rem;
+    font-weight: 600;
+    opacity: 0.7;
+}
+
+/* Make Ten menu target selector reuses the op-toggle button group */
+.mt-target-btns {
+    display: flex;
+    width: 100%;
+}
+
+.mt-target-btns .op-toggle:last-child {
+    border-right: 2px solid #000000;
+}
+
+.tg-title {
+    font-size: 1.1rem;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.tg-question {
+    font-size: clamp(2.6rem, 11vw, 5rem);
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3em;
+    will-change: transform;
+    backface-visibility: hidden;
+}
+
+.tg-blank {
+    color: #cc0000;
+}
+
+.tg-op {
+    opacity: 0.6;
+}
+
+.tg-choices {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.6rem;
+    max-width: 420px;
+}
+
+.tg-choice {
+    min-width: 3.5rem;
+    padding: 0.8rem 0;
+    flex: 1 1 3.5rem;
+    border: 3px solid #000000;
+    background: #ffffff;
+    color: #000000;
+    font-size: 1.8rem;
+    font-weight: 800;
+    font-family: inherit;
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+    transition: background-color 0.1s ease, color 0.1s ease;
+}
+
+.tg-choice:hover {
+    background: #000000;
+    color: #ffffff;
+}
+
+.tg-choice:active {
+    opacity: 0.8;
+}
+
+.tg-choice-wrong {
+    animation: tg-shake 0.4s ease;
+    border-color: #cc0000;
+    color: #cc0000;
+}
+
+@keyframes tg-shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-6px); }
+    40% { transform: translateX(6px); }
+    60% { transform: translateX(-4px); }
+    80% { transform: translateX(4px); }
+}
+
+/* ============================================================
+   TEN FRAME BUILDER
+   ============================================================ */
+
+.tf-input-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+}
+
+.tf-input {
+    width: 5rem;
+    padding: 0.6rem;
+    border: 3px solid #000000;
+    font-size: 1.8rem;
+    font-weight: 800;
+    text-align: center;
+    font-family: inherit;
+    -moz-appearance: textfield;
+}
+
+.tf-input:focus {
+    outline: none;
+}
+
+.tf-plus {
+    font-size: 1.8rem;
+    font-weight: 800;
+}
+
+.tf-show-btn {
+    padding: 0.6rem 1.4rem;
+}
+
+.tf-frames {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+    align-items: center;
+}
+
+.tf-frame {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    grid-template-rows: repeat(2, 1fr);
+    border: 3px solid #000000;
+}
+
+.tf-cell {
+    width: 2.6rem;
+    height: 2.6rem;
+    border: 1px solid #000000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.tf-dot {
+    width: 1.7rem;
+    height: 1.7rem;
+    border-radius: 50%;
+    border: 2px solid #000000;
+}
+
+.tf-dot-a {
+    background: #000000;
+}
+
+.tf-dot-b {
+    background: #cc0000;
+    border-color: #cc0000;
+}
+
+.tf-sum {
+    font-size: 3.5rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
 }
