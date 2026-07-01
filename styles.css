@@ -671,9 +671,13 @@ body {
    ============================================================ */
 
 .ws-best-panel {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
     width: 100%;
     max-width: 300px;
     border: 3px solid #000000;
+    padding: 0.75rem 1.2rem;
 }
 
 .ws-best-row {
@@ -701,6 +705,26 @@ body {
     font-variant-numeric: tabular-nums;
 }
 
+.ws-btn-group {
+    display: flex;
+    flex-direction: row;
+    gap: 0.5rem;
+    width: 100%;
+    max-width: 300px;
+    justify-content: center;
+}
+
+.ws-btn-group .btn {
+    flex: 1;
+}
+
+.ws-start-btn {
+    width: 100%;
+    max-width: 300px;
+    margin-top: 0.5rem;
+}
+
+/* Legacy — keep for any remaining references */
 .ws-diff-btns {
     display: flex;
     flex-direction: column;
@@ -878,25 +902,11 @@ body {
     -moz-appearance: textfield;
 }
 
-.visualizer-op-btn {
-    padding: 0.6rem 0.9rem;
-    font-size: 1.2rem;
+.visualizer-op-static {
+    font-size: 1.4rem;
     font-weight: 700;
-    border: 2px solid #000000;
-    background-color: #ffffff;
     color: #000000;
-    cursor: pointer;
-    border-radius: 4px;
-    min-width: 2.5rem;
-    text-align: center;
-}
-
-.visualizer-op-btn:hover {
-    background-color: #f5f5f5;
-}
-
-.visualizer-op-btn:active {
-    background-color: #e0e0e0;
+    user-select: none;
 }
 
 .visualizer-actions {
@@ -914,53 +924,50 @@ body {
     font-size: 1rem;
 }
 
-.visualizer-spacing-bar {
+.visualizer-btn-disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.visualizer-sliders {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0.5rem 2rem 0.75rem;
+    background: #f8f8f8;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.visualizer-slider-row {
     display: flex;
     align-items: center;
-    gap: 1rem;
-    padding: 0.75rem 2rem;
-    background-color: #ffffff;
-    border-bottom: 3px solid #000000;
-    font-weight: 600;
-    font-size: 1rem;
+    gap: 0.6rem;
+    cursor: default;
 }
 
-.visualizer-spacing-bar label {
-    min-width: 80px;
+.visualizer-slider-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    opacity: 0.6;
+    width: 5rem;
+    flex-shrink: 0;
 }
 
-.visualizer-spacing-bar input[type="range"] {
+.visualizer-slider-row input[type=range] {
     flex: 1;
-    max-width: 360px;
+    height: 4px;
+    cursor: pointer;
+    accent-color: #000000;
 }
 
-.visualizer-spacing-bar span {
-    min-width: 3ch;
-    text-align: right;
+.visualizer-slider-val {
+    font-size: 0.7rem;
+    font-weight: 600;
     font-variant-numeric: tabular-nums;
-}
-
-.visualizer-physics-toggle {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    cursor: pointer;
-    margin-left: 1.5rem;
-    user-select: none;
-    font-weight: 500;
-    font-size: 0.95rem;
-    white-space: nowrap;
-}
-
-.visualizer-physics-toggle input {
-    width: 1.1rem;
-    height: 1.1rem;
-    cursor: pointer;
-}
-
-.visualizer-physics-toggle span {
-    min-width: 0;
-    text-align: left;
+    width: 3rem;
+    text-align: right;
+    opacity: 0.7;
 }
 
 .visualizer-canvas-container {
@@ -1026,10 +1033,8 @@ body {
     padding: 0.7rem 0;
     border: 2px solid #000000;
     border-right: none;
-    font-size: 0.82rem;
+    font-size: 1.1rem;
     font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
     background: #ffffff;
     color: #000000;
     cursor: pointer;
@@ -1124,8 +1129,590 @@ body {
 }
 
 /* ============================================================
+   CIPHER SOLVER
+   ============================================================ */
+
+.cs-screen-container {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    padding: 0 1.5rem;
+    box-sizing: border-box;
+    width: 100%;
+}
+
+.cs-input-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    width: 100%;
+}
+
+.cs-text-area-main {
+    height: 7rem;
+}
+
+.cs-text-area-plain {
+    height: 3.5rem;
+}
+
+.cs-pdf-settings {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    border-top: 1px solid #e0e0e0;
+    padding-top: 0.5rem;
+}
+
+.cs-action-row {
+    display: flex;
+    gap: 0.6rem;
+    padding-top: 0.2rem;
+}
+
+.cs-action-btn {
+    flex: 1;
+}
+
+/* ---- Active solver ---- */
+
+.cs-solver {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    flex: 1;
+    min-height: 0;
+}
+
+/* ---- Key row ---- */
+
+.cs-key-row {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-bottom: 2px solid #000;
+    margin-bottom: 0.5rem;
+    flex-shrink: 0;
+    justify-content: center;
+}
+
+.cs-key-cell {
+    border-left: 1px solid #d0d0d0;
+    border-right: 1px solid transparent;
+    background: #fafafa;
+}
+
+/* ---- Collision (duplicate mapping) ---- */
+
+.cs-collision .cs-guess-char {
+    color: #d32f2f !important;
+}
+
+.cs-collision .cs-cipher-char {
+    color: #d32f2f !important;
+}
+
+.cs-solver-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0 0.75rem;
+    flex-shrink: 0;
+}
+
+.cs-bar-btn {
+    padding: 0.4rem 0.9rem;
+    font-size: 0.82rem;
+}
+
+.cs-status {
+    flex: 1;
+    text-align: center;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    opacity: 0.55;
+}
+
+.cs-grid-wrapper {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 1rem;
+}
+
+/* ---- Cipher grid ---- */
+
+.cs-grid {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 0;
+    user-select: none;
+}
+
+.cs-word {
+    display: flex;
+    flex-direction: row;
+}
+
+/* A full-width invisible block that forces the next word to a new row */
+.cs-linebreak {
+    width: 100%;
+    height: 0.4rem;
+}
+
+.cs-space {
+    width: 1.4rem;
+    flex-shrink: 0;
+    align-self: stretch;
+}
+
+/* ---- Individual cipher cell ---- */
+
+.cs-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 2.4rem;
+    flex-shrink: 0;
+    cursor: pointer;
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+    border-left: 1px solid #d0d0d0;
+    border-right: 1px solid transparent; /* collapsed with adjacent cell */
+    transition: background 0.08s;
+}
+
+.cs-cell:active {
+    background: #f5f5f5;
+}
+
+/* Non-letter cells (punctuation) — no border, no hover */
+.cs-cell.cs-nonletter {
+    cursor: default;
+    touch-action: auto;
+    border-color: transparent;
+}
+
+.cs-cell.cs-nonletter:active {
+    background: none;
+}
+
+.cs-cipher-char {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #888;
+    padding: 3px 2px 2px;
+    width: 100%;
+    text-align: center;
+    line-height: 1;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.cs-cell.cs-nonletter .cs-cipher-char {
+    color: #bbb;
+    border-bottom-color: transparent;
+}
+
+.cs-guess-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 2.4rem;
+    width: 100%;
+    overflow: hidden;
+    position: relative;
+}
+
+.cs-guess-char {
+    font-size: 1.35rem;
+    font-weight: 800;
+    color: #000;
+    line-height: 1;
+    transition: transform 0.08s ease, opacity 0.08s ease;
+    will-change: transform;
+}
+
+.cs-guess-char.cs-unset {
+    color: #ccc;
+    font-weight: 400;
+}
+
+.cs-cell.cs-nonletter .cs-guess-char {
+    color: #999;
+    font-weight: 500;
+    font-size: 1.1rem;
+}
+
+/* ---- Solved state ---- */
+
+.cs-grid.cs-solved .cs-cell:not(.cs-nonletter) {
+    background: #e8f5e9;
+    border-color: #a5d6a7;
+}
+
+.cs-grid.cs-solved .cs-cipher-char {
+    color: #66bb6a;
+    border-bottom-color: #a5d6a7;
+}
+
+.cs-grid.cs-solved .cs-guess-char {
+    color: #2e7d32;
+}
+
+.cs-solved-banner {
+    text-align: center;
+    font-size: 2rem;
+    font-weight: 900;
+    color: #2e7d32;
+    letter-spacing: 0.1em;
+    padding: 1rem 0 0.5rem;
+    animation: cs-pop 0.35s ease;
+    flex-shrink: 0;
+}
+
+@keyframes cs-pop {
+    0%   { transform: scale(0.6); opacity: 0; }
+    70%  { transform: scale(1.12); }
+    100% { transform: scale(1);   opacity: 1; }
+}
+
+/* ============================================================
+   TIMES TABLES GRID
+   ============================================================ */
+
+.tt-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.8rem;
+    width: 100%;
+    max-width: 640px;
+}
+
+.tt-config {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.tt-btn-group {
+    display: flex;
+    gap: 0.4rem;
+}
+
+.tt-mode-btn.active,
+.fr-shape-btn.active {
+    background: #000;
+    color: #fff;
+}
+
+.tt-range-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.tt-grid-wrap {
+    width: 100%;
+    overflow-x: auto;
+}
+
+.tt-grid {
+    display: grid;
+    gap: 2px;
+    width: 100%;
+    min-width: 320px;
+}
+
+.tt-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    aspect-ratio: 1;
+    font-size: clamp(0.6rem, 2.2vw, 1rem);
+    font-weight: 600;
+    user-select: none;
+}
+
+.tt-corner {
+    background: #000;
+    color: #fff;
+    font-weight: 800;
+}
+
+.tt-header {
+    background: #222;
+    color: #fff;
+    font-weight: 700;
+}
+
+.tt-header.tt-hl {
+    background: #2e7d32;
+}
+
+.tt-answer {
+    background: #f2f2f2;
+    border: 1px solid #ddd;
+    cursor: pointer;
+    transition: background 0.1s;
+}
+
+.tt-answer:hover { background: #e6e6e6; }
+
+.tt-answer.tt-filled {
+    background: #e8f5e9;
+    color: #2e7d32;
+    font-weight: 800;
+}
+
+.tt-answer.tt-active {
+    background: #fff3cd;
+    border-color: #000;
+    box-shadow: inset 0 0 0 2px #000;
+}
+
+.tt-answer.tt-wrong {
+    animation: tg-shake 0.4s ease;
+    background: #ffe5e5;
+}
+
+.tt-quiz-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    justify-content: center;
+}
+
+.tt-quiz-prompt {
+    font-size: 1.4rem;
+    font-weight: 800;
+    min-width: 4.5rem;
+    text-align: right;
+}
+
+.tt-quiz-input {
+    width: 4rem;
+    padding: 0.4rem;
+    font-size: 1.3rem;
+    text-align: center;
+    border: 2px solid #000;
+    border-radius: 6px;
+}
+
+.tt-quiz-submit {
+    padding: 0.4rem 1rem;
+    font-size: 1.2rem;
+}
+
+.tt-equation {
+    font-size: clamp(1.8rem, 7vw, 3rem);
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    min-height: 1.2em;
+    text-align: center;
+}
+
+/* ============================================================
+   FRACTIONS — COMPARE TWO
+   ============================================================ */
+
+.fr-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    width: 100%;
+    max-width: 520px;
+}
+
+.fr-config {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.fr-score-bar {
+    font-size: 1rem;
+    font-weight: 700;
+    opacity: 0.7;
+}
+
+.fr-prompt {
+    font-size: 1.5rem;
+    font-weight: 800;
+}
+
+.fr-shapes {
+    display: flex;
+    gap: 1.5rem;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.fr-shape-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 1rem;
+    border: 3px solid transparent;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+}
+
+.fr-shape-card:hover { background: #f5f5f5; }
+
+.fr-svg {
+    width: clamp(120px, 38vw, 180px);
+    height: auto;
+}
+
+.fr-label {
+    font-size: 1.4rem;
+    font-weight: 800;
+}
+
+.fr-shape-card.fr-correct {
+    border-color: #2e7d32;
+    background: #e8f5e9;
+}
+
+.fr-shape-card.fr-wrong {
+    border-color: #cc0000;
+    background: #ffe5e5;
+}
+
+.fr-fb-correct { color: #2e7d32; }
+.fr-fb-wrong   { color: #cc0000; }
+
+/* ---- Fractions: Identify ---- */
+
+.fr-id-shape {
+    display: flex;
+    justify-content: center;
+}
+
+.fr-id-inputs {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+}
+
+.fr-id-input {
+    width: 4rem;
+    padding: 0.4rem;
+    font-size: 1.5rem;
+    text-align: center;
+    border: 2px solid #000;
+    border-radius: 6px;
+}
+
+.fr-id-bar {
+    width: 2.5rem;
+    height: 3px;
+    background: #000;
+}
+
+.fr-id-check {
+    padding: 0.4rem 1rem;
+    font-size: 1.2rem;
+}
+
+/* ============================================================
+   PLACE-VALUE BLOCK VISUALIZER
+   ============================================================ */
+
+.viz-mode-toggle {
+    display: flex;
+    gap: 0.4rem;
+    justify-content: center;
+    margin-bottom: 0.8rem;
+}
+
+.viz-mode-btn.active {
+    background: #000;
+    color: #fff;
+}
+
+.pv-input-row {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 0.8rem;
+}
+
+.pv-input {
+    width: 8rem;
+    text-align: center;
+    font-size: 2rem;
+}
+
+.pv-svg-wrap {
+    flex: 1;
+    min-height: 320px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    width: 100%;
+}
+
+.pv-svg {
+    width: 100%;
+    height: 100%;
+    max-height: 70vh;
+}
+
+.pv-empty {
+    align-self: center;
+    opacity: 0.4;
+    font-size: 1.2rem;
+}
+
+.pv-digit {
+    font-size: 11px;
+    font-weight: 900;
+}
+
+.pv-place {
+    font-size: 4.5px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+
+/* ============================================================
    TAP GAMES (Make Ten · Within 20 · Missing Number)
    ============================================================ */
+
+.mt-tenframe-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    font-weight: 600;
+    cursor: pointer;
+    margin-bottom: 0.5rem;
+}
+
+.tg-visual {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.6rem;
+    margin: 0.5rem 0 1rem;
+    transform: scale(0.8);
+    transform-origin: center;
+}
 
 .mt-subtitle {
     text-align: center;
@@ -1133,6 +1720,19 @@ body {
     font-weight: 600;
     opacity: 0.7;
 }
+
+/* Tap Game screen — 2-area grid (reuses .quiz-top-bar / .quiz-body) */
+#tap-game-screen {
+    grid-template-rows: auto 1fr; /* Only 2 rows — no footer */
+    grid-template-areas:
+        "topbar"
+        "main";
+}
+
+/* Equal-width side displays keep the centred title truly centred */
+#tap-game-screen .progress-display { flex: 1; }
+#tap-game-screen .timer-display    { flex: 1; text-align: right; }
+#tap-game-screen .tg-title         { flex: 0 0 auto; text-align: center; }
 
 /* Make Ten menu target selector reuses the op-toggle button group */
 .mt-target-btns {

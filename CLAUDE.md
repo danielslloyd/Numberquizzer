@@ -93,6 +93,19 @@ git push -u origin claude/flashcard-app-netlify-BlGXx
 <script src="app.js?v=2"></script>
 ```
 
+## Interactive learning modes
+
+These are screen-based games (not PDF generators), each driven from `TAB_ENTRY` in `app.js`:
+
+- **Times Tables** (`times-grid-screen`, `tt*` functions) — 11×11 multiplication grid. Two modes via toggle: **Explore** (tap a cell to reveal/hide the product; shows a big `r × c = p` equation in `#tt-equation` below the grid) and **Quiz** (`ttAutoSelect` auto-picks an unfilled cell; answer in the `#tt-quiz-bar` input; correct fills green and auto-advances, wrong shakes). Active cell highlights its row/column factor headers. Per-fact mastery stored in localStorage as `ttFact_<r>x<c>` (correct-answer counter). Grid size set by `#tt-max` (5/10/12).
+- **Fractions** (`fractions-screen`, `fr*` functions) — two sub-modes via toggle (`frSetMode`): **Compare** ("which is bigger?", `frNewCompare`; equal values rejected; tap larger → score) and **Identify** (`frNewIdentify`/`frCheckIdentify`; one shape shown, user types numerator + denominator into `#fr-id-num`/`#fr-id-den`, exact match required). Shapes rendered as SVG (`frRenderBar`/`frRenderPie`); shape toggle (bar/pie) and denominator range (`#fr-max-den`).
+- **Make Ten ten-frame** — optional `#mt-tenframe` checkbox on the Make Ten menu adds a ten-frame visual (`tgRenderVisual`) above the choices during the tap game, showing the known addend as filled dots. Only renders for `make-ten` mode with the option on.
+- **Place-value visualizer** (`viz-place-mode`, `pv*` functions) — secondary mode of the Visualizer tab (toggle via `vizSetMainMode`). Enter a number (`#pv-input`); `pvRender` draws base-ten blocks as SVG to scale — ones (unit cubes), tens (rods), hundreds (flats), thousands (10×100 columns of stacked hundred-flats) — each place a distinct color with a large bold digit label beneath. viewBox auto-fits (`xMidYMax meet`) for dynamic zoom; updates on every keystroke. The original 3D Three.js multiply visualizer lives in `viz-multiply-mode`.
+
+## Hidden features
+
+- **Number Bonds worksheet** — fully implemented (`pgPDFBonds`, `pgDrawBonds`, `pgDrawBond`, `pgMakeBonds` in `app.js`; config UI at `#pg-bonds-config` in `index.html`). The "Bonds" button in the worksheet type selector is hidden via `class="hidden"`. To re-enable, remove the `hidden` class from the button in `index.html`. Activate programmatically with `pgSetType('bonds')`.
+
 ## Key constraints / design rules
 
 - **No card count cap** — the complete deck is always used; never sample randomly
