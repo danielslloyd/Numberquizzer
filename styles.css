@@ -1896,3 +1896,214 @@ body {
     font-weight: 800;
     font-variant-numeric: tabular-nums;
 }
+
+/* ============================================================
+   MONEY VISUALIZER
+   ============================================================ */
+
+.mn-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    width: 100%;
+    max-width: 620px;
+    padding: 1.5rem 1rem;
+}
+
+/* Three modes + two selects don't fit at full .btn size */
+.mn-mode-btn {
+    font-size: 0.85rem;
+    padding: 0.55rem 1.1rem;
+    letter-spacing: 0.05em;
+}
+
+.mn-mode-btn.active {
+    background: #000;
+    color: #fff;
+}
+
+.mn-pieces {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    min-height: 60px;
+    width: 100%;
+}
+
+.mn-piece {
+    height: auto;
+    flex-shrink: 0;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
+}
+
+.mn-bill {
+    width: 104px;
+}
+
+.mn-more {
+    font-size: 1rem;
+    font-weight: 800;
+    opacity: 0.6;
+    align-self: center;
+}
+
+/* Money: Identify */
+
+.mn-answer-row {
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.mn-input {
+    font-family: inherit;
+    font-size: 1.6rem;
+    font-weight: 800;
+    width: 8rem;
+    padding: 0.4rem 0.6rem;
+    border: 3px solid #000;
+    background: #fff;
+    text-align: center;
+}
+
+.mn-input:focus {
+    outline: 3px solid #000;
+    outline-offset: 2px;
+}
+
+.mn-check {
+    font-size: 1.4rem;
+    padding: 0.4rem 1.2rem;
+}
+
+/* Money: Build */
+
+.mn-target {
+    font-variant-numeric: tabular-nums;
+}
+
+.mn-tray {
+    border: 3px dashed #bbb;
+    border-radius: 10px;
+    padding: 0.7rem;
+    min-height: 76px;
+}
+
+.mn-total-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    margin: 0.8rem 0;
+}
+
+.mn-total {
+    font-size: 1.8rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    min-width: 6rem;
+    text-align: center;
+}
+
+.mn-total.mn-over  { color: #cc0000; }
+.mn-total.mn-exact { color: #2e7d32; }
+
+.mn-small-btn {
+    font-size: 0.75rem;
+    padding: 0.4rem 0.9rem;
+}
+
+.mn-denom-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+}
+
+.mn-denom-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.3rem;
+    border: 3px solid transparent;
+    border-radius: 10px;
+    background: none;
+    cursor: pointer;
+    transition: border-color 0.1s ease, background 0.1s ease, transform 0.06s ease;
+}
+
+.mn-denom-btn:hover  { border-color: #000; background: #f5f5f5; }
+.mn-denom-btn:active { transform: scale(0.92); }
+
+/* Money: Change */
+
+.mn-change-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+}
+
+.mn-change-label {
+    font-size: 1.2rem;
+    font-weight: 700;
+}
+
+.mn-options {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+}
+
+.mn-opt {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-family: inherit;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.45rem 0.8rem;
+    border: 2px solid #000;
+    background: #fff;
+    color: #000;
+    border-radius: 999px;
+    cursor: pointer;
+}
+
+.mn-opt:hover { background: #f5f5f5; }
+
+.mn-opt.active {
+    background: #000;
+    color: #fff;
+}
+
+/* Piece count badge on each breakdown chip */
+.mn-opt-n {
+    font-size: 0.7rem;
+    font-weight: 800;
+    padding: 0.05rem 0.4rem;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.12);
+}
+
+.mn-opt.active .mn-opt-n {
+    background: rgba(255, 255, 255, 0.25);
+}
+
+.mn-summary {
+    font-size: 0.95rem;
+    font-weight: 700;
+    text-align: center;
+    opacity: 0.75;
+    min-height: 1.2rem;
+}

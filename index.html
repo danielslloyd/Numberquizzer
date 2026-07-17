@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=28">
+    <link rel="stylesheet" href="styles.css?v=29">
 </head>
 <body>
 
@@ -21,6 +21,7 @@
         <button class="tab-btn" data-tab="ten-frame">Ten Frame</button>
         <button class="tab-btn" data-tab="times-grid">Times Tables</button>
         <button class="tab-btn" data-tab="fractions">Fractions</button>
+        <button class="tab-btn" data-tab="money">Money</button>
         <button class="tab-btn" data-tab="visualizer">Visualizer</button>
         <button class="tab-btn" data-tab="sudoku">Sudoku</button>
     </nav>
@@ -723,6 +724,81 @@
         </div>
     </div>
 
+    <!-- =====================================================
+         MONEY TAB
+         ===================================================== -->
+
+    <div id="money-screen" class="screen">
+        <div class="container mn-container">
+            <div class="fr-config">
+                <div class="tt-btn-group" id="mn-mode-group">
+                    <button class="btn btn-secondary mn-mode-btn active" data-mn-mode="identify">Identify</button>
+                    <button class="btn btn-secondary mn-mode-btn" data-mn-mode="build">Build</button>
+                    <button class="btn btn-secondary mn-mode-btn" data-mn-mode="change">Change</button>
+                </div>
+                <div class="setting-row">
+                    <label for="mn-currency">Money</label>
+                    <select id="mn-currency" class="setting-select">
+                        <option value="USD" selected>🇺🇸 US Dollar</option>
+                        <option value="GBP">🇬🇧 British Pound</option>
+                        <option value="EUR">🇪🇺 Euro</option>
+                        <option value="CAD">🇨🇦 Canadian Dollar</option>
+                        <option value="AUD">🇦🇺 Australian Dollar</option>
+                    </select>
+                </div>
+                <div class="setting-row" id="mn-level-row">
+                    <label for="mn-level">Using</label>
+                    <select id="mn-level" class="setting-select">
+                        <option value="coins" selected>Coins only</option>
+                        <option value="small">Coins + small bills</option>
+                        <option value="all">Everything</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="fr-score-bar" id="mn-score-bar">
+                <span id="mn-score" class="fr-score">Score: 0</span>
+            </div>
+
+            <!-- Identify: read the pile -->
+            <div id="mn-identify">
+                <div class="fr-prompt">How much money is this?</div>
+                <div id="mn-id-pieces" class="mn-pieces"></div>
+                <div class="mn-answer-row">
+                    <input type="text" id="mn-id-input" class="mn-input" inputmode="decimal"
+                           placeholder="$0.00" autocomplete="off" spellcheck="false">
+                    <button id="mn-id-check" class="btn btn-primary mn-check">✓</button>
+                </div>
+            </div>
+
+            <!-- Build: tap denominations up to the target -->
+            <div id="mn-build" class="hidden">
+                <div class="fr-prompt">Make <span id="mn-target" class="mn-target"></span></div>
+                <div id="mn-build-pieces" class="mn-pieces mn-tray"></div>
+                <div class="mn-total-row">
+                    <span id="mn-total" class="mn-total">$0.00</span>
+                    <button id="mn-undo" class="btn btn-secondary mn-small-btn">Undo</button>
+                    <button id="mn-clear" class="btn btn-secondary mn-small-btn">Clear</button>
+                </div>
+                <div id="mn-denom-bar" class="mn-denom-bar"></div>
+            </div>
+
+            <!-- Change: enter an amount, see the ways to make it -->
+            <div id="mn-change" class="hidden">
+                <div class="mn-change-row">
+                    <label class="mn-change-label" for="mn-amount">Show me</label>
+                    <input type="text" id="mn-amount" class="mn-input" inputmode="decimal"
+                           placeholder="1.37" autocomplete="off" spellcheck="false">
+                </div>
+                <div id="mn-options" class="mn-options"></div>
+                <div id="mn-change-summary" class="mn-summary"></div>
+                <div id="mn-change-pieces" class="mn-pieces"></div>
+            </div>
+
+            <div id="mn-feedback" class="feedback-display"></div>
+        </div>
+    </div>
+
     <!-- Sprite layer: fixed overlay for floating number particles -->
     <div id="sprite-layer" class="sprite-layer" aria-hidden="true"></div>
 
@@ -734,6 +810,6 @@
     <script src="parser.js?v=15"></script>
     <script src="physics.js?v=15"></script>
     <script src="animator.js?v=15"></script>
-    <script src="app.js?v=45"></script>
+    <script src="app.js?v=46"></script>
 </body>
 </html>

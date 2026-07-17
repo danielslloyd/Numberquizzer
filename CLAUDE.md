@@ -101,6 +101,15 @@ These are screen-based games (not PDF generators), each driven from `TAB_ENTRY` 
 - **Fractions** (`fractions-screen`, `fr*` functions) — two sub-modes via toggle (`frSetMode`): **Compare** ("which is bigger?", `frNewCompare`; equal values rejected; tap larger → score) and **Identify** (`frNewIdentify`/`frCheckIdentify`; one shape shown, user types numerator + denominator into `#fr-id-num`/`#fr-id-den`, exact match required). Shapes rendered as SVG (`frRenderBar`/`frRenderPie`); shape toggle (bar/pie) and denominator range (`#fr-max-den`).
 - **Make Ten ten-frame** — optional `#mt-tenframe` checkbox on the Make Ten menu adds a ten-frame visual (`tgRenderVisual`) above the choices during the tap game, showing the known addend as filled dots. Only renders for `make-ten` mode with the option on.
 - **Place-value visualizer** (`viz-place-mode`, `pv*` functions) — secondary mode of the Visualizer tab (toggle via `vizSetMainMode`). Enter a number (`#pv-input`); `pvRender` draws base-ten blocks as SVG to scale — ones (unit cubes), tens (rods), hundreds (flats), thousands (10×100 columns of stacked hundred-flats) — each place a distinct color with a large bold digit label beneath. viewBox auto-fits (`xMidYMax meet`) for dynamic zoom; updates on every keystroke. The original 3D Three.js multiply visualizer lives in `viz-multiply-mode`.
+- **Money visualizer** (`money-screen`, `mn*` functions) — three sub-modes via toggle (`mnSetMode`): **Identify** (`mnNewIdentify`/`mnCheckIdentify`; a random handful is shown, user types the amount), **Build** (`mnNewBuild`; tap denomination buttons to reach a target, with live total, undo/clear, and a fewest-pieces check on success) and **Change** (`mnRenderChange`; enter an amount and pick a breakdown chip — exact change, coins only, or novelties like "All 1¢"). Five currencies in `MN_CURRENCIES` (USD default, GBP, EUR, CAD, AUD), each a list of denominations valued in **minor units** (cents/pence); choice persists in localStorage as `mnCurrency`. Coins/bills drawn as SVG (`mnCoinSVG`/`mnBillSVG`); coin `mm` values are real diameters so relative sizes teach real quirks (a US dime is smaller than a penny). Difficulty (`#mn-level`) sets the denomination pool via `mnPool`.
+
+### Money: rules to preserve
+
+- **Denomination values are always minor units** (`v: 25` is 25¢, `v: 2000` is a $20 bill) — never store floats, money math is integer-only
+- `mnFewest` uses **DP, not greedy** — greedy is wrong for non-canonical denomination sets, so keep it if new currencies are added
+- Quiz amounts come from `mnRandomGroups` (build a random handful, then read its value) so a target is **always achievable** — do not switch to picking a random number
+- Not every amount is makeable: CAD/AUD have no 1¢, so `mnChangeOptions` can return empty (e.g. $1.37 CAD) — that path must stay handled
+- `MN_MAX_DRAW` caps rendered pieces so "All 1¢" of a large amount stays responsive
 
 ## Hidden features
 

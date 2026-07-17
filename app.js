@@ -3005,6 +3005,457 @@ function pvBlock(x, y, w, h, color, layers) {
 }
 
 // ============================================
+// MONEY VISUALIZER
+// ============================================
+
+// Coin `mm` values are real-world diameters, so relative coin sizes on screen
+// teach the real quirks: a US dime is smaller than a penny; an AUD $2 is
+// smaller than an AUD $1. `v` is always in minor units (cents/pence).
+const MN_CURRENCIES = {
+    USD: {
+        label: '🇺🇸 US Dollar', symbol: '$', minor: '¢',
+        denoms: [
+            { v: 1,    kind: 'coin', mm: 19.05, face: '#c98a56', edge: '#9c5f2e', ink: '#40200a' },
+            { v: 5,    kind: 'coin', mm: 21.21, face: '#c3c5c9', edge: '#8f9196', ink: '#2b2d30' },
+            { v: 10,   kind: 'coin', mm: 17.91, face: '#c3c5c9', edge: '#8f9196', ink: '#2b2d30' },
+            { v: 25,   kind: 'coin', mm: 24.26, face: '#c3c5c9', edge: '#8f9196', ink: '#2b2d30' },
+            { v: 50,   kind: 'coin', mm: 30.61, face: '#c3c5c9', edge: '#8f9196', ink: '#2b2d30' },
+            { v: 100,  kind: 'bill', face: '#a7c795', ink: '#1e3d18' },
+            { v: 500,  kind: 'bill', face: '#93bd9f', ink: '#1e3d18' },
+            { v: 1000, kind: 'bill', face: '#9dc4ac', ink: '#1e3d18' },
+            { v: 2000, kind: 'bill', face: '#84b58c', ink: '#1e3d18' },
+        ],
+    },
+    GBP: {
+        label: '🇬🇧 British Pound', symbol: '£', minor: 'p',
+        denoms: [
+            { v: 1,    kind: 'coin', mm: 20.30, face: '#c98a56', edge: '#9c5f2e', ink: '#40200a' },
+            { v: 2,    kind: 'coin', mm: 25.90, face: '#c98a56', edge: '#9c5f2e', ink: '#40200a' },
+            { v: 5,    kind: 'coin', mm: 18.00, face: '#c3c5c9', edge: '#8f9196', ink: '#2b2d30' },
+            { v: 10,   kind: 'coin', mm: 24.50, face: '#c3c5c9', edge: '#8f9196', ink: '#2b2d30' },
+            { v: 20,   kind: 'coin', mm: 21.40, face: '#c3c5c9', edge: '#8f9196', ink: '#2b2d30' },
+            { v: 50,   kind: 'coin', mm: 27.30, face: '#c3c5c9', edge: '#8f9196', ink: '#2b2d30' },
+            { v: 100,  kind: 'coin', mm: 23.43, face: '#d8b160', edge: '#a5822f', ink: '#3d2c05' },
+            { v: 200,  kind: 'coin', mm: 28.40, face: '#d8b160', edge: '#8f9196', ink: '#3d2c05' },
+            { v: 500,  kind: 'bill', face: '#6ec3bd', ink: '#0d3a37' },
+            { v: 1000, kind: 'bill', face: '#dd8c54', ink: '#3f1e08' },
+            { v: 2000, kind: 'bill', face: '#9b7fc0', ink: '#2a1747' },
+        ],
+    },
+    EUR: {
+        label: '🇪🇺 Euro', symbol: '€', minor: 'c',
+        denoms: [
+            { v: 1,    kind: 'coin', mm: 16.25, face: '#c98a56', edge: '#9c5f2e', ink: '#40200a' },
+            { v: 2,    kind: 'coin', mm: 18.75, face: '#c98a56', edge: '#9c5f2e', ink: '#40200a' },
+            { v: 5,    kind: 'coin', mm: 21.25, face: '#c98a56', edge: '#9c5f2e', ink: '#40200a' },
+            { v: 10,   kind: 'coin', mm: 19.75, face: '#d8b160', edge: '#a5822f', ink: '#3d2c05' },
+            { v: 20,   kind: 'coin', mm: 22.25, face: '#d8b160', edge: '#a5822f', ink: '#3d2c05' },
+            { v: 50,   kind: 'coin', mm: 24.25, face: '#d8b160', edge: '#a5822f', ink: '#3d2c05' },
+            { v: 100,  kind: 'coin', mm: 23.25, face: '#c3c5c9', edge: '#a5822f', ink: '#2b2d30' },
+            { v: 200,  kind: 'coin', mm: 25.75, face: '#d8b160', edge: '#8f9196', ink: '#3d2c05' },
+            { v: 500,  kind: 'bill', face: '#b0b0b0', ink: '#2b2b2b' },
+            { v: 1000, kind: 'bill', face: '#e07a7a', ink: '#451212' },
+            { v: 2000, kind: 'bill', face: '#6a9bd8', ink: '#10294a' },
+        ],
+    },
+    CAD: {
+        label: '🇨🇦 Canadian Dollar', symbol: '$', minor: '¢',
+        denoms: [
+            // Canada retired the penny in 2013 — cash totals round to the nearest 5¢.
+            { v: 5,    kind: 'coin', mm: 21.20, face: '#c3c5c9', edge: '#8f9196', ink: '#2b2d30' },
+            { v: 10,   kind: 'coin', mm: 18.03, face: '#c3c5c9', edge: '#8f9196', ink: '#2b2d30' },
+            { v: 25,   kind: 'coin', mm: 23.88, face: '#c3c5c9', edge: '#8f9196', ink: '#2b2d30' },
+            { v: 100,  kind: 'coin', mm: 26.50, face: '#d8b160', edge: '#a5822f', ink: '#3d2c05' },
+            { v: 200,  kind: 'coin', mm: 28.00, face: '#d8b160', edge: '#8f9196', ink: '#3d2c05' },
+            { v: 500,  kind: 'bill', face: '#6f9fd8', ink: '#10294a' },
+            { v: 1000, kind: 'bill', face: '#9b7fc0', ink: '#2a1747' },
+            { v: 2000, kind: 'bill', face: '#78b184', ink: '#123a1c' },
+        ],
+    },
+    AUD: {
+        label: '🇦🇺 Australian Dollar', symbol: '$', minor: 'c',
+        denoms: [
+            { v: 5,    kind: 'coin', mm: 19.41, face: '#c3c5c9', edge: '#8f9196', ink: '#2b2d30' },
+            { v: 10,   kind: 'coin', mm: 23.60, face: '#c3c5c9', edge: '#8f9196', ink: '#2b2d30' },
+            { v: 20,   kind: 'coin', mm: 28.65, face: '#c3c5c9', edge: '#8f9196', ink: '#2b2d30' },
+            { v: 50,   kind: 'coin', mm: 31.50, face: '#c3c5c9', edge: '#8f9196', ink: '#2b2d30' },
+            { v: 100,  kind: 'coin', mm: 25.00, face: '#d8b160', edge: '#a5822f', ink: '#3d2c05' },
+            { v: 200,  kind: 'coin', mm: 20.50, face: '#d8b160', edge: '#a5822f', ink: '#3d2c05' },
+            { v: 500,  kind: 'bill', face: '#d68fb4', ink: '#45102c' },
+            { v: 1000, kind: 'bill', face: '#6f9fd8', ink: '#10294a' },
+            { v: 2000, kind: 'bill', face: '#e08a4f', ink: '#43200a' },
+        ],
+    },
+};
+
+const MN_MM_PX   = 1.8;   // screen px per real-world mm of coin diameter
+const MN_MAX_DRAW = 400;  // cap rendered pieces ("all pennies" of a big amount)
+
+const mnState = {
+    mode:     'identify',        // 'identify' | 'build' | 'change'
+    currency: 'USD',
+    level:    'coins',           // 'coins' | 'small' | 'all'
+    score:    0,
+    target:   0,                 // cents — identify answer / build goal
+    tray:     [],                // build mode: denom values in tap order
+    locked:   false,
+};
+
+function mnCur()  { return MN_CURRENCIES[mnState.currency]; }
+
+// Denominations available for the current difficulty.
+function mnPool() {
+    const denoms = mnCur().denoms;
+    if (mnState.level === 'coins') return denoms.filter(d => d.kind === 'coin');
+    if (mnState.level === 'small') return denoms.filter(d => d.v <= 500);
+    return denoms;
+}
+
+function mnDenom(v) { return mnCur().denoms.find(d => d.v === v); }
+
+// "25¢" for minor units, "$1" / "$20" for whole major units.
+function mnLabel(d) {
+    const cur = mnCur();
+    return d.v < 100 ? d.v + cur.minor : cur.symbol + (d.v / 100);
+}
+
+function mnFormat(cents) {
+    return mnCur().symbol + (cents / 100).toFixed(2);
+}
+
+// Accepts "1.25", "$1.25", ".25", "25¢", "25c", "25p".
+// A bare integer means major units ($25), which is the common kid mistake —
+// mnCheckIdentify() nudges rather than just marking it wrong.
+function mnParse(raw) {
+    let s = String(raw).trim().toLowerCase().replace(/[\s,]/g, '');
+    if (!s) return null;
+    s = s.replace(/^[$£€]/, '');
+    const minorSuffix = /[¢pc]$/.test(s);
+    if (minorSuffix) s = s.slice(0, -1);
+    if (!/^\d*\.?\d*$/.test(s) || s === '' || s === '.') return null;
+    const n = parseFloat(s);
+    if (!isFinite(n)) return null;
+    return minorSuffix ? Math.round(n) : Math.round(n * 100);
+}
+
+// Fewest-pieces breakdown via DP — correct even for non-canonical denomination
+// sets, where greedy would not be. Returns [{v, n}] sorted high→low, or null.
+function mnFewest(cents, denoms) {
+    if (cents === 0) return [];
+    const vals = denoms.map(d => d.v).sort((a, b) => a - b);
+    const best = new Array(cents + 1).fill(Infinity);
+    const pick = new Array(cents + 1).fill(-1);
+    best[0] = 0;
+    for (let i = 1; i <= cents; i++) {
+        for (const v of vals) {
+            if (v > i) break;
+            if (best[i - v] + 1 < best[i]) { best[i] = best[i - v] + 1; pick[i] = v; }
+        }
+    }
+    if (best[cents] === Infinity) return null;
+    const counts = new Map();
+    for (let c = cents; c > 0; c -= pick[c]) counts.set(pick[c], (counts.get(pick[c]) || 0) + 1);
+    return mnGroups(counts);
+}
+
+function mnGroups(counts) {
+    return [...counts].map(([v, n]) => ({ v, n })).sort((a, b) => b.v - a.v);
+}
+
+function mnTotal(groups) {
+    return groups.reduce((s, g) => s + g.v * g.n, 0);
+}
+
+function mnCount(groups) {
+    return groups.reduce((s, g) => s + g.n, 0);
+}
+
+// Build a natural-looking random handful, then read its value off — this always
+// produces an achievable amount without searching for one.
+function mnRandomGroups(pool, minN, maxN) {
+    const n = minN + Math.floor(Math.random() * (maxN - minN + 1));
+    const counts = new Map();
+    for (let i = 0; i < n; i++) {
+        const d = pool[Math.floor(Math.random() * pool.length)];
+        counts.set(d.v, (counts.get(d.v) || 0) + 1);
+    }
+    return mnGroups(counts);
+}
+
+// ---- Money: SVG pieces ----
+
+function mnPieceSVG(d) {
+    return d.kind === 'coin' ? mnCoinSVG(d) : mnBillSVG(d);
+}
+
+function mnCoinSVG(d) {
+    const label = mnLabel(d);
+    const w  = (d.mm * MN_MM_PX).toFixed(1);
+    const fs = label.length >= 4 ? 24 : label.length === 3 ? 29 : 34;
+    return `<svg viewBox="0 0 100 100" class="mn-piece mn-coin" style="width:${w}px" xmlns="http://www.w3.org/2000/svg">` +
+        `<circle cx="50" cy="50" r="49" fill="${d.edge}"/>` +
+        `<circle cx="50" cy="50" r="43" fill="${d.face}"/>` +
+        `<circle cx="50" cy="50" r="43" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="2"/>` +
+        `<text x="50" y="50" text-anchor="middle" dominant-baseline="central" font-size="${fs}" ` +
+        `font-weight="800" fill="${d.ink}">${label}</text></svg>`;
+}
+
+function mnBillSVG(d) {
+    const label = mnLabel(d);
+    return `<svg viewBox="0 0 168 74" class="mn-piece mn-bill" xmlns="http://www.w3.org/2000/svg">` +
+        `<rect x="1" y="1" width="166" height="72" rx="5" fill="${d.face}" stroke="#2b2b2b" stroke-width="2"/>` +
+        `<rect x="9" y="9" width="150" height="56" rx="3" fill="none" stroke="rgba(255,255,255,0.55)" stroke-width="1.5"/>` +
+        `<circle cx="84" cy="37" r="18" fill="rgba(255,255,255,0.28)" stroke="rgba(255,255,255,0.5)" stroke-width="1.5"/>` +
+        `<text x="84" y="37" text-anchor="middle" dominant-baseline="central" font-size="19" font-weight="800" fill="${d.ink}">${label}</text>` +
+        `<text x="24" y="19" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="800" fill="${d.ink}">${label}</text>` +
+        `<text x="144" y="56" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="800" fill="${d.ink}">${label}</text>` +
+        `</svg>`;
+}
+
+// Renders [{v, n}] as loose pieces, largest first, capped so "all pennies" of a
+// big amount stays responsive.
+function mnRenderGroups(groups) {
+    let html = '', drawn = 0;
+    const total = mnCount(groups);
+    for (const g of groups) {
+        const d = mnDenom(g.v);
+        for (let i = 0; i < g.n && drawn < MN_MAX_DRAW; i++, drawn++) html += mnPieceSVG(d);
+    }
+    if (total > drawn) html += `<span class="mn-more">+${total - drawn} more</span>`;
+    return html;
+}
+
+function mnSummary(groups) {
+    if (!groups.length) return '';
+    const parts = groups.map(g => `${g.n} × ${mnLabel(mnDenom(g.v))}`);
+    const n = mnCount(groups);
+    return `${n} ${n === 1 ? 'piece' : 'pieces'}: ${parts.join(' + ')}`;
+}
+
+// ---- Money: shared ----
+
+function mnInit() {
+    const saved = localStorage.getItem('mnCurrency');
+    if (saved && MN_CURRENCIES[saved]) mnState.currency = saved;
+    document.getElementById('mn-currency').value = mnState.currency;
+    mnState.level = document.getElementById('mn-level').value;
+    mnState.score = 0;
+    mnUpdateScore();
+    mnSetMode(mnState.mode);
+}
+
+function mnSetMode(mode) {
+    mnState.mode = mode;
+    document.querySelectorAll('.mn-mode-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.mnMode === mode));
+    ['identify', 'build', 'change'].forEach(m =>
+        document.getElementById('mn-' + m).classList.toggle('hidden', m !== mode));
+    // Difficulty applies to the two quiz modes; Change mode always offers everything.
+    document.getElementById('mn-level-row').classList.toggle('hidden', mode === 'change');
+    document.getElementById('mn-score-bar').classList.toggle('hidden', mode === 'change');
+    mnFeedback('', '');
+    if (mode === 'identify') mnNewIdentify();
+    if (mode === 'build')    mnNewBuild();
+    if (mode === 'change')   mnRenderChange();
+}
+
+function mnSetCurrency(code) {
+    mnState.currency = code;
+    localStorage.setItem('mnCurrency', code);
+    mnSetMode(mnState.mode);
+}
+
+function mnFeedback(text, cls) {
+    const fb = document.getElementById('mn-feedback');
+    fb.textContent = text;
+    fb.className = 'feedback-display' + (cls ? ' ' + cls : '');
+}
+
+function mnUpdateScore() {
+    document.getElementById('mn-score').textContent = `Score: ${mnState.score}`;
+}
+
+// ---- Money: Identify ----
+
+function mnNewIdentify() {
+    mnState.locked = false;
+    const groups = mnRandomGroups(mnPool(), 2, 5);
+    mnState.target = mnTotal(groups);
+    document.getElementById('mn-id-pieces').innerHTML = mnRenderGroups(groups);
+    const input = document.getElementById('mn-id-input');
+    input.value = '';
+    input.placeholder = mnCur().symbol + '0.00';
+    input.focus();
+}
+
+function mnCheckIdentify() {
+    if (mnState.locked) return;
+    const raw = document.getElementById('mn-id-input').value;
+    const cents = mnParse(raw);
+    if (cents === null) return mnFeedback('Type an amount like ' + mnFormat(125), 'fr-fb-wrong');
+
+    if (cents === mnState.target) {
+        mnState.locked = true;
+        mnFeedback('✓ ' + mnFormat(mnState.target), 'fr-fb-correct');
+        mnState.score++;
+        mnUpdateScore();
+        setTimeout(mnNewIdentify, 900);
+        return;
+    }
+    // Bare integer that matches in minor units: they read the pile right but
+    // wrote it as dollars. Teach the notation instead of just failing them.
+    if (/^\d+$/.test(raw.trim()) && Math.round(cents / 100) === mnState.target) {
+        mnFeedback(`Close — that's ${mnState.target}${mnCur().minor}. Write it as ${mnFormat(mnState.target)}`, 'fr-fb-wrong');
+        return;
+    }
+    mnFeedback('✗ Try again', 'fr-fb-wrong');
+}
+
+// ---- Money: Build ----
+
+function mnNewBuild() {
+    mnState.locked = false;
+    mnState.tray = [];
+    mnState.target = mnTotal(mnRandomGroups(mnPool(), 2, 5));
+    document.getElementById('mn-target').textContent = mnFormat(mnState.target);
+    mnRenderDenomBar();
+    mnRenderTray();
+}
+
+function mnRenderDenomBar() {
+    document.getElementById('mn-denom-bar').innerHTML = mnPool()
+        .map(d => `<button class="mn-denom-btn" data-mn-v="${d.v}" aria-label="Add ${mnLabel(d)}">${mnPieceSVG(d)}</button>`)
+        .join('');
+}
+
+function mnBuildAdd(v) {
+    if (mnState.locked) return;
+    mnState.tray.push(v);
+    mnRenderTray();
+    mnCheckBuild();
+}
+
+function mnBuildUndo() {
+    if (mnState.locked) return;
+    mnState.tray.pop();
+    mnFeedback('', '');
+    mnRenderTray();
+}
+
+function mnBuildClear() {
+    if (mnState.locked) return;
+    mnState.tray = [];
+    mnFeedback('', '');
+    mnRenderTray();
+}
+
+function mnTrayGroups() {
+    const counts = new Map();
+    mnState.tray.forEach(v => counts.set(v, (counts.get(v) || 0) + 1));
+    return mnGroups(counts);
+}
+
+function mnRenderTray() {
+    const groups = mnTrayGroups();
+    const total  = mnTotal(groups);
+    document.getElementById('mn-build-pieces').innerHTML = mnRenderGroups(groups);
+    const el = document.getElementById('mn-total');
+    el.textContent = mnFormat(total);
+    el.classList.toggle('mn-over', total > mnState.target);
+    el.classList.toggle('mn-exact', total === mnState.target && total > 0);
+}
+
+function mnCheckBuild() {
+    const groups = mnTrayGroups();
+    const total  = mnTotal(groups);
+    if (total < mnState.target) return;
+    if (total > mnState.target) {
+        mnFeedback(`Too much — that's ${mnFormat(total - mnState.target)} over`, 'fr-fb-wrong');
+        return;
+    }
+    mnState.locked = true;
+    mnState.score++;
+    mnUpdateScore();
+    const fewest = mnFewest(mnState.target, mnPool());
+    const best   = fewest ? mnCount(fewest) : Infinity;
+    mnFeedback(mnCount(groups) <= best
+        ? '✓ Perfect — fewest pieces!'
+        : `✓ Correct! It can also be done with ${best} ${best === 1 ? 'piece' : 'pieces'}`, 'fr-fb-correct');
+    setTimeout(mnNewBuild, 1500);
+}
+
+// ---- Money: Change ----
+
+// Every way of showing the amount that's worth a look: the practical one, a
+// coins-only version, and the "all pennies" novelties that divide evenly.
+function mnChangeOptions(cents) {
+    const cur   = mnCur();
+    const coins = cur.denoms.filter(d => d.kind === 'coin');
+    const opts  = [];
+
+    const fewest = mnFewest(cents, cur.denoms);
+    if (fewest) opts.push({ key: 'fewest', label: 'Exact change', groups: fewest });
+
+    const coinsOnly = mnFewest(cents, coins);
+    if (coinsOnly && (!fewest || mnCount(coinsOnly) !== mnCount(fewest))) {
+        opts.push({ key: 'coins', label: 'Coins only', groups: coinsOnly });
+    }
+    for (const d of cur.denoms) {
+        if (cents % d.v !== 0) continue;
+        const n = cents / d.v;
+        if (n < 2) continue; // a single piece is already the "exact change" answer
+        opts.push({ key: 'all' + d.v, label: `All ${mnLabel(d)}`, groups: [{ v: d.v, n }] });
+    }
+    return opts;
+}
+
+function mnRenderChange() {
+    const raw   = document.getElementById('mn-amount').value;
+    const cents = mnParse(raw);
+    const opts  = document.getElementById('mn-options');
+    const sum   = document.getElementById('mn-change-summary');
+    const pieces = document.getElementById('mn-change-pieces');
+
+    if (cents === null || cents <= 0) {
+        opts.innerHTML = '';
+        sum.textContent = '';
+        pieces.innerHTML = '';
+        return;
+    }
+    if (cents > 10000) {
+        opts.innerHTML = '';
+        sum.textContent = `Keep it under ${mnFormat(10000)}`;
+        pieces.innerHTML = '';
+        return;
+    }
+
+    const list = mnChangeOptions(cents);
+    if (!list.length) {
+        // Only reachable when the amount isn't a multiple of the smallest piece —
+        // e.g. $1.37 in Canada, which retired the penny.
+        const smallest = mnCur().denoms[0];
+        opts.innerHTML = '';
+        sum.textContent = `${mnFormat(cents)} can't be made — the smallest piece is ${mnLabel(smallest)}`;
+        pieces.innerHTML = '';
+        return;
+    }
+    if (!list.some(o => o.key === mnState.changeKey)) mnState.changeKey = list[0].key;
+
+    opts.innerHTML = list.map(o =>
+        `<button class="mn-opt${o.key === mnState.changeKey ? ' active' : ''}" data-mn-opt="${o.key}">` +
+        `${o.label}<span class="mn-opt-n">${mnCount(o.groups)}</span></button>`).join('');
+
+    const chosen = list.find(o => o.key === mnState.changeKey);
+    sum.textContent = mnSummary(chosen.groups);
+    pieces.innerHTML = mnRenderGroups(chosen.groups);
+}
+
+function mnSetChangeOption(key) {
+    mnState.changeKey = key;
+    mnRenderChange();
+}
+
+// ============================================
 // INIT
 // ============================================
 
@@ -3026,6 +3477,7 @@ const TAB_ENTRY = {
     'sudoku':     () => showScreen('sudoku'),
     'times-grid': () => { showScreen('times-grid'); ttInit(); },
     'fractions':  () => { showScreen('fractions');  frInit(); },
+    'money':      () => { showScreen('money');      mnInit(); },
 };
 
 function onTabLeave(fromTab) {
@@ -3230,6 +3682,32 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById(id).addEventListener('keydown', (e) => {
             if (e.key === 'Enter') frCheckIdentify();
         }));
+
+    // ---- Money visualizer ----
+    document.getElementById('mn-mode-group').addEventListener('click', (e) => {
+        const btn = e.target.closest('.mn-mode-btn');
+        if (btn) mnSetMode(btn.dataset.mnMode);
+    });
+    document.getElementById('mn-currency').addEventListener('change', (e) => mnSetCurrency(e.target.value));
+    document.getElementById('mn-level').addEventListener('change', (e) => {
+        mnState.level = e.target.value;
+        mnSetMode(mnState.mode);
+    });
+    document.getElementById('mn-id-check').addEventListener('click', mnCheckIdentify);
+    document.getElementById('mn-id-input').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') mnCheckIdentify();
+    });
+    document.getElementById('mn-denom-bar').addEventListener('click', (e) => {
+        const btn = e.target.closest('.mn-denom-btn');
+        if (btn) mnBuildAdd(parseInt(btn.dataset.mnV, 10));
+    });
+    document.getElementById('mn-undo').addEventListener('click', mnBuildUndo);
+    document.getElementById('mn-clear').addEventListener('click', mnBuildClear);
+    document.getElementById('mn-amount').addEventListener('input', mnRenderChange);
+    document.getElementById('mn-options').addEventListener('click', (e) => {
+        const btn = e.target.closest('.mn-opt');
+        if (btn) mnSetChangeOption(btn.dataset.mnOpt);
+    });
 
     // ---- Place-value visualizer ----
     document.getElementById('viz-mode-toggle').addEventListener('click', (e) => {
