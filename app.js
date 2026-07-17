@@ -958,8 +958,11 @@ function startWordSort(type, diff) {
     document.getElementById('ws-diff-display').textContent = `${type.toUpperCase()} · ${diff.toUpperCase()}`;
     document.getElementById('ws-timer-display').textContent = '00:00';
 
-    const prompt = type === 'numbers' ? 'Smallest → Largest' : 'Sort A → Z';
-    document.querySelector('.ws-prompt').textContent = prompt;
+    const isNum = type === 'numbers';
+    document.querySelector('.ws-prompt').textContent = isNum ? 'Smallest → Largest' : 'Sort A → Z';
+    // Rail labels mark which end is which, so the sort direction is always clear.
+    document.getElementById('ws-scale-top').textContent    = isNum ? 'Smallest' : 'A';
+    document.getElementById('ws-scale-bottom').textContent = isNum ? 'Largest'  : 'Z';
 
     wsRenderBubbles(state.wsWords);
 
@@ -2809,18 +2812,27 @@ function frNewIdentify() {
     document.getElementById('fr-id-num').focus();
 }
 
+function frGcd(a, b) { return b ? frGcd(b, a % b) : a; }
+
 function frCheckIdentify() {
     if (frState.locked) return;
     const num = parseInt(document.getElementById('fr-id-num').value, 10);
     const den = parseInt(document.getElementById('fr-id-den').value, 10);
     const fb = document.getElementById('fr-feedback');
-    if (num === frState.idFrac.num && den === frState.idFrac.den) {
+    const f = frState.idFrac;
+    // Any equivalent fraction is correct (cross-multiply), e.g. 1/2 for 3/6.
+    const valid = Number.isInteger(num) && Number.isInteger(den) && num > 0 && den > 0;
+    if (valid && num * f.den === den * f.num) {
         frState.locked = true;
-        fb.textContent = '✓';
+        // Show the shape's own fraction and, when it isn't already lowest terms,
+        // its simplest form too — so both correct answers are visible.
+        const g = frGcd(f.num, f.den);
+        const simplest = g > 1 ? ` = ${f.num / g}/${f.den / g}` : '';
+        fb.textContent = `✓ ${f.num}/${f.den}${simplest}`;
         fb.className = 'feedback-display fr-fb-correct';
         frState.score++;
         frUpdateScore();
-        setTimeout(frNewRound, 700);
+        setTimeout(frNewRound, g > 1 ? 1400 : 800);
     } else {
         fb.textContent = '✗ Try again';
         fb.className = 'feedback-display fr-fb-wrong';

@@ -251,16 +251,11 @@ class MathAnimator {
 
     _addCube(x, y, z, color, scale = 1) {
         const i = this.cubeData.length;
-        // Each block sits at its own slight random tilt about the X and Z axes
-        // (never Y) so the formation reads as a lively pile of cubes rather than
-        // a flat, uniform sheet.
-        const t = MathAnimator.TILT;
-        const quaternion = new THREE.Quaternion().setFromEuler(new THREE.Euler(
-            (Math.random() - 0.5) * t, 0, (Math.random() - 0.5) * t
-        ));
+        // Blocks generate perfectly axis-aligned. Any tumble is imparted as
+        // angular momentum at DROP time, not baked into the resting formation.
         this.cubeData.push({
             position: new THREE.Vector3(x, y, z),
-            quaternion,
+            quaternion: new THREE.Quaternion(),
             scale,
             color
         });
@@ -590,22 +585,19 @@ class MathAnimator {
         });
         const sortedRowKeys = [...rowMap.keys()].sort((a, b) => a - b);
 
+        // rotRange scales the random angular velocity given to each block on
+        // release (an imperfect drop), so they tumble on the way down instead of
+        // landing as a clean stack. It is NOT an orientation change — blocks stay
+        // axis-aligned until physics spins them.
+        const spin = rotRange * MathAnimator.SPIN_SCALE;
         const addRowToPhysics = (rowKey) => {
             if (this.dropAborted) return;
             for (const idx of rowMap.get(rowKey)) {
                 const data = this.cubeData[idx];
-                // Apply random rotation
-                const randomAxis = new THREE.Vector3(
-                    Math.random() - 0.5,
-                    Math.random() - 0.5,
-                    Math.random() - 0.5
-                ).normalize();
-                const randomAngle = (Math.random() - 0.5) * rotRange;
-                const randomQuat = new THREE.Quaternion();
-                randomQuat.setFromAxisAngle(randomAxis, randomAngle);
-                data.quaternion.multiplyQuaternions(randomQuat, data.quaternion);
-
-                this.physics.addCube(data.position.x, data.position.y, data.position.z, 1, friction, friction);
+                this.physics.addCube(
+                    data.position.x, data.position.y, data.position.z,
+                    1, friction, friction, spin
+                );
             }
         };
 
@@ -788,5 +780,6 @@ class MathAnimator {
 // allocating thousands of Matrix4/Vector3 per frame during physics.
 MathAnimator._tmpMatrix = new THREE.Matrix4();
 MathAnimator._tmpScaleVec = new THREE.Vector3();
-// Max random per-block tilt (radians) about X and Z in the resting formation.
-MathAnimator.TILT = 0.5;
+// Multiplies the "Rotation" slider (rotRange) into an angular-velocity range
+// (rad/s) applied to each block on drop. Bigger = more tumbling.
+MathAnimator.SPIN_SCALE = 6;

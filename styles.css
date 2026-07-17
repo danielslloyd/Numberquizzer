@@ -781,6 +781,58 @@ body {
     opacity: 0.4;
 }
 
+/* Sort area = a direction rail beside the draggable list */
+.ws-sort-area {
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    gap: 0.7rem;
+    width: 100%;
+    max-width: 400px;
+}
+
+.ws-scale {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    padding: 0.15rem 0;
+}
+
+.ws-scale-end {
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    opacity: 0.65;
+    white-space: nowrap;
+}
+
+/* Vertical line with a downward arrowhead: order increases top → bottom */
+.ws-scale-line {
+    position: relative;
+    flex: 1;
+    width: 3px;
+    min-height: 40px;
+    margin: 0.5rem 0;
+    background: #000;
+    border-radius: 2px;
+}
+
+.ws-scale-line::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 50%;
+    transform: translateX(-50%);
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 9px solid #000;
+}
+
 .ws-word-list {
     display: flex;
     flex-direction: column;
@@ -791,6 +843,13 @@ body {
     user-select: none;
     -webkit-user-select: none;
     touch-action: none;
+}
+
+/* Inside the sort area the list flexes to share width with the rail */
+.ws-sort-area .ws-word-list {
+    max-width: none;
+    flex: 1 1 auto;
+    min-width: 0;
 }
 
 .ws-bubble {
@@ -1632,7 +1691,15 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 0.6rem;
+    gap: 0.8rem;
+}
+
+/* Numerator over denominator, stacked like a real fraction */
+.fr-id-fraction {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.35rem;
 }
 
 .fr-id-input {
@@ -1645,7 +1712,7 @@ body {
 }
 
 .fr-id-bar {
-    width: 2.5rem;
+    width: 4.5rem;
     height: 3px;
     background: #000;
 }

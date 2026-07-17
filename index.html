@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=36">
+    <link rel="stylesheet" href="styles.css?v=37">
 </head>
 <body>
 
@@ -363,7 +363,14 @@
         </div>
         <div class="ws-game-body">
             <p class="ws-prompt">Sort A → Z</p>
-            <div id="ws-word-list" class="ws-word-list"></div>
+            <div class="ws-sort-area">
+                <div class="ws-scale" aria-hidden="true">
+                    <span class="ws-scale-end" id="ws-scale-top">A</span>
+                    <span class="ws-scale-line"></span>
+                    <span class="ws-scale-end" id="ws-scale-bottom">Z</span>
+                </div>
+                <div id="ws-word-list" class="ws-word-list"></div>
+            </div>
             <button id="ws-check-btn" class="btn btn-primary ws-check-btn">Check Order</button>
         </div>
     </div>
@@ -729,9 +736,11 @@
                 <div class="fr-prompt">Name this fraction</div>
                 <div id="fr-id-shape" class="fr-id-shape"></div>
                 <div class="fr-id-inputs">
-                    <input type="number" id="fr-id-num" class="fr-id-input" inputmode="numeric" placeholder="?">
-                    <span class="fr-id-bar"></span>
-                    <input type="number" id="fr-id-den" class="fr-id-input" inputmode="numeric" placeholder="?">
+                    <div class="fr-id-fraction">
+                        <input type="number" id="fr-id-num" class="fr-id-input" inputmode="numeric" placeholder="?" aria-label="Numerator">
+                        <span class="fr-id-bar"></span>
+                        <input type="number" id="fr-id-den" class="fr-id-input" inputmode="numeric" placeholder="?" aria-label="Denominator">
+                    </div>
                     <button id="fr-id-check" class="btn btn-primary fr-id-check">✓</button>
                 </div>
             </div>
@@ -862,8 +871,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
     <script src="parser.js?v=15"></script>
-    <script src="physics.js?v=15"></script>
-    <script src="animator.js?v=19"></script>
-    <script src="app.js?v=54"></script>
+    <script src="physics.js?v=16"></script>
+    <script src="animator.js?v=20"></script>
+    <script src="app.js?v=55"></script>
 </body>
 </html>
