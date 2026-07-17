@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=29">
+    <link rel="stylesheet" href="styles.css?v=31">
 </head>
 <body>
 
@@ -735,6 +735,7 @@
                     <button class="btn btn-secondary mn-mode-btn active" data-mn-mode="identify">Identify</button>
                     <button class="btn btn-secondary mn-mode-btn" data-mn-mode="build">Build</button>
                     <button class="btn btn-secondary mn-mode-btn" data-mn-mode="change">Change</button>
+                    <button class="btn btn-secondary mn-mode-btn" data-mn-mode="shop">Shopping</button>
                 </div>
                 <div class="setting-row">
                     <label for="mn-currency">Money</label>
@@ -746,12 +747,11 @@
                         <option value="AUD">🇦🇺 Australian Dollar</option>
                     </select>
                 </div>
-                <div class="setting-row" id="mn-level-row">
-                    <label for="mn-level">Using</label>
-                    <select id="mn-level" class="setting-select">
-                        <option value="coins" selected>Coins only</option>
-                        <option value="small">Coins + small bills</option>
-                        <option value="all">Everything</option>
+                <div class="setting-row" id="mn-range-row">
+                    <label for="mn-range">Amount</label>
+                    <select id="mn-range" class="setting-select">
+                        <option value="100" selected>Under $1</option>
+                        <option value="100000">Under $1000</option>
                     </select>
                 </div>
             </div>
@@ -765,8 +765,11 @@
                 <div class="fr-prompt">How much money is this?</div>
                 <div id="mn-id-pieces" class="mn-pieces"></div>
                 <div class="mn-answer-row">
-                    <input type="text" id="mn-id-input" class="mn-input" inputmode="decimal"
-                           placeholder="$0.00" autocomplete="off" spellcheck="false">
+                    <div class="mn-amount-field">
+                        <span class="mn-cur-sym">$</span>
+                        <input type="text" id="mn-id-input" class="mn-input" inputmode="numeric"
+                               autocomplete="off" spellcheck="false" aria-label="Amount">
+                    </div>
                     <button id="mn-id-check" class="btn btn-primary mn-check">✓</button>
                 </div>
             </div>
@@ -787,12 +790,48 @@
             <div id="mn-change" class="hidden">
                 <div class="mn-change-row">
                     <label class="mn-change-label" for="mn-amount">Show me</label>
-                    <input type="text" id="mn-amount" class="mn-input" inputmode="decimal"
-                           placeholder="1.37" autocomplete="off" spellcheck="false">
+                    <div class="mn-amount-field">
+                        <span class="mn-cur-sym">$</span>
+                        <input type="text" id="mn-amount" class="mn-input" inputmode="numeric"
+                               autocomplete="off" spellcheck="false">
+                    </div>
                 </div>
                 <div id="mn-options" class="mn-options"></div>
                 <div id="mn-change-summary" class="mn-summary"></div>
                 <div id="mn-change-pieces" class="mn-pieces"></div>
+            </div>
+
+            <!-- Shopping: spend a budget without going over -->
+            <div id="mn-shop" class="hidden">
+                <div class="mn-shop-bar">
+                    <div class="mn-shop-ctl">
+                        <label class="mn-shop-label" for="mn-shop-budget">Budget</label>
+                        <div class="mn-amount-field">
+                            <span class="mn-cur-sym">$</span>
+                            <input type="text" id="mn-shop-budget" class="mn-input mn-input-sm"
+                                   inputmode="numeric" autocomplete="off" spellcheck="false" value="75.00">
+                        </div>
+                        <button id="mn-shop-roll" class="btn btn-secondary mn-small-btn">Surprise me</button>
+                    </div>
+                    <div class="mn-shop-ctl">
+                        <label class="mn-shop-label" for="mn-shop-term">Search</label>
+                        <input type="text" id="mn-shop-term" class="mn-text-input" value="lego"
+                               autocomplete="off" spellcheck="false">
+                        <button id="mn-shop-go" class="btn btn-secondary mn-small-btn">Go</button>
+                    </div>
+                </div>
+                <div class="mn-shop-totals">
+                    <span class="mn-shop-left-label">Left to spend</span>
+                    <b id="mn-shop-left" class="mn-shop-left">$0.00</b>
+                    <span id="mn-shop-spent" class="mn-shop-spent"></span>
+                </div>
+                <div id="mn-shop-grid" class="mn-shop-grid"></div>
+                <div class="mn-cart-head">Cart</div>
+                <div id="mn-shop-cart" class="mn-cart"></div>
+                <div class="mn-credit">
+                    Photos from Wikimedia Commons, used under their CC licences —
+                    hover an item for its credit.
+                </div>
             </div>
 
             <div id="mn-feedback" class="feedback-display"></div>
@@ -810,6 +849,6 @@
     <script src="parser.js?v=15"></script>
     <script src="physics.js?v=15"></script>
     <script src="animator.js?v=15"></script>
-    <script src="app.js?v=46"></script>
+    <script src="app.js?v=49"></script>
 </body>
 </html>

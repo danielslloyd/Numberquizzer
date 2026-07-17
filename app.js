@@ -3008,22 +3008,28 @@ function pvBlock(x, y, w, h, color, layers) {
 // MONEY VISUALIZER
 // ============================================
 
-// Coin `mm` values are real-world diameters, so relative coin sizes on screen
-// teach the real quirks: a US dime is smaller than a penny; an AUD $2 is
-// smaller than an AUD $1. `v` is always in minor units (cents/pence).
+// Every piece carries its real-world width in millimetres (`mm`), and CSS sizes
+// it as `mm * --mn-ppm`. So everything is to scale against everything else — a
+// dime really is smaller than a penny, a note really is ~6x a quarter — and
+// mnFit() shrinks a whole pile by lowering --mn-ppm until it fits its box.
+//
+// USD pieces are photos cropped from public-domain Wikimedia scans (img/money/,
+// see tools note in CLAUDE.md). Currencies without photos fall back to drawn SVG.
+const MN_NOTE_MM = 156;    // a US note is 156 x 66.3 mm; SVG notes reuse the ratio
+
 const MN_CURRENCIES = {
     USD: {
         label: '🇺🇸 US Dollar', symbol: '$', minor: '¢',
         denoms: [
-            { v: 1,    kind: 'coin', mm: 19.05, face: '#c98a56', edge: '#9c5f2e', ink: '#40200a' },
-            { v: 5,    kind: 'coin', mm: 21.21, face: '#c3c5c9', edge: '#8f9196', ink: '#2b2d30' },
-            { v: 10,   kind: 'coin', mm: 17.91, face: '#c3c5c9', edge: '#8f9196', ink: '#2b2d30' },
-            { v: 25,   kind: 'coin', mm: 24.26, face: '#c3c5c9', edge: '#8f9196', ink: '#2b2d30' },
-            { v: 50,   kind: 'coin', mm: 30.61, face: '#c3c5c9', edge: '#8f9196', ink: '#2b2d30' },
-            { v: 100,  kind: 'bill', face: '#a7c795', ink: '#1e3d18' },
-            { v: 500,  kind: 'bill', face: '#93bd9f', ink: '#1e3d18' },
-            { v: 1000, kind: 'bill', face: '#9dc4ac', ink: '#1e3d18' },
-            { v: 2000, kind: 'bill', face: '#84b58c', ink: '#1e3d18' },
+            { v: 1,     kind: 'coin', mm: 19.05, img: 'img/money/penny.webp' },
+            { v: 5,     kind: 'coin', mm: 21.21, img: 'img/money/nickel.webp' },
+            { v: 10,    kind: 'coin', mm: 17.91, img: 'img/money/dime.webp' },
+            { v: 25,    kind: 'coin', mm: 24.26, img: 'img/money/quarter.webp' },
+            { v: 100,   kind: 'bill', mm: MN_NOTE_MM, img: 'img/money/bill1.webp' },
+            { v: 500,   kind: 'bill', mm: MN_NOTE_MM, img: 'img/money/bill5.webp' },
+            { v: 1000,  kind: 'bill', mm: MN_NOTE_MM, img: 'img/money/bill10.webp' },
+            { v: 2000,  kind: 'bill', mm: MN_NOTE_MM, img: 'img/money/bill20.webp' },
+            { v: 10000, kind: 'bill', mm: MN_NOTE_MM, img: 'img/money/bill100.webp' },
         ],
     },
     GBP: {
@@ -3037,9 +3043,10 @@ const MN_CURRENCIES = {
             { v: 50,   kind: 'coin', mm: 27.30, face: '#c3c5c9', edge: '#8f9196', ink: '#2b2d30' },
             { v: 100,  kind: 'coin', mm: 23.43, face: '#d8b160', edge: '#a5822f', ink: '#3d2c05' },
             { v: 200,  kind: 'coin', mm: 28.40, face: '#d8b160', edge: '#8f9196', ink: '#3d2c05' },
-            { v: 500,  kind: 'bill', face: '#6ec3bd', ink: '#0d3a37' },
-            { v: 1000, kind: 'bill', face: '#dd8c54', ink: '#3f1e08' },
-            { v: 2000, kind: 'bill', face: '#9b7fc0', ink: '#2a1747' },
+            { v: 500,  kind: 'bill', mm: 125, face: '#6ec3bd', ink: '#0d3a37' },
+            { v: 1000, kind: 'bill', mm: 132, face: '#dd8c54', ink: '#3f1e08' },
+            { v: 2000, kind: 'bill', mm: 139, face: '#9b7fc0', ink: '#2a1747' },
+            { v: 5000, kind: 'bill', mm: 146, face: '#c8544f', ink: '#3d0f0d' },
         ],
     },
     EUR: {
@@ -3053,9 +3060,10 @@ const MN_CURRENCIES = {
             { v: 50,   kind: 'coin', mm: 24.25, face: '#d8b160', edge: '#a5822f', ink: '#3d2c05' },
             { v: 100,  kind: 'coin', mm: 23.25, face: '#c3c5c9', edge: '#a5822f', ink: '#2b2d30' },
             { v: 200,  kind: 'coin', mm: 25.75, face: '#d8b160', edge: '#8f9196', ink: '#3d2c05' },
-            { v: 500,  kind: 'bill', face: '#b0b0b0', ink: '#2b2b2b' },
-            { v: 1000, kind: 'bill', face: '#e07a7a', ink: '#451212' },
-            { v: 2000, kind: 'bill', face: '#6a9bd8', ink: '#10294a' },
+            { v: 500,  kind: 'bill', mm: 120, face: '#b0b0b0', ink: '#2b2b2b' },
+            { v: 1000, kind: 'bill', mm: 127, face: '#e07a7a', ink: '#451212' },
+            { v: 2000, kind: 'bill', mm: 133, face: '#6a9bd8', ink: '#10294a' },
+            { v: 5000, kind: 'bill', mm: 140, face: '#e0a253', ink: '#432a08' },
         ],
     },
     CAD: {
@@ -3067,9 +3075,10 @@ const MN_CURRENCIES = {
             { v: 25,   kind: 'coin', mm: 23.88, face: '#c3c5c9', edge: '#8f9196', ink: '#2b2d30' },
             { v: 100,  kind: 'coin', mm: 26.50, face: '#d8b160', edge: '#a5822f', ink: '#3d2c05' },
             { v: 200,  kind: 'coin', mm: 28.00, face: '#d8b160', edge: '#8f9196', ink: '#3d2c05' },
-            { v: 500,  kind: 'bill', face: '#6f9fd8', ink: '#10294a' },
-            { v: 1000, kind: 'bill', face: '#9b7fc0', ink: '#2a1747' },
-            { v: 2000, kind: 'bill', face: '#78b184', ink: '#123a1c' },
+            { v: 500,  kind: 'bill', mm: 152.4, face: '#6f9fd8', ink: '#10294a' },
+            { v: 1000, kind: 'bill', mm: 152.4, face: '#9b7fc0', ink: '#2a1747' },
+            { v: 2000, kind: 'bill', mm: 152.4, face: '#78b184', ink: '#123a1c' },
+            { v: 5000, kind: 'bill', mm: 152.4, face: '#c8544f', ink: '#3d0f0d' },
         ],
     },
     AUD: {
@@ -3081,34 +3090,36 @@ const MN_CURRENCIES = {
             { v: 50,   kind: 'coin', mm: 31.50, face: '#c3c5c9', edge: '#8f9196', ink: '#2b2d30' },
             { v: 100,  kind: 'coin', mm: 25.00, face: '#d8b160', edge: '#a5822f', ink: '#3d2c05' },
             { v: 200,  kind: 'coin', mm: 20.50, face: '#d8b160', edge: '#a5822f', ink: '#3d2c05' },
-            { v: 500,  kind: 'bill', face: '#d68fb4', ink: '#45102c' },
-            { v: 1000, kind: 'bill', face: '#6f9fd8', ink: '#10294a' },
-            { v: 2000, kind: 'bill', face: '#e08a4f', ink: '#43200a' },
+            { v: 500,  kind: 'bill', mm: 130, face: '#d68fb4', ink: '#45102c' },
+            { v: 1000, kind: 'bill', mm: 137, face: '#6f9fd8', ink: '#10294a' },
+            { v: 2000, kind: 'bill', mm: 144, face: '#e08a4f', ink: '#43200a' },
+            { v: 5000, kind: 'bill', mm: 151, face: '#e0c05a', ink: '#403205' },
         ],
     },
 };
 
-const MN_MM_PX   = 1.8;   // screen px per real-world mm of coin diameter
-const MN_MAX_DRAW = 400;  // cap rendered pieces ("all pennies" of a big amount)
+const MN_MAX_DRAW = 400;    // cap rendered pieces ("all pennies" of a big amount)
+const MN_MAX_AMOUNT = 100000; // $1000.00 ceiling for Change mode
+const MN_PPM_MAX = 2.1;     // px per mm when a pile is small enough to show full size
+const MN_PPM_MIN = 0.28;    // ...and the floor past which pieces stop shrinking
+const MN_DIGITS = 6;        // cash-register entry cap -> 9999.99
 
 const mnState = {
-    mode:     'identify',        // 'identify' | 'build' | 'change'
+    mode:     'identify',   // 'identify' | 'build' | 'change' | 'shop'
     currency: 'USD',
-    level:    'coins',           // 'coins' | 'small' | 'all'
+    range:    100,          // exclusive ceiling in minor units: 100 = under $1
     score:    0,
-    target:   0,                 // cents — identify answer / build goal
-    tray:     [],                // build mode: denom values in tap order
+    target:   0,            // identify answer / build goal, in minor units
+    tray:     [],           // build mode: denomination values in tap order
     locked:   false,
+    changeKey: 'fewest',
 };
 
-function mnCur()  { return MN_CURRENCIES[mnState.currency]; }
+function mnCur() { return MN_CURRENCIES[mnState.currency]; }
 
-// Denominations available for the current difficulty.
+// Denominations usable for the current range — a $1 bill is no use under $1.
 function mnPool() {
-    const denoms = mnCur().denoms;
-    if (mnState.level === 'coins') return denoms.filter(d => d.kind === 'coin');
-    if (mnState.level === 'small') return denoms.filter(d => d.v <= 500);
-    return denoms;
+    return mnCur().denoms.filter(d => d.v < mnState.range);
 }
 
 function mnDenom(v) { return mnCur().denoms.find(d => d.v === v); }
@@ -3120,22 +3131,8 @@ function mnLabel(d) {
 }
 
 function mnFormat(cents) {
-    return mnCur().symbol + (cents / 100).toFixed(2);
-}
-
-// Accepts "1.25", "$1.25", ".25", "25¢", "25c", "25p".
-// A bare integer means major units ($25), which is the common kid mistake —
-// mnCheckIdentify() nudges rather than just marking it wrong.
-function mnParse(raw) {
-    let s = String(raw).trim().toLowerCase().replace(/[\s,]/g, '');
-    if (!s) return null;
-    s = s.replace(/^[$£€]/, '');
-    const minorSuffix = /[¢pc]$/.test(s);
-    if (minorSuffix) s = s.slice(0, -1);
-    if (!/^\d*\.?\d*$/.test(s) || s === '' || s === '.') return null;
-    const n = parseFloat(s);
-    if (!isFinite(n)) return null;
-    return minorSuffix ? Math.round(n) : Math.round(n * 100);
+    const s = mnCur().symbol + (Math.abs(cents) / 100).toFixed(2);
+    return cents < 0 ? '-' + s : s;
 }
 
 // Fewest-pieces breakdown via DP — correct even for non-canonical denomination
@@ -3143,6 +3140,7 @@ function mnParse(raw) {
 function mnFewest(cents, denoms) {
     if (cents === 0) return [];
     const vals = denoms.map(d => d.v).sort((a, b) => a - b);
+    if (!vals.length) return null;
     const best = new Array(cents + 1).fill(Infinity);
     const pick = new Array(cents + 1).fill(-1);
     best[0] = 0;
@@ -3162,37 +3160,34 @@ function mnGroups(counts) {
     return [...counts].map(([v, n]) => ({ v, n })).sort((a, b) => b.v - a.v);
 }
 
-function mnTotal(groups) {
-    return groups.reduce((s, g) => s + g.v * g.n, 0);
+function mnTotal(groups) { return groups.reduce((s, g) => s + g.v * g.n, 0); }
+function mnCount(groups) { return groups.reduce((s, g) => s + g.n, 0); }
+
+// A random amount inside the selected range. Stepping by the smallest piece
+// keeps it makeable in currencies with no 1¢ (CAD/AUD).
+function mnRandomAmount() {
+    const step = mnCur().denoms[0].v;
+    const steps = Math.floor((mnState.range - 1) / step);
+    return (1 + Math.floor(Math.random() * steps)) * step;
 }
 
-function mnCount(groups) {
-    return groups.reduce((s, g) => s + g.n, 0);
-}
+// ---- Money: pieces ----
 
-// Build a natural-looking random handful, then read its value off — this always
-// produces an achievable amount without searching for one.
-function mnRandomGroups(pool, minN, maxN) {
-    const n = minN + Math.floor(Math.random() * (maxN - minN + 1));
-    const counts = new Map();
-    for (let i = 0; i < n; i++) {
-        const d = pool[Math.floor(Math.random() * pool.length)];
-        counts.set(d.v, (counts.get(d.v) || 0) + 1);
+function mnPieceHTML(d) {
+    const label = mnLabel(d);
+    if (d.img) {
+        const cls = d.kind === 'coin' ? 'mn-coin-img' : 'mn-bill-img';
+        return `<img src="${d.img}" alt="${label}" title="${label}" draggable="false" ` +
+               `class="mn-piece ${cls}" style="--mm:${d.mm}">`;
     }
-    return mnGroups(counts);
-}
-
-// ---- Money: SVG pieces ----
-
-function mnPieceSVG(d) {
     return d.kind === 'coin' ? mnCoinSVG(d) : mnBillSVG(d);
 }
 
 function mnCoinSVG(d) {
     const label = mnLabel(d);
-    const w  = (d.mm * MN_MM_PX).toFixed(1);
     const fs = label.length >= 4 ? 24 : label.length === 3 ? 29 : 34;
-    return `<svg viewBox="0 0 100 100" class="mn-piece mn-coin" style="width:${w}px" xmlns="http://www.w3.org/2000/svg">` +
+    return `<svg viewBox="0 0 100 100" class="mn-piece mn-coin" style="--mm:${d.mm}" ` +
+        `role="img" aria-label="${label}" xmlns="http://www.w3.org/2000/svg">` +
         `<circle cx="50" cy="50" r="49" fill="${d.edge}"/>` +
         `<circle cx="50" cy="50" r="43" fill="${d.face}"/>` +
         `<circle cx="50" cy="50" r="43" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="2"/>` +
@@ -3200,15 +3195,17 @@ function mnCoinSVG(d) {
         `font-weight="800" fill="${d.ink}">${label}</text></svg>`;
 }
 
+// viewBox units are millimetres, so the drawn note matches a real one's proportions.
 function mnBillSVG(d) {
     const label = mnLabel(d);
-    return `<svg viewBox="0 0 168 74" class="mn-piece mn-bill" xmlns="http://www.w3.org/2000/svg">` +
-        `<rect x="1" y="1" width="166" height="72" rx="5" fill="${d.face}" stroke="#2b2b2b" stroke-width="2"/>` +
-        `<rect x="9" y="9" width="150" height="56" rx="3" fill="none" stroke="rgba(255,255,255,0.55)" stroke-width="1.5"/>` +
-        `<circle cx="84" cy="37" r="18" fill="rgba(255,255,255,0.28)" stroke="rgba(255,255,255,0.5)" stroke-width="1.5"/>` +
-        `<text x="84" y="37" text-anchor="middle" dominant-baseline="central" font-size="19" font-weight="800" fill="${d.ink}">${label}</text>` +
-        `<text x="24" y="19" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="800" fill="${d.ink}">${label}</text>` +
-        `<text x="144" y="56" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="800" fill="${d.ink}">${label}</text>` +
+    return `<svg viewBox="0 0 156 66.3" class="mn-piece mn-bill" style="--mm:${d.mm}" ` +
+        `role="img" aria-label="${label}" xmlns="http://www.w3.org/2000/svg">` +
+        `<rect x="1" y="1" width="154" height="64.3" rx="4" fill="${d.face}" stroke="#2b2b2b" stroke-width="1.6"/>` +
+        `<rect x="8" y="7" width="140" height="52.3" rx="3" fill="none" stroke="rgba(255,255,255,0.55)" stroke-width="1.2"/>` +
+        `<circle cx="78" cy="33" r="16" fill="rgba(255,255,255,0.28)" stroke="rgba(255,255,255,0.5)" stroke-width="1.2"/>` +
+        `<text x="78" y="33" text-anchor="middle" dominant-baseline="central" font-size="17" font-weight="800" fill="${d.ink}">${label}</text>` +
+        `<text x="22" y="16" text-anchor="middle" dominant-baseline="central" font-size="9" font-weight="800" fill="${d.ink}">${label}</text>` +
+        `<text x="134" y="50" text-anchor="middle" dominant-baseline="central" font-size="9" font-weight="800" fill="${d.ink}">${label}</text>` +
         `</svg>`;
 }
 
@@ -3219,10 +3216,31 @@ function mnRenderGroups(groups) {
     const total = mnCount(groups);
     for (const g of groups) {
         const d = mnDenom(g.v);
-        for (let i = 0; i < g.n && drawn < MN_MAX_DRAW; i++, drawn++) html += mnPieceSVG(d);
+        for (let i = 0; i < g.n && drawn < MN_MAX_DRAW; i++, drawn++) html += mnPieceHTML(d);
     }
     if (total > drawn) html += `<span class="mn-more">+${total - drawn} more</span>`;
     return html;
+}
+
+// Shrink the pile until it fits its box. Pieces are laid out from `--mm` and
+// have a fixed aspect-ratio in CSS, so this measures correctly even before the
+// images have loaded.
+function mnFit(el) {
+    if (!el || !el.clientHeight) return;
+    el.style.setProperty('--mn-ppm', MN_PPM_MAX);
+    if (el.scrollHeight <= el.clientHeight) return;
+    let lo = MN_PPM_MIN, hi = MN_PPM_MAX;
+    for (let i = 0; i < 8; i++) {
+        const mid = (lo + hi) / 2;
+        el.style.setProperty('--mn-ppm', mid);
+        if (el.scrollHeight <= el.clientHeight) lo = mid; else hi = mid;
+    }
+    el.style.setProperty('--mn-ppm', lo);
+}
+
+function mnRenderInto(el, groups) {
+    el.innerHTML = mnRenderGroups(groups);
+    mnFit(el);
 }
 
 function mnSummary(groups) {
@@ -3232,36 +3250,80 @@ function mnSummary(groups) {
     return `${n} ${n === 1 ? 'piece' : 'pieces'}: ${parts.join(' + ')}`;
 }
 
+// ---- Money: cash-register amount entry ----
+
+// Digits fill in from the right, so 1 → 0.01, 12 → 0.12, 1234 → 12.34.
+// Leading zeros are dropped so the field stays stable as digits accumulate.
+function mnFieldCents(el) {
+    const digits = el.value.replace(/\D/g, '');
+    return digits ? parseInt(digits, 10) : null;
+}
+
+function mnAttachAmount(el, onChange) {
+    el.addEventListener('input', (e) => {
+        let digits = el.value.replace(/\D/g, '').replace(/^0+(?=\d)/, '').slice(0, MN_DIGITS);
+        // Without this, backspacing bottoms out at "0.00" and can never clear,
+        // because the re-format keeps handing a zero back to the field.
+        if (/^0*$/.test(digits) && e.inputType && e.inputType.startsWith('delete')) digits = '';
+        el.value = digits ? (parseInt(digits, 10) / 100).toFixed(2) : '';
+        if (onChange) onChange(mnFieldCents(el));
+    });
+}
+
+function mnSetField(el, cents) {
+    el.value = cents == null ? '' : (cents / 100).toFixed(2);
+}
+
 // ---- Money: shared ----
 
 function mnInit() {
     const saved = localStorage.getItem('mnCurrency');
     if (saved && MN_CURRENCIES[saved]) mnState.currency = saved;
     document.getElementById('mn-currency').value = mnState.currency;
-    mnState.level = document.getElementById('mn-level').value;
+    mnState.range = parseInt(document.getElementById('mn-range').value, 10);
     mnState.score = 0;
     mnUpdateScore();
+    mnSyncLabels();
     mnSetMode(mnState.mode);
+}
+
+// Currency symbols appear in several places that aren't re-rendered per round.
+function mnSyncLabels() {
+    const cur = mnCur();
+    const sel = document.getElementById('mn-range');
+    sel.options[0].textContent = `Under ${cur.symbol}1`;
+    sel.options[1].textContent = `Under ${cur.symbol}1000`;
+    document.querySelectorAll('.mn-cur-sym').forEach(el => el.textContent = cur.symbol);
 }
 
 function mnSetMode(mode) {
     mnState.mode = mode;
     document.querySelectorAll('.mn-mode-btn').forEach(b =>
         b.classList.toggle('active', b.dataset.mnMode === mode));
-    ['identify', 'build', 'change'].forEach(m =>
+    ['identify', 'build', 'change', 'shop'].forEach(m =>
         document.getElementById('mn-' + m).classList.toggle('hidden', m !== mode));
-    // Difficulty applies to the two quiz modes; Change mode always offers everything.
-    document.getElementById('mn-level-row').classList.toggle('hidden', mode === 'change');
-    document.getElementById('mn-score-bar').classList.toggle('hidden', mode === 'change');
+    // Range and score belong to the two quiz modes only.
+    const quiz = mode === 'identify' || mode === 'build';
+    document.getElementById('mn-range-row').classList.toggle('hidden', !quiz);
+    document.getElementById('mn-score-bar').classList.toggle('hidden', !quiz);
     mnFeedback('', '');
     if (mode === 'identify') mnNewIdentify();
     if (mode === 'build')    mnNewBuild();
     if (mode === 'change')   mnRenderChange();
+    // Built on first entry, not up front: the tiles pull ~10 photos off the
+    // network, and most visitors never open this mode.
+    if (mode === 'shop')     mnShop.results.length ? mnShopRender() : mnShopSearch();
 }
 
 function mnSetCurrency(code) {
     mnState.currency = code;
     localStorage.setItem('mnCurrency', code);
+    mnSyncLabels();
+    mnSetMode(mnState.mode);
+}
+
+function mnSetRange(range) {
+    mnState.range = range;
     mnSetMode(mnState.mode);
 }
 
@@ -3275,40 +3337,38 @@ function mnUpdateScore() {
     document.getElementById('mn-score').textContent = `Score: ${mnState.score}`;
 }
 
+// Refit the visible pile when the window changes shape.
+function mnRefit() {
+    if (mnState.mode === 'identify') mnFit(document.getElementById('mn-id-pieces'));
+    if (mnState.mode === 'build')    mnFit(document.getElementById('mn-build-pieces'));
+    if (mnState.mode === 'change')   mnFit(document.getElementById('mn-change-pieces'));
+}
+
 // ---- Money: Identify ----
 
 function mnNewIdentify() {
     mnState.locked = false;
-    const groups = mnRandomGroups(mnPool(), 2, 5);
-    mnState.target = mnTotal(groups);
-    document.getElementById('mn-id-pieces').innerHTML = mnRenderGroups(groups);
+    mnState.target = mnRandomAmount();
+    mnRenderInto(document.getElementById('mn-id-pieces'),
+                 mnFewest(mnState.target, mnPool()) || []);
     const input = document.getElementById('mn-id-input');
     input.value = '';
-    input.placeholder = mnCur().symbol + '0.00';
     input.focus();
 }
 
 function mnCheckIdentify() {
     if (mnState.locked) return;
-    const raw = document.getElementById('mn-id-input').value;
-    const cents = mnParse(raw);
-    if (cents === null) return mnFeedback('Type an amount like ' + mnFormat(125), 'fr-fb-wrong');
-
+    const cents = mnFieldCents(document.getElementById('mn-id-input'));
+    if (cents === null) return mnFeedback('Type the amount', 'fr-fb-wrong');
     if (cents === mnState.target) {
         mnState.locked = true;
         mnFeedback('✓ ' + mnFormat(mnState.target), 'fr-fb-correct');
         mnState.score++;
         mnUpdateScore();
         setTimeout(mnNewIdentify, 900);
-        return;
+    } else {
+        mnFeedback('✗ Try again', 'fr-fb-wrong');
     }
-    // Bare integer that matches in minor units: they read the pile right but
-    // wrote it as dollars. Teach the notation instead of just failing them.
-    if (/^\d+$/.test(raw.trim()) && Math.round(cents / 100) === mnState.target) {
-        mnFeedback(`Close — that's ${mnState.target}${mnCur().minor}. Write it as ${mnFormat(mnState.target)}`, 'fr-fb-wrong');
-        return;
-    }
-    mnFeedback('✗ Try again', 'fr-fb-wrong');
 }
 
 // ---- Money: Build ----
@@ -3316,7 +3376,7 @@ function mnCheckIdentify() {
 function mnNewBuild() {
     mnState.locked = false;
     mnState.tray = [];
-    mnState.target = mnTotal(mnRandomGroups(mnPool(), 2, 5));
+    mnState.target = mnRandomAmount();
     document.getElementById('mn-target').textContent = mnFormat(mnState.target);
     mnRenderDenomBar();
     mnRenderTray();
@@ -3324,8 +3384,10 @@ function mnNewBuild() {
 
 function mnRenderDenomBar() {
     document.getElementById('mn-denom-bar').innerHTML = mnPool()
-        .map(d => `<button class="mn-denom-btn" data-mn-v="${d.v}" aria-label="Add ${mnLabel(d)}">${mnPieceSVG(d)}</button>`)
+        .map(d => `<button class="mn-denom-btn" data-mn-v="${d.v}" aria-label="Add ${mnLabel(d)}">` +
+                  `${mnPieceHTML(d)}</button>`)
         .join('');
+    mnFit(document.getElementById('mn-denom-bar'));
 }
 
 function mnBuildAdd(v) {
@@ -3358,7 +3420,7 @@ function mnTrayGroups() {
 function mnRenderTray() {
     const groups = mnTrayGroups();
     const total  = mnTotal(groups);
-    document.getElementById('mn-build-pieces').innerHTML = mnRenderGroups(groups);
+    mnRenderInto(document.getElementById('mn-build-pieces'), groups);
     const el = document.getElementById('mn-total');
     el.textContent = mnFormat(total);
     el.classList.toggle('mn-over', total > mnState.target);
@@ -3410,34 +3472,20 @@ function mnChangeOptions(cents) {
 }
 
 function mnRenderChange() {
-    const raw   = document.getElementById('mn-amount').value;
-    const cents = mnParse(raw);
-    const opts  = document.getElementById('mn-options');
-    const sum   = document.getElementById('mn-change-summary');
+    const cents  = mnFieldCents(document.getElementById('mn-amount'));
+    const opts   = document.getElementById('mn-options');
+    const sum    = document.getElementById('mn-change-summary');
     const pieces = document.getElementById('mn-change-pieces');
+    const clear  = (msg) => { opts.innerHTML = ''; sum.textContent = msg; pieces.innerHTML = ''; };
 
-    if (cents === null || cents <= 0) {
-        opts.innerHTML = '';
-        sum.textContent = '';
-        pieces.innerHTML = '';
-        return;
-    }
-    if (cents > 10000) {
-        opts.innerHTML = '';
-        sum.textContent = `Keep it under ${mnFormat(10000)}`;
-        pieces.innerHTML = '';
-        return;
-    }
+    if (cents === null || cents <= 0) return clear('');
+    if (cents > MN_MAX_AMOUNT) return clear(`Keep it under ${mnFormat(MN_MAX_AMOUNT)}`);
 
     const list = mnChangeOptions(cents);
     if (!list.length) {
         // Only reachable when the amount isn't a multiple of the smallest piece —
         // e.g. $1.37 in Canada, which retired the penny.
-        const smallest = mnCur().denoms[0];
-        opts.innerHTML = '';
-        sum.textContent = `${mnFormat(cents)} can't be made — the smallest piece is ${mnLabel(smallest)}`;
-        pieces.innerHTML = '';
-        return;
+        return clear(`${mnFormat(cents)} can't be made — the smallest piece is ${mnLabel(mnCur().denoms[0])}`);
     }
     if (!list.some(o => o.key === mnState.changeKey)) mnState.changeKey = list[0].key;
 
@@ -3447,12 +3495,113 @@ function mnRenderChange() {
 
     const chosen = list.find(o => o.key === mnState.changeKey);
     sum.textContent = mnSummary(chosen.groups);
-    pieces.innerHTML = mnRenderGroups(chosen.groups);
+    mnRenderInto(pieces, chosen.groups);
 }
 
 function mnSetChangeOption(key) {
     mnState.changeKey = key;
     mnRenderChange();
+}
+
+// ---- Money: Shopping ----
+
+// A fixed catalogue rather than a live storefront: a static page can't query a
+// retailer (cross-origin requests are blocked and their APIs need server-side
+// keys), so prices live here and only the photos are fetched, straight from
+// Wikimedia Commons. Each name describes what its photo actually shows.
+// Photos are CC-licensed — `by`/`lic` carry the required credit to the tile.
+const MN_SHOP_CATALOG = [
+    { name: "LEGO City Passenger Train", price: 12999, img: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c7/LEGO_7897_City_Passenger_Train_-_2006.jpg/500px-LEGO_7897_City_Passenger_Train_-_2006.jpg", by: "Josh Hallett", lic: "CC BY 2.0" },
+    { name: "LEGO City Airport", price: 8999, img: "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ea/LEGO_City_10159_LEGO_City_Airport_%2829018734008%29.jpg/500px-LEGO_City_10159_LEGO_City_Airport_%2829018734008%29.jpg", by: "Jinko Cruz", lic: "CC BY 2.0" },
+    { name: "LEGO Castle & Knights", price: 7499, img: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cb/LEGO_Castle_and_Knights_%286740904281%29.jpg/500px-LEGO_Castle_and_Knights_%286740904281%29.jpg", by: "Tim Moreillon", lic: "CC BY-SA 2.0" },
+    { name: "LEGO Technic Tractor", price: 5999, img: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/26/LEGO_Technic_John_Deere_6130R.jpg/500px-LEGO_Technic_John_Deere_6130R.jpg", by: "Lasse Deleuran", lic: "Public domain" },
+    { name: "LEGO Himeji Castle", price: 11999, img: "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f7/Himeji_Castle_Lego.jpg/500px-Himeji_Castle_Lego.jpg", by: "Nzquincyma", lic: "CC BY-SA 4.0" },
+    { name: "LEGO Pirate Set", price: 4599, img: "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b0/JLL_Childhood_Collection-_Display_of_Lego-_Pirate_Lego_2760.JPG/500px-JLL_Childhood_Collection-_Display_of_Lego-_Pirate_Lego_2760.JPG", by: "Clem Rutter", lic: "CC BY-SA 3.0" },
+    { name: "LEGO Race Car", price: 3999, img: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/29/2016_Porsche_919_Hybrid_LEGO_Car_Show_%2831410942020%29.jpg/500px-2016_Porsche_919_Hybrid_LEGO_Car_Show_%2831410942020%29.jpg", by: "Prayitno", lic: "CC BY 2.0" },
+    { name: "LEGO Mindstorms Robot", price: 6999, img: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/EV3_Robot_fight.jpg/500px-EV3_Robot_fight.jpg", by: "Klaus-Dieter Keller", lic: "CC0" },
+    { name: "LEGO Fuel Cell Car", price: 2999, img: "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b6/LEGO_fuel_cell_car_construction_kit.jpg/500px-LEGO_fuel_cell_car_construction_kit.jpg", by: "Matthew Venn", lic: "CC BY-SA 2.0" },
+    { name: "LEGO Technic Bits", price: 1499, img: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/LEGO_Technic_Bits.jpg/500px-LEGO_Technic_Bits.jpg", by: "Windell Oskay", lic: "CC BY 2.0" },
+    { name: "LEGO Technic Gear", price: 299, img: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/A_LEGO_Technic_gear_with_24_teeth.jpg/500px-A_LEGO_Technic_gear_with_24_teeth.jpg", by: "Didaictor", lic: "CC BY-SA 4.0" },
+    { name: "LEGO Duplo Bricks", price: 499, img: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0f/2_duplo_lego_bricks.jpg/500px-2_duplo_lego_bricks.jpg", by: "Klasbricks", lic: "Public domain" },
+    { name: "LEGO Brick Pile", price: 999, img: "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e0/LEGO-01.jpg/500px-LEGO-01.jpg", by: "Priwo", lic: "Public domain" },
+    { name: "LEGO Duplo Tower", price: 1999, img: "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b8/Duplo_bouwwerk.jpg/500px-Duplo_bouwwerk.jpg", by: "Wiki183", lic: "CC BY-SA 3.0" },
+    { name: "LEGO House Model", price: 2499, img: "https://upload.wikimedia.org/wikipedia/commons/thumb/1/10/Billund_Lego_House_03.jpg/500px-Billund_Lego_House_03.jpg", by: "Andrzej Otrębski", lic: "CC BY-SA 4.0" },
+];
+
+const MN_SHOP_TOP = 10;
+
+// These photos are hot-linked, so a URL can rot without warning. On failure the
+// tile keeps its name and price and just shows an empty frame, rather than a
+// browser broken-image icon.
+const MN_IMG_FALLBACK = `referrerpolicy="no-referrer" onerror="this.style.visibility='hidden'"`;
+
+const mnShop = { budget: 7500, cart: [], results: [], term: 'lego' };
+
+// $25–$250 in $5 steps: always affords something, never affords everything.
+function mnShopRoll() {
+    mnShop.budget = (5 + Math.floor(Math.random() * 46)) * 500;
+    mnShop.cart = [];
+    mnSetField(document.getElementById('mn-shop-budget'), mnShop.budget);
+    mnShopRender();
+}
+
+function mnShopSearch() {
+    const el = document.getElementById('mn-shop-term');
+    const term = (el ? el.value : 'lego').trim().toLowerCase();
+    mnShop.term = term;
+    mnShop.results = MN_SHOP_CATALOG
+        .filter(p => !term || p.name.toLowerCase().includes(term))
+        .slice(0, MN_SHOP_TOP);
+    mnShopRender();
+}
+
+function mnShopSpent() { return mnShop.cart.reduce((s, p) => s + p.price, 0); }
+function mnShopLeft()  { return mnShop.budget - mnShopSpent(); }
+
+function mnShopToggle(name) {
+    const at = mnShop.cart.findIndex(p => p.name === name);
+    if (at >= 0) { mnShop.cart.splice(at, 1); mnShopRender(); return; }
+    const item = mnShop.results.find(p => p.name === name);
+    if (item && item.price <= mnShopLeft()) { mnShop.cart.push(item); mnShopRender(); }
+}
+
+function mnShopRender() {
+    const left = mnShopLeft();
+    const leftEl = document.getElementById('mn-shop-left');
+    leftEl.textContent = mnFormat(left);
+    leftEl.classList.toggle('mn-over', left < 0);
+
+    const spent = document.getElementById('mn-shop-spent');
+    spent.textContent = mnShop.cart.length
+        ? `${mnShop.cart.length} in cart · ${mnFormat(mnShopSpent())} spent` : '';
+
+    const grid = document.getElementById('mn-shop-grid');
+    if (!mnShop.results.length) {
+        grid.innerHTML = `<div class="mn-shop-empty">Nothing found for “${mnShop.term}” — try “lego”, “castle”, or “duplo”.</div>`;
+    } else {
+        grid.innerHTML = mnShop.results.map(p => {
+            const inCart = mnShop.cart.some(c => c.name === p.name);
+            const afford = p.price <= left;
+            const cls = 'mn-prod' + (inCart ? ' mn-in-cart' : afford ? '' : ' mn-unafford');
+            const credit = `${p.name} — photo: ${p.by} / ${p.lic}, via Wikimedia Commons`;
+            return `<button class="${cls}" data-mn-prod="${encodeURIComponent(p.name)}"` +
+                `${inCart || afford ? '' : ' disabled'} title="${credit}">` +
+                `<img class="mn-prod-img" src="${p.img}" alt="" ${MN_IMG_FALLBACK}>` +
+                `<span class="mn-prod-name">${p.name}</span>` +
+                `<span class="mn-prod-price">${mnFormat(p.price)}</span>` +
+                `<span class="mn-prod-tag">${inCart ? 'In cart ✓' : afford ? 'Add' : 'Too expensive'}</span>` +
+                `</button>`;
+        }).join('');
+    }
+
+    document.getElementById('mn-shop-cart').innerHTML = mnShop.cart.length
+        ? mnShop.cart.map(p =>
+            `<button class="mn-cart-item" data-mn-cart="${encodeURIComponent(p.name)}" title="Remove ${p.name}">` +
+            `<img class="mn-cart-img" src="${p.img}" alt="" ${MN_IMG_FALLBACK}>` +
+            `<span class="mn-cart-name">${p.name}</span>` +
+            `<span class="mn-cart-price">${mnFormat(p.price)}</span>` +
+            `<span class="mn-cart-x">✕</span></button>`).join('')
+        : '<div class="mn-cart-empty">Cart is empty — tap something to add it.</div>';
 }
 
 // ============================================
@@ -3689,25 +3838,51 @@ document.addEventListener('DOMContentLoaded', () => {
         if (btn) mnSetMode(btn.dataset.mnMode);
     });
     document.getElementById('mn-currency').addEventListener('change', (e) => mnSetCurrency(e.target.value));
-    document.getElementById('mn-level').addEventListener('change', (e) => {
-        mnState.level = e.target.value;
-        mnSetMode(mnState.mode);
-    });
+    document.getElementById('mn-range').addEventListener('change', (e) => mnSetRange(parseInt(e.target.value, 10)));
+
+    // Identify
+    mnAttachAmount(document.getElementById('mn-id-input'));
     document.getElementById('mn-id-check').addEventListener('click', mnCheckIdentify);
     document.getElementById('mn-id-input').addEventListener('keydown', (e) => {
         if (e.key === 'Enter') mnCheckIdentify();
     });
+
+    // Build
     document.getElementById('mn-denom-bar').addEventListener('click', (e) => {
         const btn = e.target.closest('.mn-denom-btn');
         if (btn) mnBuildAdd(parseInt(btn.dataset.mnV, 10));
     });
     document.getElementById('mn-undo').addEventListener('click', mnBuildUndo);
     document.getElementById('mn-clear').addEventListener('click', mnBuildClear);
-    document.getElementById('mn-amount').addEventListener('input', mnRenderChange);
+
+    // Change
+    mnAttachAmount(document.getElementById('mn-amount'), mnRenderChange);
     document.getElementById('mn-options').addEventListener('click', (e) => {
         const btn = e.target.closest('.mn-opt');
         if (btn) mnSetChangeOption(btn.dataset.mnOpt);
     });
+
+    // Shopping
+    mnAttachAmount(document.getElementById('mn-shop-budget'), (cents) => {
+        mnShop.budget = cents || 0;
+        mnShopRender();
+    });
+    document.getElementById('mn-shop-roll').addEventListener('click', mnShopRoll);
+    document.getElementById('mn-shop-go').addEventListener('click', mnShopSearch);
+    document.getElementById('mn-shop-term').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') mnShopSearch();
+    });
+    document.getElementById('mn-shop-grid').addEventListener('click', (e) => {
+        const btn = e.target.closest('.mn-prod');
+        if (btn) mnShopToggle(decodeURIComponent(btn.dataset.mnProd));
+    });
+    document.getElementById('mn-shop-cart').addEventListener('click', (e) => {
+        const btn = e.target.closest('.mn-cart-item');
+        if (btn) mnShopToggle(decodeURIComponent(btn.dataset.mnCart));
+    });
+
+    // Piece sizing is measured from live layout, so re-fit when that changes.
+    window.addEventListener('resize', mnRefit);
 
     // ---- Place-value visualizer ----
     document.getElementById('viz-mode-toggle').addEventListener('click', (e) => {
