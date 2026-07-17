@@ -105,7 +105,9 @@ These are screen-based games (not PDF generators), each driven from `TAB_ENTRY` 
 
 ### Money: sizing and assets
 
-Every denomination carries `mm`, its real-world width. CSS sizes each piece as `mm * --mn-ppm`, so **all pieces are to scale against each other** — a dime really is smaller than a penny, an AUD $2 smaller than an AUD $1, and a note ~6.4x a quarter. `mnFit()` binary-searches `--mn-ppm` down until a pile fits its fixed-height box, which is what makes big piles shrink automatically.
+Every denomination carries `mm`, its real-world width. CSS sizes each piece as `mm * --mn-ppm`, so **all pieces are to scale against each other** — a dime really is smaller than a penny, an AUD $2 smaller than an AUD $1, and a note ~6.4x a quarter.
+
+A pile renders as **one column per distinct denomination** (`.mn-stage` > `.mn-col`), highest value on the left, each column a bottom-aligned stack. `mnFitStage()` binary-searches `--mn-ppm` up to the largest value where the columns still fit **90% of the box width** and all of its height — so few denominations show big, many show smaller, always "as large as will fit." A column draws at most `MN_COL_MAX` (12) real pieces; beyond that it shows a `×N` badge with the true count (so "all pennies" is a neat labelled stack, not 137 coins). Because a wide pile can inflate the box's own measured width, `mnFitStage` first collapses `--mn-ppm` to the minimum, reads the true box width, then grows into that fixed reference — measuring against the live width would feed back and overflow. The Build toolbar is a wrap-row, not columns, so it uses `mnFitHeight` (height-only).
 
 USD pieces are **photos** in `img/money/` (`d.img`), cropped from public-domain Wikimedia scans: coins tight-cropped to their circle and masked to a transparent disc at a uniform 256px; notes cropped from the `USDnotes.png` composite to a uniform 440x187 (a real note is 156 x 66.3 mm). Because every coin image is cropped to the coin's exact bounds, `mm` alone drives on-screen size. Currencies without photos fall back to drawn SVG (`mnCoinSVG`/`mnBillSVG`, whose note viewBox is in millimetres to match).
 
@@ -117,9 +119,11 @@ Assets are **WebP** (201KB total). Coins must keep an alpha channel for the disc
 - `mnFewest` uses **DP, not greedy** — greedy is wrong for non-canonical denomination sets, so keep it if new currencies are added
 - `mnRandomAmount` steps by the **smallest denomination**, so the target stays makeable in currencies with no 1¢ — do not switch to a plain random integer
 - Not every amount is makeable: CAD/AUD have no 1¢, so `mnChangeOptions` can return empty (e.g. $1.37 CAD) — that path must stay handled
-- `MN_MAX_DRAW` caps rendered pieces so "All 1¢" of a large amount stays responsive
+- `MN_COL_MAX` caps pieces drawn per column; higher counts get a `×N` badge so "All 1¢" of a large amount stays responsive
 - Amount fields are **cash-register entry** (`mnAttachAmount`): digits fill from the right (1234 → 12.34), so there is never an ambiguous bare integer and no placeholder is needed. Read them with `mnFieldCents`, not `parseFloat`
-- `#mn-mode-group` needs its own `flex-wrap` — the shared `.tt-btn-group` doesn't wrap, and four buttons otherwise set a min-content width that overflows a phone
+- The mode panels (`#mn-identify` etc.) must stay `width: 100%` — the container centres its children, so without it the pile box shrinks to content and the 90%-width sizing has nothing to work against
+
+`.tt-btn-group` (shared by Fractions, Times Tables, and Money mode toggles) has `flex-wrap: wrap`, and `.tt-container`/`.fr-container` trim their side padding under 420px — both needed so those tabs don't overflow a phone viewport.
 
 ### Money: Shopping mode
 

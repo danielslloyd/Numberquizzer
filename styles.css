@@ -1406,6 +1406,19 @@ body {
 .tt-btn-group {
     display: flex;
     gap: 0.4rem;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+/* On a phone the inherited 2rem side padding (64px) plus the 11-column grid
+   pushes these two containers past the viewport. Trim the sides on narrow
+   screens so the grid and button groups fit. */
+@media (max-width: 420px) {
+    .tt-container,
+    .fr-container {
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
+    }
 }
 
 .tt-mode-btn.active,
@@ -1930,20 +1943,62 @@ body {
     color: #fff;
 }
 
-/* A pile of money. --mn-ppm (px per real-world mm) is set by mnFit() in JS to
-   shrink the whole pile until it fits this fixed-height box. */
-.mn-pieces {
-    --mn-ppm: 2.1;
-    display: flex;
-    flex-wrap: wrap;
-    align-content: center;
-    align-items: center;
-    justify-content: center;
-    gap: 0.4rem;
+/* The container centres its children, which leaves each mode panel shrink-to-fit.
+   The pile box needs a stable full width for the 90%-of-width sizing to mean
+   anything, so the panels span the container. */
+#mn-identify,
+#mn-build,
+#mn-change,
+#mn-shop {
     width: 100%;
-    height: 38vh;
-    max-height: 340px;
+}
+
+/* A money pile: one column per distinct denomination, stacks resting on a
+   common baseline. --mn-ppm (px per real-world mm) is set by mnFitStage() in JS,
+   grown until the columns fill 90% of the width (or all of the height). */
+.mn-pieces {
+    --mn-ppm: 2.5;
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+    width: 100%;
+    height: 42vh;
+    max-height: 380px;
     overflow: hidden;
+}
+
+/* Shrink-to-content row of columns, so mnFitStage can measure the true size */
+.mn-stage {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: flex-end;
+    justify-content: center;
+    gap: clamp(8px, 3vw, 30px);
+}
+
+.mn-col {
+    position: relative;
+    display: flex;
+    flex-direction: column-reverse;
+    align-items: center;
+    gap: 3px;
+}
+
+/* True count when a column holds more pieces than it draws (e.g. "×137") */
+.mn-col-badge {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translate(-50%, -35%);
+    z-index: 2;
+    background: #000;
+    color: #fff;
+    font-size: 0.8rem;
+    font-weight: 800;
+    padding: 0.08rem 0.42rem;
+    border-radius: 999px;
+    pointer-events: none;
+    white-space: nowrap;
 }
 
 /* Every piece is sized from its real width in mm, so all pieces — drawn or
@@ -1966,13 +2021,6 @@ body {
 .mn-bill-img {
     aspect-ratio: 156 / 66.3;
     border-radius: 3px;
-}
-
-.mn-more {
-    font-size: 1rem;
-    font-weight: 800;
-    opacity: 0.6;
-    align-self: center;
 }
 
 /* Money: Identify */

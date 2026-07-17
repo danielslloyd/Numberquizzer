@@ -3010,8 +3010,9 @@ function pvBlock(x, y, w, h, color, layers) {
 
 // Every piece carries its real-world width in millimetres (`mm`), and CSS sizes
 // it as `mm * --mn-ppm`. So everything is to scale against everything else — a
-// dime really is smaller than a penny, a note really is ~6x a quarter — and
-// mnFit() shrinks a whole pile by lowering --mn-ppm until it fits its box.
+// dime really is smaller than a penny, a note really is ~6x a quarter. A pile is
+// laid out as one column per denomination; mnFitStage() sets --mn-ppm to the
+// largest value where those columns still fit 90% of the box width.
 //
 // USD pieces are photos cropped from public-domain Wikimedia scans (img/money/,
 // see tools note in CLAUDE.md). Currencies without photos fall back to drawn SVG.
@@ -3098,10 +3099,11 @@ const MN_CURRENCIES = {
     },
 };
 
-const MN_MAX_DRAW = 400;    // cap rendered pieces ("all pennies" of a big amount)
 const MN_MAX_AMOUNT = 100000; // $1000.00 ceiling for Change mode
-const MN_PPM_MAX = 2.1;     // px per mm when a pile is small enough to show full size
-const MN_PPM_MIN = 0.28;    // ...and the floor past which pieces stop shrinking
+const MN_COL_MAX = 12;      // pieces drawn in one denomination column before a ×N badge
+const MN_PPM_MAX = 6;       // px per mm when a pile is small enough to show full size
+const MN_PPM_MIN = 0.2;     // ...and the floor past which pieces stop shrinking
+const MN_BAR_PPM_MAX = 1.6; // denomination toolbar (Build) sizes smaller than the pile
 const MN_DIGITS = 6;        // cash-register entry cap -> 9999.99
 
 const mnState = {
@@ -3209,27 +3211,54 @@ function mnBillSVG(d) {
         `</svg>`;
 }
 
-// Renders [{v, n}] as loose pieces, largest first, capped so "all pennies" of a
-// big amount stays responsive.
+// Renders [{v, n}] as one column per distinct denomination, largest value on the
+// left. A column shows up to MN_COL_MAX real pieces; beyond that it keeps the
+// stack readable and marks the true count with a ×N badge (so "all pennies" of a
+// big amount is a neat stack labelled ×137, not a wall of 137 coins).
 function mnRenderGroups(groups) {
-    let html = '', drawn = 0;
-    const total = mnCount(groups);
-    for (const g of groups) {
+    if (!groups.length) return '';
+    const cols = groups.map(g => {
         const d = mnDenom(g.v);
-        for (let i = 0; i < g.n && drawn < MN_MAX_DRAW; i++, drawn++) html += mnPieceHTML(d);
-    }
-    if (total > drawn) html += `<span class="mn-more">+${total - drawn} more</span>`;
-    return html;
+        const show = Math.min(g.n, MN_COL_MAX);
+        const badge = g.n > show ? `<span class="mn-col-badge">×${g.n}</span>` : '';
+        return `<div class="mn-col">${badge}${mnPieceHTML(d).repeat(show)}</div>`;
+    }).join('');
+    return `<div class="mn-stage">${cols}</div>`;
 }
 
-// Shrink the pile until it fits its box. Pieces are laid out from `--mm` and
-// have a fixed aspect-ratio in CSS, so this measures correctly even before the
-// images have loaded.
-function mnFit(el) {
-    if (!el || !el.clientHeight) return;
-    el.style.setProperty('--mn-ppm', MN_PPM_MAX);
-    if (el.scrollHeight <= el.clientHeight) return;
+// Grow the pieces to the largest size where the columns still fit 90% of the
+// box width and all of its height (binary search on --mn-ppm, the px-per-mm
+// scale every piece derives its size from).
+function mnFitStage(box) {
+    if (!box) return;
+    const stage = box.querySelector('.mn-stage');
+    if (!stage) return;
+    // Collapse the pieces first, THEN read the box size: a wide pile can inflate
+    // the box's own width, so measuring the target while the stage is tiny gives
+    // the true, content-independent limit to grow back into.
+    box.style.setProperty('--mn-ppm', MN_PPM_MIN);
+    const maxW = box.clientWidth * 0.9, maxH = box.clientHeight;
+    if (!maxH) return;
+    const fits = (ppm) => {
+        box.style.setProperty('--mn-ppm', ppm);
+        return stage.offsetWidth <= maxW && stage.offsetHeight <= maxH;
+    };
+    if (fits(MN_PPM_MAX)) return;
     let lo = MN_PPM_MIN, hi = MN_PPM_MAX;
+    for (let i = 0; i < 12; i++) {
+        const mid = (lo + hi) / 2;
+        if (fits(mid)) lo = mid; else hi = mid;
+    }
+    box.style.setProperty('--mn-ppm', lo);
+}
+
+// The Build toolbar is a wrap-row of single buttons, not columns; shrink it by
+// height alone so it never spills past its fixed strip.
+function mnFitHeight(el, maxPpm) {
+    if (!el || !el.clientHeight) return;
+    el.style.setProperty('--mn-ppm', maxPpm);
+    if (el.scrollHeight <= el.clientHeight) return;
+    let lo = MN_PPM_MIN, hi = maxPpm;
     for (let i = 0; i < 8; i++) {
         const mid = (lo + hi) / 2;
         el.style.setProperty('--mn-ppm', mid);
@@ -3240,7 +3269,7 @@ function mnFit(el) {
 
 function mnRenderInto(el, groups) {
     el.innerHTML = mnRenderGroups(groups);
-    mnFit(el);
+    mnFitStage(el);
 }
 
 function mnSummary(groups) {
@@ -3339,9 +3368,12 @@ function mnUpdateScore() {
 
 // Refit the visible pile when the window changes shape.
 function mnRefit() {
-    if (mnState.mode === 'identify') mnFit(document.getElementById('mn-id-pieces'));
-    if (mnState.mode === 'build')    mnFit(document.getElementById('mn-build-pieces'));
-    if (mnState.mode === 'change')   mnFit(document.getElementById('mn-change-pieces'));
+    if (mnState.mode === 'identify') mnFitStage(document.getElementById('mn-id-pieces'));
+    if (mnState.mode === 'build') {
+        mnFitStage(document.getElementById('mn-build-pieces'));
+        mnFitHeight(document.getElementById('mn-denom-bar'), MN_BAR_PPM_MAX);
+    }
+    if (mnState.mode === 'change')   mnFitStage(document.getElementById('mn-change-pieces'));
 }
 
 // ---- Money: Identify ----
@@ -3387,7 +3419,7 @@ function mnRenderDenomBar() {
         .map(d => `<button class="mn-denom-btn" data-mn-v="${d.v}" aria-label="Add ${mnLabel(d)}">` +
                   `${mnPieceHTML(d)}</button>`)
         .join('');
-    mnFit(document.getElementById('mn-denom-bar'));
+    mnFitHeight(document.getElementById('mn-denom-bar'), MN_BAR_PPM_MAX);
 }
 
 function mnBuildAdd(v) {
