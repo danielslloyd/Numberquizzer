@@ -3014,23 +3014,26 @@ function pvBlock(x, y, w, h, color, layers) {
 // laid out as one column per denomination; mnFitStage() sets --mn-ppm to the
 // largest value where those columns still fit 90% of the box width.
 //
-// USD pieces are photos cropped from public-domain Wikimedia scans (img/money/,
-// see tools note in CLAUDE.md). Currencies without photos fall back to drawn SVG.
+// USD pieces are real photos hot-linked from Wikimedia Commons (public domain),
+// layered over a drawn fallback. Other currencies render as drawn SVG only.
 const MN_NOTE_MM = 156;    // a US note is 156 x 66.3 mm; SVG notes reuse the ratio
 
 const MN_CURRENCIES = {
+    // USD pieces are real photos hot-linked from Wikimedia Commons (all public
+    // domain). `face`/`edge`/`ink` stay so mnPieceHTML can layer the photo over a
+    // drawn fallback — a slow or failed fetch still shows a labelled coin/note.
     USD: {
         label: '🇺🇸 US Dollar', symbol: '$', minor: '¢',
         denoms: [
-            { v: 1,     kind: 'coin', mm: 19.05, img: 'img/money/penny.webp' },
-            { v: 5,     kind: 'coin', mm: 21.21, img: 'img/money/nickel.webp' },
-            { v: 10,    kind: 'coin', mm: 17.91, img: 'img/money/dime.webp' },
-            { v: 25,    kind: 'coin', mm: 24.26, img: 'img/money/quarter.webp' },
-            { v: 100,   kind: 'bill', mm: MN_NOTE_MM, img: 'img/money/bill1.webp' },
-            { v: 500,   kind: 'bill', mm: MN_NOTE_MM, img: 'img/money/bill5.webp' },
-            { v: 1000,  kind: 'bill', mm: MN_NOTE_MM, img: 'img/money/bill10.webp' },
-            { v: 2000,  kind: 'bill', mm: MN_NOTE_MM, img: 'img/money/bill20.webp' },
-            { v: 10000, kind: 'bill', mm: MN_NOTE_MM, img: 'img/money/bill100.webp' },
+            { v: 1,     kind: 'coin', mm: 19.05, face: '#c98a56', edge: '#9c5f2e', ink: '#40200a', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/US_One_Cent_Obv.png/250px-US_One_Cent_Obv.png' },
+            { v: 5,     kind: 'coin', mm: 21.21, face: '#c3c5c9', edge: '#8f9196', ink: '#2b2d30', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/72/Jefferson-Nickel-Unc-Obv.jpg/250px-Jefferson-Nickel-Unc-Obv.jpg' },
+            { v: 10,    kind: 'coin', mm: 17.91, face: '#c3c5c9', edge: '#8f9196', ink: '#2b2d30', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3c/Dime_Obverse_13.png/250px-Dime_Obverse_13.png' },
+            { v: 25,    kind: 'coin', mm: 24.26, face: '#c3c5c9', edge: '#8f9196', ink: '#2b2d30', img: 'https://upload.wikimedia.org/wikipedia/commons/4/44/2014_ATB_Quarter_Obv.png' },
+            { v: 100,   kind: 'bill', mm: MN_NOTE_MM, face: '#a7c795', ink: '#1e3d18', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/23/US_one_dollar_bill%2C_obverse%2C_series_2009.jpg/500px-US_one_dollar_bill%2C_obverse%2C_series_2009.jpg' },
+            { v: 500,   kind: 'bill', mm: MN_NOTE_MM, face: '#93bd9f', ink: '#1e3d18', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f9/US_%245_Series_2006_obverse.jpg/500px-US_%245_Series_2006_obverse.jpg' },
+            { v: 1000,  kind: 'bill', mm: MN_NOTE_MM, face: '#9dc4ac', ink: '#1e3d18', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/bc/US_%2410_Series_2004_face.jpg/500px-US_%2410_Series_2004_face.jpg' },
+            { v: 2000,  kind: 'bill', mm: MN_NOTE_MM, face: '#84b58c', ink: '#1e3d18', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/79/US_%2420_Series_2006_Obverse.jpg/500px-US_%2420_Series_2006_Obverse.jpg' },
+            { v: 10000, kind: 'bill', mm: MN_NOTE_MM, face: '#b8cca0', ink: '#1e3d18', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1a/USA_100_Dollar_Bill_Series2009_Obverse.png/500px-USA_100_Dollar_Bill_Series2009_Obverse.png' },
         ],
     },
     GBP: {
@@ -3176,13 +3179,15 @@ function mnRandomAmount() {
 // ---- Money: pieces ----
 
 function mnPieceHTML(d) {
-    const label = mnLabel(d);
-    if (d.img) {
-        const cls = d.kind === 'coin' ? 'mn-coin-img' : 'mn-bill-img';
-        return `<img src="${d.img}" alt="${label}" title="${label}" draggable="false" ` +
-               `class="mn-piece ${cls}" style="--mm:${d.mm}">`;
-    }
-    return d.kind === 'coin' ? mnCoinSVG(d) : mnBillSVG(d);
+    const draw = d.kind === 'coin' ? mnCoinSVG(d) : mnBillSVG(d);
+    if (!d.img) return draw;
+    // Hot-linked photo layered over the drawn piece. If the fetch is slow the
+    // drawn coin/note shows until it arrives; if it fails, onerror removes the
+    // <img> and the drawing stays. referrerpolicy keeps Wikimedia happy.
+    const shape = d.kind === 'coin' ? 'mn-coin' : 'mn-bill';
+    return `<span class="mn-piece mn-photo ${shape}" style="--mm:${d.mm}">${draw}` +
+        `<img src="${d.img}" alt="${mnLabel(d)}" draggable="false" ` +
+        `referrerpolicy="no-referrer" onerror="this.remove()"></span>`;
 }
 
 function mnCoinSVG(d) {

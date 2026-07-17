@@ -2010,17 +2010,39 @@ body {
     filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
 }
 
-.mn-coin,
-.mn-coin-img {
+.mn-coin {
     aspect-ratio: 1;
     border-radius: 50%;
 }
 
 /* Matches a real note's 156 x 66.3 mm, which is also the photo crop ratio */
-.mn-bill,
-.mn-bill-img {
+.mn-bill {
     aspect-ratio: 156 / 66.3;
     border-radius: 3px;
+}
+
+/* A photo piece: the drawn SVG and the hot-linked <img> stacked in one box, the
+   image on top. If the image fails to load it removes itself and the drawing
+   shows through. overflow:hidden makes the round/rounded corners clip the photo. */
+.mn-photo {
+    position: relative;
+    overflow: hidden;
+}
+
+.mn-photo > .mn-piece,
+.mn-photo > img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.mn-photo > .mn-piece {
+    filter: none;          /* the wrapper carries the drop-shadow */
+}
+
+.mn-photo > img {
+    object-fit: cover;     /* fill the frame; sources are already tight-cropped */
 }
 
 /* Money: Identify */
