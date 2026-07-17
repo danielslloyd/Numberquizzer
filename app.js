@@ -3026,7 +3026,7 @@ const MN_CURRENCIES = {
         label: '🇺🇸 US Dollar', symbol: '$', minor: '¢',
         denoms: [
             { v: 1,     kind: 'coin', mm: 19.05, face: '#c98a56', edge: '#9c5f2e', ink: '#40200a', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/US_One_Cent_Obv.png/250px-US_One_Cent_Obv.png' },
-            { v: 5,     kind: 'coin', mm: 21.21, face: '#c3c5c9', edge: '#8f9196', ink: '#2b2d30', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/72/Jefferson-Nickel-Unc-Obv.jpg/250px-Jefferson-Nickel-Unc-Obv.jpg' },
+            { v: 5,     kind: 'coin', mm: 21.21, face: '#c3c5c9', edge: '#8f9196', ink: '#2b2d30', img: 'https://upload.wikimedia.org/wikipedia/commons/b/ba/2026-nickel-transparent-512.png' },
             { v: 10,    kind: 'coin', mm: 17.91, face: '#c3c5c9', edge: '#8f9196', ink: '#2b2d30', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3c/Dime_Obverse_13.png/250px-Dime_Obverse_13.png' },
             { v: 25,    kind: 'coin', mm: 24.26, face: '#c3c5c9', edge: '#8f9196', ink: '#2b2d30', img: 'https://upload.wikimedia.org/wikipedia/commons/4/44/2014_ATB_Quarter_Obv.png' },
             { v: 100,   kind: 'bill', mm: MN_NOTE_MM, face: '#a7c795', ink: '#1e3d18', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/23/US_one_dollar_bill%2C_obverse%2C_series_2009.jpg/500px-US_one_dollar_bill%2C_obverse%2C_series_2009.jpg' },

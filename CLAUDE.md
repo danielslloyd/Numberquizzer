@@ -113,6 +113,8 @@ USD pieces are real **photos hot-linked from Wikimedia Commons** (`d.img`, all p
 
 The bills are **individual** note images, not the old `USDnotes.png` composite — you can't hot-link one note out of a 7-note composite (and it's 8.9 MB). To swap or add USD art, resolve a Commons thumbnail URL (keep it public-domain) and drop it in `d.img`; nothing to commit.
 
+The nickel uses `File:2026-nickel-transparent-512.png` — a background-removed version (outer white flood-filled to transparent, interior highlights kept) uploaded to Commons, because the stock Jefferson-nickel scan is opaque-white and left a ring under the circular crop. The other three coins are naturally transparent on Commons.
+
 ### Money: rules to preserve
 
 - **Denomination values are always minor units** (`v: 25` is 25¢, `v: 2000` is a $20 bill) — never store floats, money math is integer-only
