@@ -57,18 +57,26 @@ function reset() {
     dynamicBodies.length = 0;
 }
 
-function addCube(x, y, z, size) {
+function addCube(x, y, z, size, linearDamping = 0.3, angularDamping = 0.3, spin = 0) {
     const half = size / 2;
     const shape = new CANNON.Box(new CANNON.Vec3(half, half, half));
     const body = new CANNON.Body({ mass: 1, shape });
-    body.linearDamping = 0.3;
-    body.angularDamping = 0.3;
+    body.linearDamping = linearDamping;
+    body.angularDamping = angularDamping;
     body.position.set(x, y, z);
     body.velocity.set(
         (Math.random() - 0.5) * 2,
         0,
         (Math.random() - 0.5) * 2
     );
+    // Random angular velocity = imperfect release, so blocks tumble as they fall
+    if (spin) {
+        body.angularVelocity.set(
+            (Math.random() - 0.5) * 2 * spin,
+            (Math.random() - 0.5) * 2 * spin,
+            (Math.random() - 0.5) * 2 * spin
+        );
+    }
     world.addBody(body);
     dynamicBodies.push(body);
 }
@@ -89,7 +97,7 @@ function step() {
         states[base + 4] = b.quaternion.y;
         states[base + 5] = b.quaternion.z;
         states[base + 6] = b.quaternion.w;
-        if (b.velocity.length() > 0.01) settled = false;
+        if (b.velocity.length() > 0.01 || b.angularVelocity.length() > 0.05) settled = false;
     }
     return { states, settled };
 }
@@ -106,7 +114,7 @@ self.onmessage = (event) => {
             self.postMessage({ type: 'resetDone' });
             break;
         case 'addCube':
-            addCube(msg.x, msg.y, msg.z, msg.size || 1);
+            addCube(msg.x, msg.y, msg.z, msg.size || 1, msg.linearDamping, msg.angularDamping, msg.spin);
             break;
         case 'step': {
             const result = step();

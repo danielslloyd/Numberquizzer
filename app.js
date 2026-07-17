@@ -21,14 +21,15 @@ const state = {
     isListening: false,
     speechSupported: false,
     quizActive: false,
-    wsDifficulty:    'basic',
+    wsDifficulty:    'letters_easy',
+    wsType:          'letters',
     wsWords:         [],
     wsStartTime:     null,
     wsTimerInterval: null,
     wsDragState:     null,
     visualizerAnimator: null,
-    visualizerOp1: '×',
-    visualizerOp2: '×',
+    visualizerDropped: false,
+    vizPhase: 'idle',
     tgMode:          null,
     tgOpts:          {},
     tgRounds:        [],
@@ -648,22 +649,35 @@ function endQuiz() {
 //   choices — numbers shown as tappable buttons (must include answer)
 // ============================================
 
-const TAP_ROUNDS = 10;
-
 function tgRandInt(lo, hi) {
     return lo + Math.floor(Math.random() * (hi - lo + 1));
 }
 
+// Fisher–Yates, returns a new shuffled array.
+function tgShuffle(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+}
 
 const TAP_MODES = {
     'make-ten': {
         title: (o) => `Make ${o.target}`,
-        bestKey: (o) => `tapBest_makeTen_${o.target}`,
-        genRound(o) {
-            const known = tgRandInt(0, o.target);
-            const answer = o.target - known;
+        // Best time is per target AND per reps — a 33-card run isn't the same race
+        // as an 11-card one.
+        bestKey: (o) => `tapBest_makeTen_${o.target}_r${o.reps || 1}`,
+        // One card per complement 0..target, so every key (including 0 and the
+        // target itself) shows up as an answer across a deck.
+        buildDeck(o) {
             const choices = Array.from({ length: o.target + 1 }, (_, i) => i);
-            return { tokens: [String(known), '+', '?', '=', String(o.target)], answer, choices };
+            return choices.map(known => ({
+                tokens: [String(known), '+', '?', '=', String(o.target)],
+                answer: o.target - known,
+                choices,
+            }));
         },
     },
 };
@@ -683,7 +697,12 @@ function startTapGame(mode, opts = {}) {
     state.tgMode = mode;
     state.tgOpts = opts;
     const def = TAP_MODES[mode];
-    state.tgRounds = Array.from({ length: TAP_ROUNDS }, () => def.genRound(opts));
+    // reps copies of the whole deck, shuffled together — so it's truly random,
+    // not deck 1 then deck 2 then deck 3 in sequence.
+    const reps = Math.max(1, opts.reps || 1);
+    let deck = [];
+    for (let r = 0; r < reps; r++) deck = deck.concat(def.buildDeck(opts));
+    state.tgRounds = tgShuffle(deck);
     state.tgIndex = 0;
     state.tgCorrect = 0;
 
@@ -710,20 +729,66 @@ function tgRenderRound() {
     }).join('');
 
     document.getElementById('tg-progress-display').textContent =
-        `${state.tgIndex + 1} / ${TAP_ROUNDS}`;
+        `${state.tgIndex + 1} / ${state.tgRounds.length}`;
     const feedback = document.getElementById('tg-feedback');
     feedback.textContent = '';
     feedback.className = 'feedback-display';
 
+    tgRenderVisual(round);
+
+    // For the 0–10 range, lay the choices out as a keypad: 1–9 in a 3×3 block,
+    // 0 to the left of 1 (top-left), 10 to the right of 9 (bottom-right).
+    const keypad = round.choices.length === 11 && round.choices[10] === 10;
     const choices = document.getElementById('tg-choices');
+    choices.classList.toggle('tg-keypad', keypad);
     choices.innerHTML = '';
     round.choices.forEach(n => {
         const btn = document.createElement('button');
         btn.className = 'tg-choice';
         btn.textContent = n;
+        if (keypad) {
+            let col, row;
+            if (n === 0)       { col = 1; row = 1; }
+            else if (n === 10) { col = 5; row = 3; }
+            else { col = 2 + ((n - 1) % 3); row = 1 + Math.floor((n - 1) / 3); }
+            btn.style.gridColumn = col;
+            btn.style.gridRow = row;
+        }
         btn.addEventListener('click', () => tgChoose(n, btn));
         choices.appendChild(btn);
     });
+}
+
+function tgRenderVisual(round) {
+    const wrap = document.getElementById('tg-visual');
+    // Only the Make Ten mode with the ten-frame option enabled shows a visual
+    if (state.tgMode !== 'make-ten' || !state.tgOpts.tenFrame) {
+        wrap.classList.add('hidden');
+        wrap.innerHTML = '';
+        return;
+    }
+    const target = state.tgOpts.target;
+    const known  = parseInt(round.tokens[0], 10);   // the given addend
+    const frameCount = Math.max(1, Math.ceil(target / 10));
+    wrap.innerHTML = '';
+    for (let f = 0; f < frameCount; f++) {
+        const cellsInFrame = Math.min(10, target - f * 10);
+        const frame = document.createElement('div');
+        frame.className = 'tf-frame';
+        for (let i = 0; i < cellsInFrame; i++) {
+            const idx = f * 10 + i;
+            const cell = document.createElement('div');
+            cell.className = 'tf-cell';
+            if (idx < known) {
+                const dot = document.createElement('span');
+                dot.className = 'tf-dot tf-dot-a';
+                cell.appendChild(dot);
+            }
+            frame.appendChild(cell);
+        }
+        wrap.appendChild(frame);
+    }
+    wrap.classList.remove('hidden');
 }
 
 function tgChoose(value, btn) {
@@ -735,7 +800,7 @@ function tgChoose(value, btn) {
         state.tgIndex++;
         state.tgActive = false;  // block taps during the flip
         const next = () => {
-            if (state.tgIndex >= TAP_ROUNDS) {
+            if (state.tgIndex >= state.tgRounds.length) {
                 tgEnd();
             } else {
                 tgRenderRound();
@@ -773,7 +838,7 @@ function tgEnd() {
     document.getElementById('tg-best-time').textContent = formatTime(isNewBest ? elapsed : best);
     document.getElementById('tg-new-record').classList.toggle('hidden', !isNewBest);
     document.getElementById('tg-results-title').textContent =
-        state.tgCorrect === TAP_ROUNDS ? 'Perfect!' : 'Done!';
+        state.tgCorrect === state.tgRounds.length ? 'Perfect!' : 'Done!';
 
     showScreen('tap-game-results');
 }
@@ -841,47 +906,63 @@ function wsSaveBestTime(difficulty, seconds) {
     localStorage.setItem(`wordSortBest_${difficulty}`, seconds.toString());
 }
 
-function initWordSortMenu() {
-    ['basic', 'intermediate', 'advanced', 'numbers'].forEach(diff => {
-        const best = wsLoadBestTime(diff);
-        document.getElementById(`ws-best-${diff}`).textContent =
-            best !== null ? formatTime(best) : '--:--';
-    });
+function wsMenuKey() {
+    const type = document.querySelector('.ws-type-btn.active')?.dataset.type || 'letters';
+    const diff = document.querySelector('.ws-diff-btn.active')?.dataset.diff || 'easy';
+    return `${type}_${diff}`;
 }
 
-function generateNumberSet() {
+function initWordSortMenu() {
+    const best = wsLoadBestTime(wsMenuKey());
+    document.getElementById('ws-best-current').textContent = best !== null ? formatTime(best) : '--:--';
+    const type = document.querySelector('.ws-type-btn.active')?.dataset.type || 'letters';
+    const diff = document.querySelector('.ws-diff-btn.active')?.dataset.diff || 'easy';
+    document.getElementById('ws-best-label').textContent = `${type[0].toUpperCase()+type.slice(1)} / ${diff[0].toUpperCase()+diff.slice(1)} Best`;
+}
+
+function generateNumberSet(diff) {
+    const [min, max] = diff === 'easy'   ? [1, 20]
+                     : diff === 'medium' ? [1, 100]
+                     :                    [-9999, 9999];
     const numbers = [];
-    for (let i = 0; i < 6; i++) {
-        numbers.push(Math.floor(Math.random() * 19999) - 9999);
+    const count = diff === 'hard' ? 6 : 6;
+    while (numbers.length < count) {
+        const n = Math.floor(Math.random() * (max - min + 1)) + min;
+        if (!numbers.includes(n)) numbers.push(n);
     }
     return shuffleArray(numbers.map(String));
 }
 
-function wsPickWords(difficulty) {
-    if (difficulty === 'numbers') {
-        return generateNumberSet();
+function wsPickWords(type, diff) {
+    if (type === 'numbers') {
+        return generateNumberSet(diff);
     }
-    if (difficulty === 'advanced') {
+    // Letters
+    if (diff === 'hard') {
         const groupIndex = Math.floor(Math.random() * WS_WORDS_ADVANCED.length);
         return shuffleArray(WS_WORDS_ADVANCED[groupIndex]);
     }
-    const pool = difficulty === 'basic' ? WS_WORDS_BASIC : WS_WORDS_INTERMEDIATE;
+    const pool = diff === 'easy' ? WS_WORDS_BASIC : WS_WORDS_INTERMEDIATE;
     return shuffleArray(pool).slice(0, 6);
 }
 
-function startWordSort(difficulty) {
+function startWordSort(type, diff) {
     if (state.wsTimerInterval) {
         clearInterval(state.wsTimerInterval);
         state.wsTimerInterval = null;
     }
-    state.wsDifficulty = difficulty;
-    state.wsWords = wsPickWords(difficulty);
+    state.wsDifficulty = `${type}_${diff}`;
+    state.wsType = type;
+    state.wsWords = wsPickWords(type, diff);
 
-    document.getElementById('ws-diff-display').textContent = difficulty.toUpperCase();
+    document.getElementById('ws-diff-display').textContent = `${type.toUpperCase()} · ${diff.toUpperCase()}`;
     document.getElementById('ws-timer-display').textContent = '00:00';
 
-    const prompt = difficulty === 'numbers' ? 'Sort High → Low' : 'Sort A → Z';
-    document.querySelector('.ws-prompt').textContent = prompt;
+    const isNum = type === 'numbers';
+    document.querySelector('.ws-prompt').textContent = isNum ? 'Smallest → Largest' : 'Sort A → Z';
+    // Rail labels mark which end is which, so the sort direction is always clear.
+    document.getElementById('ws-scale-top').textContent    = isNum ? 'Smallest' : 'A';
+    document.getElementById('ws-scale-bottom').textContent = isNum ? 'Largest'  : 'Z';
 
     wsRenderBubbles(state.wsWords);
 
@@ -913,9 +994,9 @@ function wsCheckOrder() {
     const current = bubbles.map(b => b.dataset.word);
 
     let correct;
-    if (state.wsDifficulty === 'numbers') {
+    if (state.wsType === 'numbers') {
         const nums = current.map(Number);
-        const sorted = [...nums].sort((a, b) => b - a);
+        const sorted = [...nums].sort((a, b) => a - b);  // smallest first
         correct = sorted.map(String);
     } else {
         correct = [...current].sort((a, b) => a.localeCompare(b));
@@ -947,7 +1028,7 @@ function wsEndGame() {
     document.getElementById('ws-final-time').textContent = formatTime(elapsed);
     document.getElementById('ws-best-time-results').textContent =
         isNewBest ? formatTime(elapsed) : formatTime(best);
-    document.getElementById('ws-final-diff').textContent = diff.toUpperCase();
+    document.getElementById('ws-final-diff').textContent = diff.replace('_', ' / ').toUpperCase();
     document.getElementById('ws-new-record-badge').classList.toggle('hidden', !isNewBest);
 
     showScreen('word-sort-results');
@@ -1053,105 +1134,119 @@ function initVisualizer() {
     startRenderLoop();
 }
 
-function handleVisualizerInput() {
-    // Read three input fields
+// 'idle' | 'built' | 'dropping'
+function vizSetPhase(phase) {
+    state.vizPhase = phase;
+    const btn = document.getElementById('visualizer-drop-btn');
+    if (!btn) return;
+    if (phase === 'idle') {
+        const filled = vizInputsFilled();
+        btn.textContent = 'SHOW';
+        btn.disabled = !filled;
+        btn.classList.toggle('visualizer-btn-disabled', !filled);
+    } else if (phase === 'built') {
+        btn.textContent = 'DROP';
+        btn.disabled = false;
+        btn.classList.remove('visualizer-btn-disabled');
+    } else if (phase === 'dropping') {
+        btn.textContent = 'RESET';
+        btn.disabled = false;
+        btn.classList.remove('visualizer-btn-disabled');
+    }
+}
+
+function vizInputsFilled() {
+    const v1 = document.getElementById('visualizer-input-1').value.trim();
+    const v2 = document.getElementById('visualizer-input-2').value.trim();
+    const v3 = document.getElementById('visualizer-input-3').value.trim();
+    return v1 !== '' && v2 !== '' && v3 !== '';
+}
+
+function handleVisualizerInputChange() {
+    if (state.vizPhase === 'idle') {
+        vizSetPhase('idle');  // re-evaluate enabled state
+    } else {
+        // Inputs changed while blocks are shown — go back to idle
+        vizSetPhase('idle');
+        if (state.visualizerAnimator) state.visualizerAnimator.clear();
+        const answerEl = document.getElementById('visualizer-answer');
+        answerEl.classList.add('hidden');
+        answerEl.textContent = '';
+    }
+}
+
+function handleVisualizerShow() {
     const input1 = document.getElementById('visualizer-input-1').value.trim();
     const input2 = document.getElementById('visualizer-input-2').value.trim();
     const input3 = document.getElementById('visualizer-input-3').value.trim();
 
-    if (!input1 || !input2 || !input3) {
-        alert('Please enter all three numbers.');
+    if (!state.visualizerAnimator) return;
+
+    const a = parseInt(input1, 10);
+    const b = parseInt(input2, 10);
+    const c = parseInt(input3, 10);
+
+    if (isNaN(a) || isNaN(b) || isNaN(c) || a < 1 || b < 1 || c < 1) {
+        alert('Please enter positive whole numbers.');
         return;
     }
 
-    // Build expression from inputs and operators
-    const expression = `${input1} ${state.visualizerOp1} ${input2} ${state.visualizerOp2} ${input3}`;
-    const result = parseExpression(expression);
-
-    if (!result.valid) {
-        alert(result.error);
+    if (a * b * c > 1000) {
+        alert('That expression would create too many blocks (max 1000).');
         return;
     }
 
-    if (!state.visualizerAnimator) {
-        alert('Visualizer is not ready yet. Please try again in a moment.');
-        return;
-    }
+    vizSetPhase('built');
+    state.visualizerAnimator.spacing = 1.2;
+    state.visualizerAnimator.animateMultiplication(a, b, c);
 
-    // Pick up the current spacing slider value before this run
-    const spacingEl = document.getElementById('visualizer-spacing');
-    const spacing = parseFloat(spacingEl.value);
-    if (Number.isFinite(spacing) && spacing > 0) {
-        state.visualizerAnimator.spacing = spacing;
-    }
-
-    // Get visual structure
-    const visualStruct = getVisualStructure(result.ast);
-
-    // Run build animation; cubes stay in formation, awaiting DROP
-    if (visualStruct.type === 'multiply') {
-        state.visualizerAnimator.animateMultiplication(
-            visualStruct.a,
-            visualStruct.b,
-            visualStruct.c
-        );
-    } else if (visualStruct.type === 'add') {
-        state.visualizerAnimator.animateAddition(visualStruct.groups);
-    }
-
-    // Show result
     const answerEl = document.getElementById('visualizer-answer');
     setTimeout(() => {
-        answerEl.textContent = `= ${result.result}`;
+        answerEl.textContent = `= ${a * b * c}`;
         answerEl.classList.remove('hidden');
     }, 1500);
 }
 
-// Derive the cache-bust query string from the loaded app.js script URL,
-// so the physics worker stays in sync with the rest of the assets without
-// having to remember to bump it separately.
-function getAssetCacheVersion() {
-    const scripts = document.querySelectorAll('script[src*="app.js"]');
-    for (const s of scripts) {
-        const match = s.src.match(/app\.js\?(v=\d+)/);
-        if (match) return match[1];
-    }
-    return 'v=1';
-}
-
 function handleVisualizerDrop() {
     if (!state.visualizerAnimator) return;
+    const phase = state.vizPhase;
 
-    // Pick up the current "Background physics" toggle and switch backends
-    // if it changed since last drop. Worker URL is cache-busted to match.
-    const workerToggle = document.getElementById('visualizer-worker-toggle');
-    const useWorker = !!(workerToggle && workerToggle.checked);
-    const workerUrl = `physics-worker.js?${getAssetCacheVersion()}`;
-    state.visualizerAnimator.setUseWorkerPhysics(useWorker, workerUrl);
+    if (phase === 'idle') return;
 
-    state.visualizerAnimator.startDrop();
-}
-
-function handleVisualizerReset() {
-    if (state.visualizerAnimator) {
+    if (phase === 'dropping') {
+        // RESET: snap back and rebuild
         state.visualizerAnimator.snapBackToFormation();
+        vizSetPhase('built');
+        return;
     }
+
+    // phase === 'built': start drop
+    if (!state.visualizerAnimator.hasFilled) return;
+    vizSetPhase('dropping');
+
+    const friction   = parseFloat(document.getElementById('viz-friction').value);
+    const rowDelay   = parseInt(document.getElementById('viz-row-delay').value, 10);
+    const rotRange   = parseFloat(document.getElementById('viz-rotation').value);
+
+    state.visualizerAnimator.startDrop({ friction, rowDelay, rotRange }).then(() => {
+        // Drop settled — stay in dropping phase (RESET still available)
+    });
 }
 
 function handleVisualizerClear() {
-    // Clear input fields
     document.getElementById('visualizer-input-1').value = '';
     document.getElementById('visualizer-input-2').value = '';
     document.getElementById('visualizer-input-3').value = '';
 
-    // Hide answer display
     const answerEl = document.getElementById('visualizer-answer');
     answerEl.classList.add('hidden');
     answerEl.textContent = '';
 
     if (state.visualizerAnimator) {
+        state.visualizerAnimator.dropAborted = true;
         state.visualizerAnimator.clear();
     }
+    vizSetPhase('idle');
 }
 
 // ============================================
@@ -1166,14 +1261,14 @@ function pgBoxDims(size) {
     return [3, 3];
 }
 
-function pgSymbolToDisplay(num, size, symbolType) {
+function pgSymbolToDisplay(num, size, symbolType, multiplier = 2) {
     if (num === 0) return '';
     if (symbolType === 'letters') {
         const letters = size === 4 ? 'ABCD' : size === 6 ? 'ABCDEF' : 'ABCDEFGHI';
         return letters[num - 1];
     }
     if (symbolType === 'multiples') {
-        return `1×${num}`;
+        return String(num * multiplier);
     }
     return String(num);
 }
@@ -1234,14 +1329,35 @@ function pgMakeMult(min, max, count) {
     });
 }
 
+function pgMakeAddition(max, count) {
+    return Array.from({ length: count }, () => {
+        const a = Math.floor(Math.random() * (max + 1));
+        const b = Math.floor(Math.random() * (max + 1));
+        return { a, b, ans: a + b };
+    });
+}
+
+function pgMakeSubtraction(max, count) {
+    return Array.from({ length: count }, () => {
+        const sub = 1 + Math.floor(Math.random() * max);
+        const ans = Math.floor(Math.random() * (max + 1));
+        return { a: sub + ans, b: sub, ans };
+    });
+}
+
+function pgMakeDivision(max, count) {
+    return Array.from({ length: count }, () => {
+        const divisor  = 1 + Math.floor(Math.random() * max);
+        const quotient = Math.floor(Math.random() * (max + 1));
+        return { a: divisor * quotient, b: divisor, ans: quotient };
+    });
+}
+
 // --- Cipher ---
 
-// Glyph mappings (simplified Unicode characters)
-const CIPHER_GLYPHS = {
-    dingbat: ['✤', '✥', '✦', '✧', '★', '✪', '✫', '✬', '✭', '✮', '✯', '✰', '✱', '✲', '✳', '✴', '✵', '✶', '✷', '✸', '✹', '✺', '✻', '✼', '✽', '✾'],
-    rune: ['ᚠ', 'ᚡ', 'ᚢ', 'ᚣ', 'ᚤ', 'ᚥ', 'ᚦ', 'ᚧ', 'ᚨ', 'ᚩ', 'ᚪ', 'ᚫ', 'ᚬ', 'ᚭ', 'ᚮ', 'ᚯ', 'ᚰ', 'ᚱ', 'ᚲ', 'ᚳ', 'ᚴ', 'ᚵ', 'ᚶ', 'ᚷ', 'ᚸ', 'ᚹ'],
-    noto: ['🀀', '🀁', '🀂', '🀃', '🀄', '🀅', '🀆', '🀇', '🀈', '🀉', '🀊', '🀋', '🀌', '🀍', '🀎', '🀏', '🀐', '🀑', '🀒', '🀓', '🀔', '🀕', '🀖', '🀗', '🀘', '🀙'],
-};
+// ZapfDingbats tokens: ASCII 0x21–0x3A map to printable dingbat symbols in the ZapfDingbats font.
+// We use 26 of them (one per letter) as cipher tokens — jsPDF renders them correctly.
+const ZAPFDINGBATS_TOKENS = Array.from({ length: 26 }, (_, i) => String.fromCharCode(0x21 + i));
 
 function pgMakeCipherMap() {
     const A = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
@@ -1259,24 +1375,36 @@ function pgMakeCipherMapNumber() {
     return { fwd, rev };
 }
 
-function pgMakeCipherMapGlyph(glyphType) {
+function pgMakeCipherMapGlyph() {
     const A = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
-    const glyphs = CIPHER_GLYPHS[glyphType] || CIPHER_GLYPHS.dingbat;
-    const S = shuffleArray([...glyphs]);
+    const S = shuffleArray([...ZAPFDINGBATS_TOKENS]);
+    const fwd = {}, rev = {};
+    A.forEach((ch, i) => { fwd[ch] = S[i]; rev[S[i]] = ch; });
+    return { fwd, rev };
+}
+
+// Elder Futhark + two Anglo-Saxon Futhorc runes to cover all 26 letters
+const RUNE_TOKENS = [...'ᚠᚢᚦᚨᚱᚲᚷᚹᚺᚾᛁᛃᛇᛈᛉᛊᛏᛒᛖᛗᛚᛜᛞᛟᛠᛡ'];
+
+function pgMakeCipherMapRune() {
+    const A = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
+    const S = shuffleArray([...RUNE_TOKENS]);
     const fwd = {}, rev = {};
     A.forEach((ch, i) => { fwd[ch] = S[i]; rev[S[i]] = ch; });
     return { fwd, rev };
 }
 
 function pgEncrypt(text, fwd) {
-    // Encrypt letters, keep numbers and punctuation as-is, remove extra whitespace
     return text.toUpperCase().replace(/[A-Z]/g, ch => fwd[ch]);
 }
 
-function pgEncryptWithSpaces(text, fwd) {
-    // Return text with each character separated by space for underscore placement
-    const encrypted = pgEncrypt(text, fwd);
-    return encrypted.split('').map(ch => ch === ' ' ? '  ' : ch).join(' ');
+// Returns array of word-arrays: each inner array holds one cipher token per letter.
+// '\n' sentinels pass through as-is (newline markers). Non-letters kept as-is.
+function pgEncryptWords(plainWords, fwd) {
+    return plainWords.map(word =>
+        word === '\n' ? ['\n'] :
+        [...word.toUpperCase()].map(ch => /[A-Z]/.test(ch) ? (fwd[ch] ?? ch) : ch)
+    );
 }
 
 function pgChunkText(text, n) {
@@ -1288,7 +1416,7 @@ function pgChunkText(text, n) {
 
 // --- PDF layout constants (letter paper, mm) ---
 
-const PG_DEBUG_GRID = true;   // ← set false to hide red grid lines for print
+const PG_DEBUG_GRID = false;  // set true during layout development to show red grid guidelines
 const PG_W = 215.9, PG_H = 279.4, PG_M = 12;
 const PG_HEADER_Y = 19;                        // Y returned by pgHeader()
 const PG_GRID_X   = PG_M;
@@ -1360,7 +1488,7 @@ function pgHeader(doc, title) {
     return 15;
 }
 
-function pgSudokuGrid(doc, grid, size, ox, oy, gs, symbolType = 'numbers') {
+function pgSudokuGrid(doc, grid, size, ox, oy, gs, symbolType = 'numbers', multiplier = 2) {
     const [bh, bw] = pgBoxDims(size);
     const cs = gs / size;
     doc.setDrawColor(0);
@@ -1385,7 +1513,7 @@ function pgSudokuGrid(doc, grid, size, ox, oy, gs, symbolType = 'numbers') {
     for (let r = 0; r < size; r++)
         for (let c = 0; c < size; c++)
             if (grid[r][c]) {
-                const sym = pgSymbolToDisplay(grid[r][c], size, symbolType);
+                const sym = pgSymbolToDisplay(grid[r][c], size, symbolType, multiplier);
                 doc.text(sym, ox + c * cs + cs / 2, oy + r * cs + cs / 2 + fs / 8, { align: 'center' });
             }
 }
@@ -1437,6 +1565,86 @@ function pgDrawMultProblems(doc, probs, gridX, gridY, gridW, gridH, showAnswers)
     });
 }
 
+/**
+ * Render arithmetic problems in a 5-column grid with large numbers.
+ * Works for +, −, ×, ÷ problems (each problem has .a, .b, .ans fields).
+ */
+function pgDrawArithmeticProblems(doc, probs, op, gridX, gridY, gridW, gridH, showAnswers) {
+    const COLS = 5;
+    const ROWS = Math.ceil(probs.length / COLS);
+    const { cellW, cellH } = pgDrawLayoutGrid(doc, gridX, gridY, gridW, gridH, COLS, ROWS);
+
+    const opSymbol = { addition: '+', subtraction: '-', multiplication: 'x', division: ':' }[op] || op;
+    const fs = Math.min(28, Math.floor(cellH * 0.50));
+
+    probs.forEach((p, i) => {
+        if (i >= COLS * ROWS) return;
+        const col = i % COLS;
+        const row = Math.floor(i / COLS);
+        const cellLeft = gridX + col * cellW;
+        const cellTop  = gridY + row * cellH;
+        const numRight = cellLeft + cellW - 4;
+        const opX      = numRight - fs * 0.75;
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.text(`${i + 1}.`, cellLeft + 2, cellTop + 5);
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(fs);
+        doc.text(String(p.a), numRight, cellTop + cellH * 0.30, { align: 'right' });
+        doc.text(opSymbol, opX, cellTop + cellH * 0.52);
+        doc.text(String(p.b), numRight, cellTop + cellH * 0.52, { align: 'right' });
+
+        doc.setLineWidth(0.8);
+        doc.setDrawColor(0);
+        doc.line(opX - 2, cellTop + cellH * 0.57, numRight, cellTop + cellH * 0.57);
+
+        if (showAnswers) {
+            doc.setFontSize(fs);
+            doc.text(String(p.ans), numRight, cellTop + cellH * 0.78, { align: 'right' });
+        }
+    });
+}
+
+function pgPDFArithmetic(op, max, count, sheets, includeAnswerKey) {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'mm', format: 'letter' });
+    const opLabel = { addition: 'Addition', subtraction: 'Subtraction',
+                      multiplication: 'Multiplication', division: 'Division' }[op] || op;
+    const makeProbs = {
+        addition:       () => pgMakeAddition(max, count),
+        subtraction:    () => pgMakeSubtraction(max, count),
+        multiplication: () => pgMakeMult(1, max, count),
+        division:       () => pgMakeDivision(max, count),
+    }[op];
+
+    const allSheets = Array.from({ length: sheets }, () => makeProbs());
+
+    allSheets.forEach((probs, si) => {
+        if (si) doc.addPage();
+        const title = sheets > 1
+            ? `${opLabel} Practice · Sheet ${si + 1} of ${sheets}`
+            : `${opLabel} Practice`;
+        pgHeader(doc, title);
+        pgDrawArithmeticProblems(doc, probs, op, PG_GRID_X, PG_GRID_Y, PG_GRID_W, PG_GRID_H, false);
+    });
+
+    if (includeAnswerKey) {
+        pgAnswerKeySeparator(doc);
+        allSheets.forEach((probs, si) => {
+            doc.addPage();
+            const title = sheets > 1
+                ? `${opLabel} — Answer Key · Sheet ${si + 1}`
+                : `${opLabel} — Answer Key`;
+            pgHeader(doc, title);
+            pgDrawArithmeticProblems(doc, probs, op, PG_GRID_X, PG_GRID_Y, PG_GRID_W, PG_GRID_H, true);
+        });
+    }
+
+    window.open(URL.createObjectURL(doc.output('blob')), '_blank');
+}
+
 function pgAnswerKeySeparator(doc) {
     const W = 215.9;
     doc.addPage();
@@ -1454,6 +1662,8 @@ function pgPDFSudoku(sheets, size, diff, symbolType = 'numbers') {
     const diffTxt = diff[0].toUpperCase() + diff.slice(1);
 
     const allPuzzles = Array.from({ length: sheets * 6 }, () => pgMakeSudoku(size, diff));
+    // One random multiplier per sheet (for multiples symbolType)
+    const sheetMultipliers = Array.from({ length: sheets }, () => 2 + Math.floor(Math.random() * 8));
 
     // 2-column × 3-row grid fills the printable content area
     const COLS   = 2, ROWS = 3;
@@ -1479,7 +1689,7 @@ function pgPDFSudoku(sheets, size, diff, symbolType = 'numbers') {
             const oy = PG_GRID_Y + row * cellH + (cellH - puzSize) / 2;
             const grid = isSol ? allPuzzles[pageIdx * 6 + idx].sol
                                 : allPuzzles[pageIdx * 6 + idx].puz;
-            pgSudokuGrid(doc, grid, size, ox, oy, puzSize, symbolType);
+            pgSudokuGrid(doc, grid, size, ox, oy, puzSize, symbolType, sheetMultipliers[pageIdx]);
         }
     };
 
@@ -1669,102 +1879,143 @@ function pgDrawCipherKeyTable(doc, rev, x, y, compact = false, cipherType = 'let
  * Simulate word-wrap layout to build page chunks that respect the grid.
  * Returns an array of strings — one per page.
  */
-function pgCipherSplitToPages(words, textW, rowH, gridH, charW, wordGap) {
-    const rowsPerPage = Math.floor(gridH / rowH);
+// Returns an array of pages; each page is an array of plain word-strings (and '\n' sentinels).
+// Uses identical col/row tracking as pgDrawCipherCells to guarantee agreement.
+function pgCipherSplitToPages(words, textCols, rowsPerPage) {
     const pages = [];
-    let pageWords = [], row = 0, x = 0;
+    let pageWords = [], col = 0, row = 0;
 
-    for (const word of words) {
+    const pushPage = () => { pages.push(pageWords); pageWords = []; col = 0; row = 0; };
+
+    for (let wi = 0; wi < words.length; wi++) {
+        const word = words[wi];
         if (!word) continue;
-        const ww = word.length * charW + wordGap;
-        if (x + ww > textW && x > 0) { row++;  x = 0; }
-        if (row >= rowsPerPage) {
-            pages.push(pageWords.join(' '));
-            pageWords = [];  row = 0;
+
+        if (word === '\n') {
+            // Force advance to next row
+            pageWords.push(word);
+            col = 0; row++;
+            if (row >= rowsPerPage) pushPage();
+            continue;
         }
+
+        const len = word.length;
+        // Wrap to next row if word doesn't fit on current row
+        if (col > 0 && col + len > textCols) { col = 0; row++; }
+        if (row >= rowsPerPage) pushPage();
+
         pageWords.push(word);
-        x += ww;
+        col += len;
+
+        // Separator cell between words (not after last word)
+        if (wi < words.length - 1 && words[wi + 1] !== '\n') {
+            col++;
+            if (col >= textCols) { col = 0; row++; }
+            if (row >= rowsPerPage) pushPage();
+        }
     }
-    if (pageWords.length) pages.push(pageWords.join(' '));
+    if (pageWords.length) pages.push(pageWords);
     return pages;
 }
 
 /**
- * Place encoded cipher text exactly one character per grid cell.
- * Words wrap to the next row if they don't fit; one blank cell separates words.
+ * Place encoded cipher text exactly one token per grid cell.
+ * @param {Array<string[]>} wordTokens - array of words, each word is array of cipher token strings
+ * @param {string} cipherType - 'letter' | 'number' | 'glyph'
  */
-function pgDrawCipherCells(doc, encChunk, gridX, gridY, cellW, cellH, textCols, totalRows) {
-    const words = encChunk.trim().split(/\s+/).filter(Boolean);
-    const textY  = cellH * 0.2;    // char at top of cell with margin
-    const lineY  = cellH * 0.8;    // blank underline near bottom
+function pgDrawCipherCells(doc, wordTokens, gridX, gridY, cellW, cellH, textCols, totalRows, cipherType) {
+    const textY = cellH * 0.30;  // cipher char near top of cell
+    const lineY = cellH * 0.72;  // underline below, leaving room for decoded letter
+    const fs    = Math.min(9, cellH * 0.85);
 
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(Math.min(9, cellH * 0.85));
     doc.setLineWidth(0.4);
     doc.setDrawColor(0);
 
     let col = 0, row = 0;
 
-    for (let wi = 0; wi < words.length; wi++) {
-        const word = words[wi];
+    for (let wi = 0; wi < wordTokens.length; wi++) {
+        const tokens = wordTokens[wi];
 
-        // Wrap whole word to next row if it won't fit
-        if (col > 0 && col + word.length > textCols) { row++; col = 0; }
+        // Handle newline sentinel: force next row
+        if (tokens.length === 1 && tokens[0] === '\n') {
+            col = 0; row++;
+            if (row >= totalRows) break;
+            continue;
+        }
+
+        if (col > 0 && col + tokens.length > textCols) { row++; col = 0; }
         if (row >= totalRows) break;
 
-        for (let c = 0; c < word.length; c++) {
-            const char = word[c];
-            const isLetter = /[A-Z]/.test(char);
-            const isDash = char === '-' || char === '—' || char === '–';
-
-            // Every character occupies its own cell; only letters get an underline
+        for (let ti = 0; ti < tokens.length; ti++) {
             if (col >= textCols) { row++; col = 0; }
             if (row >= totalRows) break;
+
+            const token = tokens[ti];
             const cx = gridX + col * cellW;
             const cy = gridY + row * cellH;
-            doc.text(char, cx + cellW / 2, cy + textY, { align: 'center' });
-            if (isLetter) {
-                doc.line(cx + cellW * 0.12, cy + lineY, cx + cellW * 0.88, cy + lineY);
+
+            if (cipherType === 'glyph') {
+                doc.setFont('zapfdingbats', 'normal');
+            } else if (cipherType === 'rune') {
+                doc.setFont('helvetica', 'normal');
+            } else {
+                doc.setFont('helvetica', 'bold');
             }
+            doc.setFontSize(fs);
+            doc.text(token, cx + cellW / 2, cy + textY, { align: 'center' });
+            doc.setFont('helvetica', 'bold');
+
+            // Underline in every cell (student writes decoded letter here)
+            doc.line(cx + cellW * 0.12, cy + lineY, cx + cellW * 0.88, cy + lineY);
             col++;
         }
 
-        // One blank cell between words (only if we have space)
-        if (wi < words.length - 1) {
+        // One blank separator cell between words (not before a newline sentinel)
+        const nextIsNewline = wi + 1 < wordTokens.length &&
+            wordTokens[wi + 1].length === 1 && wordTokens[wi + 1][0] === '\n';
+        if (wi < wordTokens.length - 1 && !nextIsNewline) {
             col++;
-            if (col >= textCols) { row++; col = 0; }
+            if (col >= textCols) { col = 0; row++; }
         }
     }
 }
 
 /**
- * Draw cipher key separate from grid in 2 rows, as pairs with = between them.
- * Pairs are closer together, larger font, no grid cells.
+ * Draw cipher key: 2 rows of 13 pairs showing plain letter = cipher token.
+ * @param {Object} fwdMap - maps plain letter → cipher token
  */
-function pgDrawCipherKeySeparate(doc, revMap, keyX, keyY, cipherType) {
+function pgDrawCipherKeySeparate(doc, fwdMap, keyX, keyY, cipherType) {
     const alpha = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
-
-    // Split into 2 rows of 13 pairs each
     const row1 = alpha.slice(0, 13);
     const row2 = alpha.slice(13, 26);
 
-    // Large font to fit in 2 rows
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(13);
-
     const lineHeight = 8;
-    const pairWidth = 14.8;  // Fixed width per pair to fit 13 pairs in ~195mm
+    const pairWidth  = 14.8;
 
     [row1, row2].forEach((row, rowIdx) => {
         const y = keyY + rowIdx * lineHeight;
 
         for (let i = 0; i < row.length; i++) {
-            const ch = row[i];
-            const mapped = revMap[ch];
-            const x = keyX + i * pairWidth;
+            const ch     = row[i];
+            const mapped = fwdMap[ch];
+            const x      = keyX + i * pairWidth;
 
-            // Draw "A=X  B=Y  C=Z..."
-            doc.text(`${ch}=${mapped}`, x, y);
+            // Draw "A=" in helvetica
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(13);
+            const prefix = `${ch}=`;
+            doc.text(prefix, x, y);
+
+            // Draw the cipher token (may need a different font for glyph/rune ciphers)
+            const prefixW = doc.getTextWidth(prefix);
+            if (cipherType === 'glyph') {
+                doc.setFont('zapfdingbats', 'normal');
+            } else if (cipherType === 'rune') {
+                doc.setFont('helvetica', 'normal');
+            }
+            doc.setFontSize(13);
+            doc.text(mapped, x + prefixW, y);
+            doc.setFont('helvetica', 'bold');
         }
     });
 }
@@ -1820,130 +2071,104 @@ function pgPDFCipher(text, _unused, cipherType = 'letter', glyphFont = 'dingbat'
     const doc  = new jsPDF({ unit: 'mm', format: 'letter' });
     const alpha = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
 
-    // Grid size determines column count, rows, and cell dimensions
+    // Determine if we're using rune cipher (sub-type of glyph)
+    const isRune = cipherType === 'glyph' && glyphFont === 'rune';
+    const effectiveCipherType = isRune ? 'rune' : cipherType;
+
     let GRID_COLS, TEXT_ROWS;
     if (gridSize === 'large') {
-        GRID_COLS = 13;
-        TEXT_ROWS = 11;  // Fewer, taller rows for large grid
+        GRID_COLS = 13; TEXT_ROWS = 11;
     } else if (gridSize === 'medium') {
-        GRID_COLS = 20;
-        TEXT_ROWS = 14;
-    } else {  // small
-        GRID_COLS = 26;
-        TEXT_ROWS = 16;
+        GRID_COLS = 20; TEXT_ROWS = 14;
+    } else {
+        GRID_COLS = 26; TEXT_ROWS = 16;
     }
 
-    // Key is now drawn separately (not in grid), so calculate grid dimensions for message only
     const TEXT_COLS = GRID_COLS;
-    const cellW = PG_GRID_W / GRID_COLS;
-    const keyHeight = 25;  // Space for key above grid
-    const cellH = (PG_GRID_H - keyHeight) / TEXT_ROWS;  // Remaining height divided by rows
-    const keyY = PG_GRID_Y;  // Key at top
-    const messageY = PG_GRID_Y + keyHeight;  // Grid below the key
-    const gridHeight = TEXT_ROWS * cellH;  // Actual available grid height
+    const cellW     = PG_GRID_W / GRID_COLS;
+    const keyHeight = showKeyOnPage ? 25 : 0;
+    const cellH     = (PG_GRID_H - keyHeight) / TEXT_ROWS;
+    const keyY      = PG_GRID_Y;
+    const messageY  = PG_GRID_Y + keyHeight;
 
-    // Split source text into page-sized chunks
-    const origChunks = pgCipherSplitToPages(
-        text.trim().split(/\s+/), TEXT_COLS * cellW, cellH, gridHeight, cellW, cellW
-    );
+    // Parse input text, preserving newlines as '\n' sentinels between lines
+    const inputLines = text.split('\n');
+    const allWords = [];
+    inputLines.forEach((line, i) => {
+        const words = line.split(/\s+/).filter(Boolean);
+        allWords.push(...words);
+        if (i < inputLines.length - 1) allWords.push('\n');
+    });
+
+    // origChunks: array of pages, each page is array of plain word-strings (and '\n' sentinels)
+    const origChunks = pgCipherSplitToPages(allWords, TEXT_COLS, TEXT_ROWS);
 
     const ciphers = origChunks.map(() =>
-        cipherType === 'letter' ? pgMakeCipherMap()       :
-        cipherType === 'number' ? pgMakeCipherMapNumber() :
-                                  pgMakeCipherMapGlyph(glyphFont)
+        effectiveCipherType === 'letter' ? pgMakeCipherMap()       :
+        effectiveCipherType === 'number' ? pgMakeCipherMapNumber() :
+        effectiveCipherType === 'rune'   ? pgMakeCipherMapRune()   :
+                                           pgMakeCipherMapGlyph()
     );
-    const encChunks = origChunks.map((ch, i) => pgEncrypt(ch, ciphers[i].fwd));
+
+    // Encrypt each page's words into token arrays
+    const encWordChunks = origChunks.map((words, i) => pgEncryptWords(words, ciphers[i].fwd));
 
     // ── Encoded text pages ────────────────────────────────────────────────
-    encChunks.forEach((enc, i) => {
-        if (i > 0) doc.addPage();  // Only add page for 2nd+ iterations; use default first page
-        const suffix = encChunks.length > 1 ? ` — Page ${i + 1} of ${encChunks.length}` : '';
+    encWordChunks.forEach((wordTokens, i) => {
+        if (i > 0) doc.addPage();
+        const suffix = encWordChunks.length > 1 ? ` — Page ${i + 1} of ${encWordChunks.length}` : '';
         pgHeader(doc, `Encoded Text${suffix}`);
 
-        // Draw the cipher key separately (above the grid, not in it)
-        pgDrawCipherKeySeparate(doc, ciphers[i].rev, PG_GRID_X, keyY, cipherType);
+        if (showKeyOnPage) {
+            pgDrawCipherKeySeparate(doc, ciphers[i].fwd, PG_GRID_X, keyY, effectiveCipherType);
+        }
 
-        // Draw grid with conditional gridlines (only for message, not key)
         if (showGridlines) {
             pgDrawCipherGrid(doc, PG_GRID_X, messageY, PG_GRID_W, TEXT_ROWS * cellH, GRID_COLS, TEXT_ROWS, 0);
         }
 
-        // Cipher text: in the grid starting at messageY
-        pgDrawCipherCells(doc, enc, PG_GRID_X, messageY, cellW, cellH, TEXT_COLS, TEXT_ROWS);
+        pgDrawCipherCells(doc, wordTokens, PG_GRID_X, messageY, cellW, cellH, TEXT_COLS, TEXT_ROWS, effectiveCipherType);
     });
 
     // ── Answer key section ────────────────────────────────────────────────
     if (includeAnswerKey) {
-        // Append answer keys at the end without separate page header or page breaks
-        let keyPageAdded = false;
+        doc.addPage();
         let y = PG_GRID_Y;
 
-        origChunks.forEach((orig, i) => {
-            const rev     = ciphers[i].rev;
-            const mapping = alpha.map(ch => `${ch}:${rev[ch]}`).join('   ');
+        origChunks.forEach((origWords, i) => {
+            const fwd     = ciphers[i].fwd;
+            const mapping = alpha.map(ch => `${ch}:${fwd[ch]}`).join('   ');
 
-            // Add a new page only for the first answer key
-            if (!keyPageAdded) {
-                doc.addPage();
-                y = pgHeader(doc, 'Answer Keys');
-                keyPageAdded = true;
-            } else {
-                // Add some vertical space between answer keys
-                y += 8;
-                // Check if there's enough space, otherwise add a new page
-                if (y > PG_H - 40) {
-                    doc.addPage();
-                    y = pgHeader(doc, 'Answer Keys');
-                }
+            const isGlyphType = effectiveCipherType === 'glyph' || effectiveCipherType === 'rune';
+            // Estimate height needed for this entry
+            const keyBlockH = isGlyphType ? 22 : 10;
+            const origText  = origWords.filter(w => w !== '\n').join(' ');
+            const origLines = doc.splitTextToSize(`Original: ${origText}`, PG_GRID_W);
+            const entryH    = (origChunks.length > 1 ? 8 : 0) + keyBlockH + origLines.length * 3.5 + 4;
+            if (i > 0 && y + entryH > PG_H - 15) { doc.addPage(); y = PG_GRID_Y; }
+
+            if (origChunks.length > 1) {
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(9);
+                doc.text(`Page ${i + 1}:`, PG_GRID_X, y);
+                y += 5;
             }
 
-            // Cipher key mapping (full, wrapped to multiple lines if needed)
-            doc.setFont('helvetica', 'bold');
+            if (!isGlyphType) {
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(7.5);
+                const keyLines = doc.splitTextToSize(mapping, PG_GRID_W);
+                doc.text(keyLines, PG_GRID_X, y);
+                y += keyLines.length * 3 + 2;
+            } else {
+                pgDrawCipherKeySeparate(doc, fwd, PG_GRID_X, y, effectiveCipherType);
+                y += 20;
+            }
+
+            doc.setFont('helvetica', 'normal');
             doc.setFontSize(9);
-            doc.text(`KEY (Page ${i + 1}):`, PG_GRID_X, y);
-            y += 3.5;
-
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(7.5);
-            const keyLines = doc.splitTextToSize(mapping, PG_GRID_W);
-            doc.text(keyLines, PG_GRID_X, y);
-            y += keyLines.length * 3 + 2;
-
-            // Original text (full, wrapped)
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(8);
-            const origLines = doc.splitTextToSize(`Original: ${orig}`, PG_GRID_W);
             doc.text(origLines, PG_GRID_X, y);
-            y += origLines.length * 3 + 2;
-        });
-    } else {
-        // Original behavior: separate answer key pages with full formatting
-        pgAnswerKeySeparator(doc);
-        origChunks.forEach((orig, i) => {
-            doc.addPage();
-            let y = pgHeader(doc, `Answer Key — Page ${i + 1}`) + 3;
-
-            const rev     = ciphers[i].rev;
-            const mapping = alpha.map(ch => `${ch}:${rev[ch]}`).join('   ');
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(9);
-            doc.text(`CIPHER KEY`, PG_GRID_X, y);
-            y += 6;
-
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(8);
-            const mLines = doc.splitTextToSize(mapping, PG_GRID_W);
-            doc.text(mLines, PG_GRID_X, y);
-            y += mLines.length * 4 + 8;
-
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(10);
-            doc.text(`ORIGINAL TEXT  (Page ${i + 1})`, PG_GRID_X, y);
-            y += 7;
-
-            doc.setFont('helvetica', 'normal');
-            doc.setFontSize(11);
-            doc.text(doc.splitTextToSize(orig, PG_GRID_W), PG_GRID_X, y);
+            y += origLines.length * 3.5 + 6;
         });
     }
 
@@ -1990,13 +2215,11 @@ function pgGenerateWorksheets() {
         const count  = parseInt(activeConfig.querySelectorAll('select')[1].value, 10);
         const sheets = parseInt(activeConfig.querySelectorAll('select')[2].value, 10);
         pgPDFBonds(target, count, sheets, includeAnswerKey);
-    } else if (type === 'multiplication') {
-        const max    = parseInt(activeConfig.querySelector('.pg-max-group .op-toggle.active')?.dataset.max || '10', 10);
+    } else {
+        const max    = parseInt(activeConfig.querySelector('.op-toggle.active')?.dataset.max || '10', 10);
         const count  = parseInt(activeConfig.querySelector('.pg-count').value, 10);
         const sheets = parseInt(activeConfig.querySelector('.pg-sheets').value, 10);
-        pgPDFMult(1, max, count, sheets, includeAnswerKey);
-    } else {
-        alert(`${type} worksheets coming soon!`);
+        pgPDFArithmetic(type, max, count, sheets, includeAnswerKey);
     }
 }
 
@@ -2014,6 +2237,1537 @@ function pgGenerateCiphers() {
 }
 
 // ============================================
+// CIPHER SOLVER
+// ============================================
+
+const CS_ALPHA = ['', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];  // index 0 = unset
+const CS_ALL26 = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
+
+const csState = {
+    cipherText: '',   // raw encoded text (preserves case/punctuation/newlines)
+    plainText:  '',   // normalised answer for checking (letters only, uppercase)
+    mapping:    {},   // cipherChar(upper) → guessed plainChar(upper) | ''
+    solved:     false,
+    drag:       null,
+    inputMode:  'cipher', // 'cipher' | 'plain'
+};
+
+// ---- Setup ----
+
+function csInferMapping(cipherText, plainText) {
+    const mapping = {};
+    const cl = [...cipherText.toUpperCase()].filter(c => /[A-Z]/.test(c));
+    const pl = [...plainText.toUpperCase()].filter(c => /[A-Z]/.test(c));
+    const len = Math.min(cl.length, pl.length);
+    for (let i = 0; i < len; i++) {
+        const c = cl[i], p = pl[i];
+        if (!mapping[c]) mapping[c] = p;
+        // conflicts stay as first mapping; csMarkCollisions will flag duplicates
+    }
+    return mapping;
+}
+
+function csStart() {
+    const cipherRaw = document.getElementById('pg-cipher-text').value;
+    if (!cipherRaw.trim()) { alert('Please paste a cipher text to solve.'); return; }
+    const plainRaw = document.getElementById('cs-plain-input').value;
+
+    const textChanged = cipherRaw !== csState.cipherText;
+    csState.cipherText = cipherRaw;
+    csState.plainText  = plainRaw.toUpperCase().replace(/[^A-Z]/g, '');
+    csState.solved     = false;
+
+    if (textChanged) {
+        csState.mapping = plainRaw.trim() ? csInferMapping(cipherRaw, plainRaw) : {};
+    }
+
+    document.getElementById('cs-input-panel').classList.add('hidden');
+    document.getElementById('cs-solver').classList.remove('hidden');
+    document.getElementById('cs-solved-banner').classList.add('hidden');
+
+    csRenderKeyRow();
+    csRenderGrid();
+    csUpdateAllCells();
+    csMarkCollisions();
+    csUpdateStatus();
+}
+
+function csEdit() {
+    document.getElementById('cs-input-panel').classList.remove('hidden');
+    document.getElementById('cs-solver').classList.add('hidden');
+}
+
+function csReset() {
+    csState.mapping = {};
+    csState.solved  = false;
+    document.getElementById('cs-grid').classList.remove('cs-solved');
+    document.getElementById('cs-solved-banner').classList.add('hidden');
+    csUpdateAllCells();
+    csMarkCollisions();
+    csUpdateStatus();
+}
+
+// ---- Share / URL ----
+
+function csShare() {
+    const mapStr = CS_ALL26.map(ch => csState.mapping[ch] || '.').join('');
+    const encoded = btoa(unescape(encodeURIComponent(csState.cipherText)));
+    const url = location.origin + location.pathname + '#cs=' + encodeURIComponent(mapStr + '|' + encoded);
+    navigator.clipboard.writeText(url).then(() => {
+        const btn = document.getElementById('cs-share-btn');
+        const old = btn.textContent;
+        btn.textContent = 'COPIED!';
+        setTimeout(() => { btn.textContent = old; }, 1600);
+    }).catch(() => { alert('URL:\n' + url); });
+}
+
+function csLoadFromHash() {
+    if (!location.hash.startsWith('#cs=')) return;
+    try {
+        const raw = decodeURIComponent(location.hash.slice(4));
+        const pipe = raw.indexOf('|');
+        if (pipe < 26) return;
+        const mapStr     = raw.slice(0, pipe);
+        const cipherText = decodeURIComponent(escape(atob(raw.slice(pipe + 1))));
+        const mapping = {};
+        CS_ALL26.forEach((ch, i) => { if (mapStr[i] && mapStr[i] !== '.') mapping[ch] = mapStr[i]; });
+        csState.cipherText = cipherText;
+        csState.plainText  = '';
+        csState.mapping    = mapping;
+        csState.solved     = false;
+        // Navigate to the ciphers tab
+        document.querySelector('[data-tab="ciphers"]').click();
+        document.getElementById('pg-cipher-text').value = cipherText;
+        document.getElementById('cs-input-panel').classList.add('hidden');
+        document.getElementById('cs-solver').classList.remove('hidden');
+        document.getElementById('cs-solved-banner').classList.add('hidden');
+        csRenderKeyRow();
+        csRenderGrid();
+        csUpdateAllCells();
+        csMarkCollisions();
+        csUpdateStatus();
+        csCheckSolved();
+    } catch (_) { /* malformed hash — ignore */ }
+}
+
+// ---- Key row rendering ----
+
+function csRenderKeyRow() {
+    const row = document.getElementById('cs-key-row');
+    row.innerHTML = '';
+    CS_ALL26.forEach(ch => row.appendChild(csMakeKeyCell(ch)));
+    row.addEventListener('pointerdown', csPointerDown);
+    row.addEventListener('wheel', csWheel, { passive: false });
+}
+
+function csMakeKeyCell(letter) {
+    const cell = document.createElement('div');
+    cell.className = 'cs-cell cs-key-cell';
+    cell.dataset.cipher = letter;
+    cell.dataset.isLetter = '1';
+
+    const cipherEl = document.createElement('div');
+    cipherEl.className = 'cs-cipher-char';
+    cipherEl.textContent = letter;
+
+    const guessWrap = document.createElement('div');
+    guessWrap.className = 'cs-guess-wrap';
+
+    const guessEl = document.createElement('div');
+    guessEl.className = 'cs-guess-char cs-unset';
+    guessEl.textContent = '_';
+
+    guessWrap.appendChild(guessEl);
+    cell.appendChild(cipherEl);
+    cell.appendChild(guessWrap);
+    return cell;
+}
+
+// ---- Grid rendering ----
+
+function csRenderGrid() {
+    const grid = document.getElementById('cs-grid');
+    grid.innerHTML = '';
+    grid.classList.remove('cs-solved');
+
+    const lines = csState.cipherText.split('\n');
+
+    lines.forEach((line, li) => {
+        if (li > 0) {
+            const br = document.createElement('div');
+            br.className = 'cs-linebreak';
+            grid.appendChild(br);
+        }
+
+        const parts = line.split(' ');
+        parts.forEach((word, wi) => {
+            if (wi > 0) {
+                const sp = document.createElement('div');
+                sp.className = 'cs-space';
+                grid.appendChild(sp);
+            }
+            if (!word) return;
+
+            const wordDiv = document.createElement('div');
+            wordDiv.className = 'cs-word';
+            for (const ch of word) wordDiv.appendChild(csMakeCell(ch));
+            grid.appendChild(wordDiv);
+        });
+    });
+
+    grid.addEventListener('pointerdown', csPointerDown);
+    grid.addEventListener('wheel', csWheel, { passive: false });
+}
+
+function csMakeCell(ch) {
+    const upper = ch.toUpperCase();
+    const isLetter = /[A-Z]/.test(upper);
+
+    const cell = document.createElement('div');
+    cell.className = 'cs-cell' + (isLetter ? '' : ' cs-nonletter');
+    cell.dataset.cipher = upper;
+    if (isLetter) cell.dataset.isLetter = '1';
+
+    const cipherEl = document.createElement('div');
+    cipherEl.className = 'cs-cipher-char';
+    cipherEl.textContent = ch;
+
+    const guessWrap = document.createElement('div');
+    guessWrap.className = 'cs-guess-wrap';
+
+    const guessEl = document.createElement('div');
+    guessEl.className = 'cs-guess-char' + (isLetter ? ' cs-unset' : '');
+    guessEl.textContent = isLetter ? '_' : ch;
+
+    guessWrap.appendChild(guessEl);
+    cell.appendChild(cipherEl);
+    cell.appendChild(guessWrap);
+    return cell;
+}
+
+// ---- Touch / pointer / wheel interaction ----
+
+function csPointerDown(e) {
+    if (csState.solved) return;
+    const cell = e.target.closest('.cs-cell[data-is-letter]');
+    if (!cell) return;
+    e.preventDefault();
+    cell.setPointerCapture(e.pointerId);
+
+    csState.drag = {
+        cell,
+        cipherChar: cell.dataset.cipher,
+        startY:     e.clientY,
+        prevSteps:  0,
+        moved:      false,
+    };
+
+    cell.addEventListener('pointermove', csPointerMove);
+    cell.addEventListener('pointerup',   csPointerUp);
+    cell.addEventListener('pointercancel', csPointerUp);
+}
+
+function csPointerMove(e) {
+    const d = csState.drag;
+    if (!d) return;
+    const deltaY = d.startY - e.clientY;
+
+    const guessEl = d.cell.querySelector('.cs-guess-char');
+    const subPx = ((deltaY % 28) + 28) % 28 - 14;
+    guessEl.style.transform = `translateY(${-subPx * 0.6}px)`;
+
+    const steps = Math.round(deltaY / 28);
+    const delta = steps - d.prevSteps;
+    if (delta !== 0) {
+        d.prevSteps = steps;
+        d.moved = true;
+        csCycle(d.cipherChar, delta);
+    }
+}
+
+function csPointerUp(e) {
+    const d = csState.drag;
+    if (!d) return;
+
+    const guessEl = d.cell.querySelector('.cs-guess-char');
+    guessEl.style.transform = '';
+
+    if (!d.moved) csCycle(d.cipherChar, 1);
+
+    d.cell.removeEventListener('pointermove', csPointerMove);
+    d.cell.removeEventListener('pointerup',   csPointerUp);
+    d.cell.removeEventListener('pointercancel', csPointerUp);
+    csState.drag = null;
+}
+
+function csWheel(e) {
+    if (csState.solved) return;
+    const cell = e.target.closest('.cs-cell[data-is-letter]');
+    if (!cell) return;
+    e.preventDefault();
+    csCycle(cell.dataset.cipher, e.deltaY > 0 ? 1 : -1);
+}
+
+// ---- Mapping logic ----
+
+function csCycle(cipherChar, delta) {
+    if (csState.solved) return;
+    const cur  = CS_ALPHA.indexOf(csState.mapping[cipherChar] || '');
+    const next = ((cur + delta) % CS_ALPHA.length + CS_ALPHA.length) % CS_ALPHA.length;
+    csState.mapping[cipherChar] = CS_ALPHA[next];
+    csUpdateCipherChar(cipherChar);
+    csMarkCollisions();
+    csUpdateStatus();
+    csCheckSolved();
+}
+
+function csUpdateCipherChar(cipherChar) {
+    const guess = csState.mapping[cipherChar] || '';
+    // Update grid cells
+    document.querySelectorAll(`#cs-grid .cs-cell[data-cipher="${CSS.escape(cipherChar)}"][data-is-letter]`)
+        .forEach(cell => {
+            const guessEl = cell.querySelector('.cs-guess-char');
+            guessEl.textContent = guess || '_';
+            guessEl.classList.toggle('cs-unset', !guess);
+        });
+    // Update key row cell
+    const keyCell = document.querySelector(`#cs-key-row .cs-cell[data-cipher="${CSS.escape(cipherChar)}"]`);
+    if (keyCell) {
+        const guessEl = keyCell.querySelector('.cs-guess-char');
+        guessEl.textContent = guess || '_';
+        guessEl.classList.toggle('cs-unset', !guess);
+    }
+}
+
+function csUpdateAllCells() {
+    CS_ALL26.forEach(ch => csUpdateCipherChar(ch));
+}
+
+function csMarkCollisions() {
+    // Build reverse map: plainChar → [cipherChars]
+    const reverse = {};
+    for (const [cipher, plain] of Object.entries(csState.mapping)) {
+        if (!plain) continue;
+        (reverse[plain] = reverse[plain] || []).push(cipher);
+    }
+    const collisions = new Set();
+    for (const ciphers of Object.values(reverse)) {
+        if (ciphers.length > 1) ciphers.forEach(c => collisions.add(c));
+    }
+    document.querySelectorAll('.cs-cell[data-is-letter]').forEach(cell => {
+        cell.classList.toggle('cs-collision', collisions.has(cell.dataset.cipher));
+    });
+}
+
+function csUpdateStatus() {
+    const chars = new Set();
+    document.querySelectorAll('#cs-grid .cs-cell[data-is-letter]').forEach(c => chars.add(c.dataset.cipher));
+    const total  = chars.size;
+    const filled = [...chars].filter(c => csState.mapping[c]).length;
+    document.getElementById('cs-status').textContent =
+        total ? `${filled} / ${total} letters mapped` : '';
+}
+
+// ---- Win check ----
+
+function csCheckSolved() {
+    if (!csState.plainText) return;
+
+    const decoded = [...csState.cipherText.toUpperCase()]
+        .filter(ch => /[A-Z]/.test(ch))
+        .map(ch => csState.mapping[ch] || '')
+        .join('');
+
+    if (decoded === csState.plainText) {
+        csState.solved = true;
+        document.getElementById('cs-grid').classList.add('cs-solved');
+        document.getElementById('cs-solved-banner').classList.remove('hidden');
+    }
+}
+
+// ============================================
+// TIMES TABLES GRID
+// ============================================
+
+const ttState = {
+    mode: 'explore',   // 'explore' | 'quiz'
+    max:  10,
+    revealed: {},      // "r,c" → true (explore mode reveal state)
+    active:   null,    // {r, c} currently being quizzed
+};
+
+function ttInit() {
+    ttState.revealed = {};
+    ttState.active   = null;
+    ttState.max      = parseInt(document.getElementById('tt-max').value, 10);
+    ttRenderGrid();
+    ttUpdateModeUI();
+}
+
+function ttMastery(r, c)        { return parseInt(localStorage.getItem(`ttFact_${r}x${c}`) || '0', 10); }
+function ttBumpMastery(r, c)    { localStorage.setItem(`ttFact_${r}x${c}`, String(ttMastery(r, c) + 1)); }
+
+function ttSetMode(mode) {
+    ttState.mode   = mode;
+    ttState.active = null;
+    ttRenderGrid();
+    ttUpdateModeUI();
+}
+
+function ttUpdateModeUI() {
+    document.querySelectorAll('.tt-mode-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.ttMode === ttState.mode));
+    const isQuiz = ttState.mode === 'quiz';
+    document.getElementById('tt-quiz-bar').classList.toggle('hidden', !isQuiz);
+    document.getElementById('tt-equation').classList.toggle('hidden', isQuiz);
+    if (isQuiz) {
+        ttAutoSelect();
+    } else {
+        ttClearQuizPrompt();
+        document.getElementById('tt-equation').textContent = '';
+    }
+}
+
+function ttRenderGrid() {
+    const grid = document.getElementById('tt-grid');
+    const n = ttState.max;
+    grid.innerHTML = '';
+    grid.style.gridTemplateColumns = `repeat(${n + 1}, 1fr)`;
+
+    for (let r = 0; r <= n; r++) {
+        for (let c = 0; c <= n; c++) {
+            const cell = document.createElement('div');
+            if (r === 0 && c === 0) {
+                cell.className = 'tt-cell tt-corner';
+                cell.textContent = '×';
+            } else if (r === 0) {
+                cell.className = 'tt-cell tt-header';
+                cell.textContent = c;
+            } else if (c === 0) {
+                cell.className = 'tt-cell tt-header';
+                cell.textContent = r;
+            } else {
+                cell.className = 'tt-cell tt-answer';
+                cell.dataset.r = r;
+                cell.dataset.c = c;
+                const key = `${r},${c}`;
+                if (ttState.mode === 'explore' && ttState.revealed[key]) {
+                    cell.textContent = r * c;
+                    cell.classList.add('tt-filled');
+                }
+            }
+            grid.appendChild(cell);
+        }
+    }
+
+    grid.onclick = ttGridClick;
+}
+
+function ttGridClick(e) {
+    const cell = e.target.closest('.tt-answer');
+    if (!cell) return;
+    const r = +cell.dataset.r, c = +cell.dataset.c;
+
+    if (ttState.mode === 'explore') {
+        const key = `${r},${c}`;
+        ttState.revealed[key] = !ttState.revealed[key];
+        const eq = document.getElementById('tt-equation');
+        if (ttState.revealed[key]) {
+            cell.textContent = r * c;
+            cell.classList.add('tt-filled');
+            eq.textContent = `${r} × ${c} = ${r * c}`;
+        } else {
+            cell.textContent = '';
+            cell.classList.remove('tt-filled');
+            eq.textContent = '';
+        }
+        ttHighlightFactors(r, c, ttState.revealed[key]);
+    } else {
+        ttStartQuiz(r, c, cell);
+    }
+}
+
+function ttAutoSelect() {
+    const n = ttState.max;
+    // Prefer cells not yet answered correctly this session; weight toward low mastery
+    const candidates = [];
+    for (let r = 1; r <= n; r++) {
+        for (let c = 1; c <= n; c++) {
+            const cell = document.querySelector(`.tt-answer[data-r="${r}"][data-c="${c}"]`);
+            if (cell && !cell.classList.contains('tt-filled')) candidates.push({ r, c });
+        }
+    }
+    if (!candidates.length) { ttClearQuizPrompt(); return; }
+    const pick = candidates[Math.floor(Math.random() * candidates.length)];
+    const cell = document.querySelector(`.tt-answer[data-r="${pick.r}"][data-c="${pick.c}"]`);
+    ttStartQuiz(pick.r, pick.c, cell);
+}
+
+function ttHighlightFactors(r, c, on) {
+    document.querySelectorAll('.tt-header').forEach(h => h.classList.remove('tt-hl'));
+    if (!on) return;
+    const cells = document.querySelectorAll('.tt-cell');
+    const n = ttState.max;
+    // header for column c is at index c; header for row r is at index r*(n+1)
+    cells[c]?.classList.add('tt-hl');
+    cells[r * (n + 1)]?.classList.add('tt-hl');
+}
+
+function ttStartQuiz(r, c, cell) {
+    document.querySelectorAll('.tt-answer.tt-active').forEach(x => x.classList.remove('tt-active'));
+    cell.classList.add('tt-active');
+    ttState.active = { r, c };
+    ttHighlightFactors(r, c, true);
+    document.getElementById('tt-quiz-prompt').textContent = `${r} × ${c} =`;
+    const input = document.getElementById('tt-quiz-input');
+    input.value = '';
+    input.focus();
+}
+
+function ttClearQuizPrompt() {
+    document.getElementById('tt-quiz-prompt').textContent = '';
+    document.getElementById('tt-quiz-input').value = '';
+    ttState.active = null;
+    document.querySelectorAll('.tt-answer.tt-active').forEach(x => x.classList.remove('tt-active'));
+    ttHighlightFactors(0, 0, false);
+}
+
+function ttSubmitQuiz() {
+    if (!ttState.active) return;
+    const { r, c } = ttState.active;
+    const input = document.getElementById('tt-quiz-input');
+    const guess = parseInt(input.value, 10);
+    const cell = document.querySelector(`.tt-answer[data-r="${r}"][data-c="${c}"]`);
+    if (guess === r * c) {
+        cell.textContent = r * c;
+        cell.classList.add('tt-filled');
+        cell.classList.remove('tt-active', 'tt-wrong');
+        ttBumpMastery(r, c);
+        ttAutoSelect();   // auto-advance to the next cell
+    } else {
+        cell.classList.add('tt-wrong');
+        setTimeout(() => cell.classList.remove('tt-wrong'), 400);
+        input.value = '';
+        input.focus();
+    }
+}
+
+// ============================================
+// FRACTIONS — COMPARE TWO
+// ============================================
+
+const frState = {
+    mode:   'compare',  // 'compare' | 'identify'
+    maxDen: 6,
+    shape:  'bar',
+    score:  0,
+    bigger: 0,   // index (0 or 1) of the larger fraction
+    idFrac: null, // {num, den} for identify mode
+    locked: false,
+};
+
+function frInit() {
+    frState.maxDen = parseInt(document.getElementById('fr-max-den').value, 10);
+    frState.score  = 0;
+    frUpdateScore();
+    document.getElementById('fr-feedback').textContent = '';
+    frNewRound();
+}
+
+function frSetMode(mode) {
+    frState.mode = mode;
+    document.querySelectorAll('.fr-mode-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.frMode === mode));
+    document.getElementById('fr-compare').classList.toggle('hidden', mode !== 'compare');
+    document.getElementById('fr-identify').classList.toggle('hidden', mode !== 'identify');
+    frNewRound();
+}
+
+function frSetShape(shape) {
+    frState.shape = shape;
+    document.querySelectorAll('.fr-shape-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.frShape === shape));
+    frNewRound();
+}
+
+function frRandFraction() {
+    const den = 2 + Math.floor(Math.random() * (frState.maxDen - 1)); // 2..maxDen
+    const num = 1 + Math.floor(Math.random() * (den - 1));            // 1..den-1
+    return { num, den };
+}
+
+function frNewRound() {
+    document.getElementById('fr-feedback').textContent = '';
+    if (frState.mode === 'identify') return frNewIdentify();
+    return frNewCompare();
+}
+
+function frNewIdentify() {
+    frState.locked = false;
+    const f = frRandFraction();
+    frState.idFrac = f;
+    document.getElementById('fr-id-shape').innerHTML = frRenderShape(f.num, f.den, frState.shape);
+    document.getElementById('fr-id-num').value = '';
+    document.getElementById('fr-id-den').value = '';
+    document.getElementById('fr-id-num').focus();
+}
+
+function frGcd(a, b) { return b ? frGcd(b, a % b) : a; }
+
+function frCheckIdentify() {
+    if (frState.locked) return;
+    const num = parseInt(document.getElementById('fr-id-num').value, 10);
+    const den = parseInt(document.getElementById('fr-id-den').value, 10);
+    const fb = document.getElementById('fr-feedback');
+    const f = frState.idFrac;
+    // Any equivalent fraction is correct (cross-multiply), e.g. 1/2 for 3/6.
+    const valid = Number.isInteger(num) && Number.isInteger(den) && num > 0 && den > 0;
+    if (valid && num * f.den === den * f.num) {
+        frState.locked = true;
+        // Show the shape's own fraction and, when it isn't already lowest terms,
+        // its simplest form too — so both correct answers are visible.
+        const g = frGcd(f.num, f.den);
+        const simplest = g > 1 ? ` = ${f.num / g}/${f.den / g}` : '';
+        fb.textContent = `✓ ${f.num}/${f.den}${simplest}`;
+        fb.className = 'feedback-display fr-fb-correct';
+        frState.score++;
+        frUpdateScore();
+        setTimeout(frNewRound, g > 1 ? 1400 : 800);
+    } else {
+        fb.textContent = '✗ Try again';
+        fb.className = 'feedback-display fr-fb-wrong';
+    }
+}
+
+function frNewCompare() {
+    frState.locked = false;
+    document.getElementById('fr-feedback').textContent = '';
+
+    let a, b, va, vb;
+    do {
+        a = frRandFraction();
+        b = frRandFraction();
+        va = a.num / a.den;
+        vb = b.num / b.den;
+    } while (Math.abs(va - vb) < 1e-9); // reject equal values
+
+    frState.bigger = va > vb ? 0 : 1;
+
+    const wrap = document.getElementById('fr-shapes');
+    wrap.innerHTML = '';
+    [a, b].forEach((f, i) => {
+        const card = document.createElement('div');
+        card.className = 'fr-shape-card';
+        card.dataset.idx = i;
+        card.innerHTML = frRenderShape(f.num, f.den, frState.shape) +
+            `<div class="fr-label">${f.num}/${f.den}</div>`;
+        card.addEventListener('click', () => frAnswer(i, card));
+        wrap.appendChild(card);
+    });
+}
+
+function frRenderShape(num, den, shape) {
+    if (shape === 'pie') return frRenderPie(num, den);
+    return frRenderBar(num, den);
+}
+
+function frRenderBar(num, den) {
+    const W = 160, H = 120;
+    const segW = W / den;
+    let rects = '';
+    for (let i = 0; i < den; i++) {
+        const fill = i < num ? 'var(--fr-fill, #2e7d32)' : '#fff';
+        rects += `<rect x="${i * segW}" y="0" width="${segW}" height="${H}" fill="${fill}" stroke="#000" stroke-width="2"/>`;
+    }
+    return `<svg viewBox="0 0 ${W} ${H}" class="fr-svg" xmlns="http://www.w3.org/2000/svg">${rects}</svg>`;
+}
+
+function frRenderPie(num, den) {
+    const R = 58, cx = 60, cy = 60;
+    let paths = '';
+    for (let i = 0; i < den; i++) {
+        const a0 = (i / den) * 2 * Math.PI - Math.PI / 2;
+        const a1 = ((i + 1) / den) * 2 * Math.PI - Math.PI / 2;
+        const x0 = cx + R * Math.cos(a0), y0 = cy + R * Math.sin(a0);
+        const x1 = cx + R * Math.cos(a1), y1 = cy + R * Math.sin(a1);
+        const large = (a1 - a0) > Math.PI ? 1 : 0;
+        const fill = i < num ? 'var(--fr-fill, #2e7d32)' : '#fff';
+        paths += `<path d="M ${cx} ${cy} L ${x0.toFixed(2)} ${y0.toFixed(2)} A ${R} ${R} 0 ${large} 1 ${x1.toFixed(2)} ${y1.toFixed(2)} Z" fill="${fill}" stroke="#000" stroke-width="2"/>`;
+    }
+    return `<svg viewBox="0 0 120 120" class="fr-svg" xmlns="http://www.w3.org/2000/svg">${paths}</svg>`;
+}
+
+function frAnswer(idx, card) {
+    if (frState.locked) return;
+    frState.locked = true;
+    const fb = document.getElementById('fr-feedback');
+    const cards = document.querySelectorAll('.fr-shape-card');
+
+    if (idx === frState.bigger) {
+        card.classList.add('fr-correct');
+        fb.textContent = '✓';
+        fb.className = 'feedback-display fr-fb-correct';
+        frState.score++;
+        frUpdateScore();
+        setTimeout(frNewRound, 700);
+    } else {
+        card.classList.add('fr-wrong');
+        cards[frState.bigger].classList.add('fr-correct');
+        fb.textContent = '✗';
+        fb.className = 'feedback-display fr-fb-wrong';
+        setTimeout(frNewRound, 1300);
+    }
+}
+
+function frUpdateScore() {
+    document.getElementById('fr-score').textContent = `Score: ${frState.score}`;
+}
+
+// ============================================
+// VISUALIZER — MAIN MODE TOGGLE
+// ============================================
+
+function vizSetMainMode(mode) {
+    document.querySelectorAll('.viz-mode-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.vizMode === mode));
+    const isPlace = mode === 'place';
+    document.getElementById('viz-multiply-mode').classList.toggle('hidden', isPlace);
+    document.getElementById('viz-place-mode').classList.toggle('hidden', !isPlace);
+    if (isPlace) pvRender(document.getElementById('pv-input').value);
+}
+
+// ============================================
+// PLACE-VALUE BLOCKS (base-ten)
+// ============================================
+
+const PV_PLACES = [
+    { name: 'Thousands', color: '#7e57c2' },
+    { name: 'Hundreds',  color: '#1e88e5' },
+    { name: 'Tens',      color: '#43a047' },
+    { name: 'Ones',      color: '#fb8c00' },
+];
+
+const pvState = { speech: '' };  // last number in words, for the read-aloud button
+
+function pvRender(raw) {
+    const wrap = document.getElementById('pv-svg-wrap');
+    const str = String(raw).replace(/\D/g, '');
+    if (!str.length) {
+        wrap.innerHTML = '<div class="pv-empty">Enter a number</div>';
+        document.getElementById('pv-words').innerHTML = '';
+        document.getElementById('pv-play').classList.add('hidden');
+        pvState.speech = '';
+        return;
+    }
+
+    // Take up to 4 digits (thousands max); pad to the number's own length
+    const digits = str.slice(-4).split('').map(Number); // most-significant first
+    const places = digits.length;                       // 1..4
+    // Map each digit to its place definition (right-aligned within PV_PLACES)
+    const used = PV_PLACES.slice(4 - places); // e.g. 3 digits → Hundreds,Tens,Ones
+
+    const GAP = 4;             // gap between place groups, in cell units
+    const LABEL_AREA = 34;     // vertical room beneath blocks for labels (cell units)
+    const HEADER_AREA = 12;    // space for the formatted number header
+
+    // Compute each group's footprint (in unit cells) without emitting yet
+    const groups = used.map((def, i) => {
+        const d = digits[i];
+        const placeName = def.name;
+        let w = 1, h = 0, pieces = [];
+        if (placeName === 'Thousands') {
+            // d cubes, each drawn as a 10-wide × 100-tall column (ten stacked hundred-flats)
+            for (let k = 0; k < d; k++) pieces.push({ x: k * 11, y: 0, w: 10, h: 100, layers: 10 });
+            w = d > 0 ? d * 11 - 1 : 6; h = d > 0 ? 100 : 0;
+        } else if (placeName === 'Hundreds') {
+            // d flats (10×10) stacked vertically
+            for (let k = 0; k < d; k++) pieces.push({ x: 0, y: k * 11, w: 10, h: 10 });
+            w = d > 0 ? 10 : 6; h = d > 0 ? d * 11 - 1 : 0;
+        } else if (placeName === 'Tens') {
+            // d rods (1×10) side by side
+            for (let k = 0; k < d; k++) pieces.push({ x: k * 2, y: 0, w: 1, h: 10 });
+            w = d > 0 ? d * 2 - 1 : 6; h = d > 0 ? 10 : 0;
+        } else { // Ones
+            // d unit cubes stacked vertically
+            for (let k = 0; k < d; k++) pieces.push({ x: 0, y: k * 2, w: 1, h: 1 });
+            w = d > 0 ? 1 : 6; h = d > 0 ? d * 2 - 1 : 0;
+        }
+        return { def, digit: d, w, h, pieces };
+    });
+
+    const maxH = Math.max(...groups.map(g => g.h), 1);
+    let totalW = groups.reduce((s, g) => s + g.w, 0) + GAP * (groups.length - 1);
+
+    // Format the full number with commas
+    const fullNumberFormatted = parseInt(digits.join(''), 10).toLocaleString('en-US');
+
+    // Emit SVG. Bottom-align each group at baseline = maxH.
+    let body = '';
+    let cursorX = 0;
+    groups.forEach((g, groupIdx) => {
+        const groupBottom = maxH;
+        const groupTop = groupBottom - g.h;
+        g.pieces.forEach(p => {
+            const px = cursorX + p.x;
+            const py = groupTop + p.y;
+            body += pvBlock(px, py, p.w, p.h, g.def.color, p.layers);
+        });
+        // Label: big bold digit beneath each place group (the place name is now
+        // conveyed by the colour-coded words above, so no angled label here).
+        const cx = cursorX + g.w / 2;
+        const ly = maxH + 13;
+        body += `<text x="${cx.toFixed(2)}" y="${ly}" text-anchor="middle" class="pv-digit" fill="${g.def.color}">${g.digit}</text>`;
+
+        // Add comma after thousands digit (when we have 4 digits)
+        if (groupIdx === 0 && groups.length === 4) {
+            const commaX = cursorX + g.w + GAP / 2;
+            body += `<text x="${commaX.toFixed(2)}" y="${ly}" text-anchor="middle" class="pv-comma" fill="${g.def.color}" font-weight="bold">,</text>`;
+        }
+
+        cursorX += g.w + GAP;
+    });
+
+    const pad = 3;
+    const vbW = totalW + pad * 2;
+    const vbH = maxH + LABEL_AREA + HEADER_AREA + pad * 2;
+    wrap.innerHTML =
+        `<svg viewBox="${-pad} ${(-pad - HEADER_AREA)} ${vbW.toFixed(2)} ${vbH.toFixed(2)}" ` +
+        `preserveAspectRatio="xMidYMax meet" class="pv-svg" xmlns="http://www.w3.org/2000/svg">` +
+        `<defs><pattern id="pvgrid" width="1" height="1" patternUnits="userSpaceOnUse">` +
+        `<rect width="1" height="1" fill="none" stroke="rgba(0,0,0,0.28)" stroke-width="0.06"/></pattern></defs>` +
+        body + `</svg>`;
+
+    pvRenderWords(parseInt(digits.join(''), 10));
+}
+
+// The number written out in words, each place coloured to match its blocks and
+// digit (thousands purple, hundreds blue, tens green, ones orange; connectors
+// grey). British style: "one thousand, two hundred and thirty-four".
+const PV_ONES = ['zero','one','two','three','four','five','six','seven','eight','nine'];
+const PV_TEENS = ['ten','eleven','twelve','thirteen','fourteen','fifteen','sixteen','seventeen','eighteen','nineteen'];
+const PV_TENS = ['','','twenty','thirty','forty','fifty','sixty','seventy','eighty','ninety'];
+
+function pvWords(n) {
+    const C = {}; PV_PLACES.forEach(p => C[p.name] = p.color);
+    const CN = '#888';                       // connectors: commas, "and", hyphen
+    const seg = [];
+    const push = (text, color) => seg.push({ text, color });
+
+    if (n === 0) {
+        push('zero', C.Ones);
+    } else {
+        const th = Math.floor(n / 1000), rem = n % 1000;
+        const h = Math.floor(rem / 100), low = rem % 100;
+        if (th)  push(PV_ONES[th] + ' thousand', C.Thousands);
+        if (h) { if (seg.length) push(', ', CN); push(PV_ONES[h] + ' hundred', C.Hundreds); }
+        if (low) {
+            if (seg.length) push(' and ', CN);
+            if (low < 10)       push(PV_ONES[low], C.Ones);
+            else if (low < 20)  push(PV_TEENS[low - 10], C.Tens);
+            else {
+                push(PV_TENS[Math.floor(low / 10)], C.Tens);
+                if (low % 10) { push('-', CN); push(PV_ONES[low % 10], C.Ones); }
+            }
+        }
+    }
+    const speech = seg.map(s => s.text).join('').replace(/\s+/g, ' ').trim();
+    return { segments: seg, speech };
+}
+
+function pvRenderWords(n) {
+    const { segments, speech } = pvWords(n);
+    document.getElementById('pv-words').innerHTML =
+        segments.map(s => `<span style="color:${s.color}">${s.text}</span>`).join('');
+    pvState.speech = speech;
+    document.getElementById('pv-play').classList.toggle('hidden', !speech);
+}
+
+// Read the current number aloud, preferring a British English voice.
+function pvSpeak() {
+    if (!pvState.speech || !('speechSynthesis' in window)) return;
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(pvState.speech);
+    u.lang = 'en-GB';
+    u.rate = 0.95;
+    const voices = speechSynthesis.getVoices();
+    const gb = voices.find(v => /en[-_]GB/i.test(v.lang)) ||
+               voices.find(v => /United Kingdom|British|Daniel|Kate|Serena|Arthur|Oliver/i.test(v.name));
+    if (gb) u.voice = gb;
+    speechSynthesis.speak(u);
+}
+
+// A single base-ten piece: colored fill + unit-cell grid overlay + bold border.
+// `layers` (thousands only) draws horizontal separators every 10 rows to show the
+// ten stacked hundred-flats that make up a thousand-cube.
+function pvBlock(x, y, w, h, color, layers) {
+    let s = `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="${color}" fill-opacity="0.85"/>`;
+    s += `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="url(#pvgrid)"/>`;
+    if (layers) {
+        for (let L = 1; L < layers; L++) {
+            const ly = y + (h / layers) * L;
+            s += `<line x1="${x}" y1="${ly}" x2="${x + w}" y2="${ly}" stroke="#111" stroke-width="0.18"/>`;
+        }
+    }
+    s += `<rect x="${x}" y="${y}" width="${w}" height="${h}" fill="none" stroke="#111" stroke-width="0.2"/>`;
+    return s;
+}
+
+// ============================================
+// MONEY VISUALIZER
+// ============================================
+
+// Every piece carries its real-world width in millimetres (`mm`), and CSS sizes
+// it as `mm * --mn-ppm`. So everything is to scale against everything else — a
+// dime really is smaller than a penny, a note really is ~6x a quarter. A pile is
+// laid out as one column per denomination; mnFitStage() sets --mn-ppm to the
+// largest value where those columns still fit 90% of the box width.
+//
+// USD pieces are real photos hot-linked from Wikimedia Commons (public domain),
+// layered over a drawn fallback. Other currencies render as drawn SVG only.
+const MN_NOTE_MM = 156;    // a US note is 156 x 66.3 mm; SVG notes reuse the ratio
+
+const MN_CURRENCIES = {
+    // USD pieces are real photos hot-linked from Wikimedia Commons (all public
+    // domain). `face`/`edge`/`ink` stay so mnPieceHTML can layer the photo over a
+    // drawn fallback — a slow or failed fetch still shows a labelled coin/note.
+    USD: {
+        label: '🇺🇸 US Dollar', symbol: '$', minor: '¢',
+        denoms: [
+            { v: 1,     kind: 'coin', mm: 19.05, face: '#c98a56', edge: '#9c5f2e', ink: '#40200a', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/US_One_Cent_Obv.png/250px-US_One_Cent_Obv.png' },
+            { v: 5,     kind: 'coin', mm: 21.21, face: '#c3c5c9', edge: '#8f9196', ink: '#2b2d30', img: 'https://upload.wikimedia.org/wikipedia/commons/b/ba/2026-nickel-transparent-512.png' },
+            { v: 10,    kind: 'coin', mm: 17.91, face: '#c3c5c9', edge: '#8f9196', ink: '#2b2d30', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3c/Dime_Obverse_13.png/250px-Dime_Obverse_13.png' },
+            { v: 25,    kind: 'coin', mm: 24.26, face: '#c3c5c9', edge: '#8f9196', ink: '#2b2d30', img: 'https://upload.wikimedia.org/wikipedia/commons/4/44/2014_ATB_Quarter_Obv.png' },
+            { v: 100,   kind: 'bill', mm: MN_NOTE_MM, face: '#a7c795', ink: '#1e3d18', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/2/23/US_one_dollar_bill%2C_obverse%2C_series_2009.jpg/500px-US_one_dollar_bill%2C_obverse%2C_series_2009.jpg' },
+            { v: 500,   kind: 'bill', mm: MN_NOTE_MM, face: '#93bd9f', ink: '#1e3d18', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f9/US_%245_Series_2006_obverse.jpg/500px-US_%245_Series_2006_obverse.jpg' },
+            { v: 1000,  kind: 'bill', mm: MN_NOTE_MM, face: '#9dc4ac', ink: '#1e3d18', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/bc/US_%2410_Series_2004_face.jpg/500px-US_%2410_Series_2004_face.jpg' },
+            { v: 2000,  kind: 'bill', mm: MN_NOTE_MM, face: '#84b58c', ink: '#1e3d18', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/79/US_%2420_Series_2006_Obverse.jpg/500px-US_%2420_Series_2006_Obverse.jpg' },
+            { v: 10000, kind: 'bill', mm: MN_NOTE_MM, face: '#b8cca0', ink: '#1e3d18', img: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1a/USA_100_Dollar_Bill_Series2009_Obverse.png/500px-USA_100_Dollar_Bill_Series2009_Obverse.png' },
+        ],
+    },
+    GBP: {
+        label: '🇬🇧 British Pound', symbol: '£', minor: 'p',
+        denoms: [
+            { v: 1,    kind: 'coin', mm: 20.30, face: '#c98a56', edge: '#9c5f2e', ink: '#40200a' },
+            { v: 2,    kind: 'coin', mm: 25.90, face: '#c98a56', edge: '#9c5f2e', ink: '#40200a' },
+            { v: 5,    kind: 'coin', mm: 18.00, face: '#c3c5c9', edge: '#8f9196', ink: '#2b2d30' },
+            { v: 10,   kind: 'coin', mm: 24.50, face: '#c3c5c9', edge: '#8f9196', ink: '#2b2d30' },
+            { v: 20,   kind: 'coin', mm: 21.40, face: '#c3c5c9', edge: '#8f9196', ink: '#2b2d30' },
+            { v: 50,   kind: 'coin', mm: 27.30, face: '#c3c5c9', edge: '#8f9196', ink: '#2b2d30' },
+            { v: 100,  kind: 'coin', mm: 23.43, face: '#d8b160', edge: '#a5822f', ink: '#3d2c05' },
+            { v: 200,  kind: 'coin', mm: 28.40, face: '#d8b160', edge: '#8f9196', ink: '#3d2c05' },
+            { v: 500,  kind: 'bill', mm: 125, face: '#6ec3bd', ink: '#0d3a37' },
+            { v: 1000, kind: 'bill', mm: 132, face: '#dd8c54', ink: '#3f1e08' },
+            { v: 2000, kind: 'bill', mm: 139, face: '#9b7fc0', ink: '#2a1747' },
+            { v: 5000, kind: 'bill', mm: 146, face: '#c8544f', ink: '#3d0f0d' },
+        ],
+    },
+    EUR: {
+        label: '🇪🇺 Euro', symbol: '€', minor: 'c',
+        denoms: [
+            { v: 1,    kind: 'coin', mm: 16.25, face: '#c98a56', edge: '#9c5f2e', ink: '#40200a' },
+            { v: 2,    kind: 'coin', mm: 18.75, face: '#c98a56', edge: '#9c5f2e', ink: '#40200a' },
+            { v: 5,    kind: 'coin', mm: 21.25, face: '#c98a56', edge: '#9c5f2e', ink: '#40200a' },
+            { v: 10,   kind: 'coin', mm: 19.75, face: '#d8b160', edge: '#a5822f', ink: '#3d2c05' },
+            { v: 20,   kind: 'coin', mm: 22.25, face: '#d8b160', edge: '#a5822f', ink: '#3d2c05' },
+            { v: 50,   kind: 'coin', mm: 24.25, face: '#d8b160', edge: '#a5822f', ink: '#3d2c05' },
+            { v: 100,  kind: 'coin', mm: 23.25, face: '#c3c5c9', edge: '#a5822f', ink: '#2b2d30' },
+            { v: 200,  kind: 'coin', mm: 25.75, face: '#d8b160', edge: '#8f9196', ink: '#3d2c05' },
+            { v: 500,  kind: 'bill', mm: 120, face: '#b0b0b0', ink: '#2b2b2b' },
+            { v: 1000, kind: 'bill', mm: 127, face: '#e07a7a', ink: '#451212' },
+            { v: 2000, kind: 'bill', mm: 133, face: '#6a9bd8', ink: '#10294a' },
+            { v: 5000, kind: 'bill', mm: 140, face: '#e0a253', ink: '#432a08' },
+        ],
+    },
+    CAD: {
+        label: '🇨🇦 Canadian Dollar', symbol: '$', minor: '¢',
+        denoms: [
+            // Canada retired the penny in 2013 — cash totals round to the nearest 5¢.
+            { v: 5,    kind: 'coin', mm: 21.20, face: '#c3c5c9', edge: '#8f9196', ink: '#2b2d30' },
+            { v: 10,   kind: 'coin', mm: 18.03, face: '#c3c5c9', edge: '#8f9196', ink: '#2b2d30' },
+            { v: 25,   kind: 'coin', mm: 23.88, face: '#c3c5c9', edge: '#8f9196', ink: '#2b2d30' },
+            { v: 100,  kind: 'coin', mm: 26.50, face: '#d8b160', edge: '#a5822f', ink: '#3d2c05' },
+            { v: 200,  kind: 'coin', mm: 28.00, face: '#d8b160', edge: '#8f9196', ink: '#3d2c05' },
+            { v: 500,  kind: 'bill', mm: 152.4, face: '#6f9fd8', ink: '#10294a' },
+            { v: 1000, kind: 'bill', mm: 152.4, face: '#9b7fc0', ink: '#2a1747' },
+            { v: 2000, kind: 'bill', mm: 152.4, face: '#78b184', ink: '#123a1c' },
+            { v: 5000, kind: 'bill', mm: 152.4, face: '#c8544f', ink: '#3d0f0d' },
+        ],
+    },
+    AUD: {
+        label: '🇦🇺 Australian Dollar', symbol: '$', minor: 'c',
+        denoms: [
+            { v: 5,    kind: 'coin', mm: 19.41, face: '#c3c5c9', edge: '#8f9196', ink: '#2b2d30' },
+            { v: 10,   kind: 'coin', mm: 23.60, face: '#c3c5c9', edge: '#8f9196', ink: '#2b2d30' },
+            { v: 20,   kind: 'coin', mm: 28.65, face: '#c3c5c9', edge: '#8f9196', ink: '#2b2d30' },
+            { v: 50,   kind: 'coin', mm: 31.50, face: '#c3c5c9', edge: '#8f9196', ink: '#2b2d30' },
+            { v: 100,  kind: 'coin', mm: 25.00, face: '#d8b160', edge: '#a5822f', ink: '#3d2c05' },
+            { v: 200,  kind: 'coin', mm: 20.50, face: '#d8b160', edge: '#a5822f', ink: '#3d2c05' },
+            { v: 500,  kind: 'bill', mm: 130, face: '#d68fb4', ink: '#45102c' },
+            { v: 1000, kind: 'bill', mm: 137, face: '#6f9fd8', ink: '#10294a' },
+            { v: 2000, kind: 'bill', mm: 144, face: '#e08a4f', ink: '#43200a' },
+            { v: 5000, kind: 'bill', mm: 151, face: '#e0c05a', ink: '#403205' },
+        ],
+    },
+};
+
+const MN_MAX_AMOUNT = 100000; // $1000.00 ceiling for Change mode
+const MN_COL_MAX = 12;      // pieces drawn in one denomination column before a ×N badge
+const MN_WIDTH_FILL = 0.98; // pieces may grow to fill this fraction of the box width
+const MN_PPM_MAX = 6;       // px per mm when a pile is small enough to show full size
+const MN_PPM_MIN = 0.2;     // ...and the floor past which pieces stop shrinking
+const MN_BAR_PPM_MAX = 1.6; // denomination toolbar (Build) sizes smaller than the pile
+const MN_DIGITS = 6;        // cash-register entry cap -> 9999.99
+
+const mnState = {
+    mode:     'identify',   // 'identify' | 'build' | 'change' | 'shop'
+    currency: 'USD',
+    range:    100,          // exclusive ceiling in minor units: 100 = under $1
+    score:    0,
+    target:   0,            // identify answer / build goal, in minor units
+    tray:     [],           // build mode: denomination values in tap order
+    locked:   false,
+    changeKey: 'fewest',
+};
+
+function mnCur() { return MN_CURRENCIES[mnState.currency]; }
+
+// Denominations usable for the current range — a $1 bill is no use under $1.
+function mnPool() {
+    return mnCur().denoms.filter(d => d.v < mnState.range);
+}
+
+function mnDenom(v) { return mnCur().denoms.find(d => d.v === v); }
+
+// "25¢" for minor units, "$1" / "$20" for whole major units.
+function mnLabel(d) {
+    const cur = mnCur();
+    return d.v < 100 ? d.v + cur.minor : cur.symbol + (d.v / 100);
+}
+
+function mnFormat(cents) {
+    const s = mnCur().symbol + (Math.abs(cents) / 100).toFixed(2);
+    return cents < 0 ? '-' + s : s;
+}
+
+// Fewest-pieces breakdown via DP — correct even for non-canonical denomination
+// sets, where greedy would not be. Returns [{v, n}] sorted high→low, or null.
+function mnFewest(cents, denoms) {
+    if (cents === 0) return [];
+    const vals = denoms.map(d => d.v).sort((a, b) => a - b);
+    if (!vals.length) return null;
+    const best = new Array(cents + 1).fill(Infinity);
+    const pick = new Array(cents + 1).fill(-1);
+    best[0] = 0;
+    for (let i = 1; i <= cents; i++) {
+        for (const v of vals) {
+            if (v > i) break;
+            if (best[i - v] + 1 < best[i]) { best[i] = best[i - v] + 1; pick[i] = v; }
+        }
+    }
+    if (best[cents] === Infinity) return null;
+    const counts = new Map();
+    for (let c = cents; c > 0; c -= pick[c]) counts.set(pick[c], (counts.get(pick[c]) || 0) + 1);
+    return mnGroups(counts);
+}
+
+function mnGroups(counts) {
+    return [...counts].map(([v, n]) => ({ v, n })).sort((a, b) => b.v - a.v);
+}
+
+function mnTotal(groups) { return groups.reduce((s, g) => s + g.v * g.n, 0); }
+function mnCount(groups) { return groups.reduce((s, g) => s + g.n, 0); }
+
+// A random amount inside the selected range. Stepping by the smallest piece
+// keeps it makeable in currencies with no 1¢ (CAD/AUD).
+function mnRandomAmount() {
+    const step = mnCur().denoms[0].v;
+    const steps = Math.floor((mnState.range - 1) / step);
+    return (1 + Math.floor(Math.random() * steps)) * step;
+}
+
+// ---- Money: pieces ----
+
+function mnPieceHTML(d) {
+    const draw = d.kind === 'coin' ? mnCoinSVG(d) : mnBillSVG(d);
+    if (!d.img) return draw;
+    // Hot-linked photo layered over the drawn piece. If the fetch is slow the
+    // drawn coin/note shows until it arrives; if it fails, onerror removes the
+    // <img> and the drawing stays. referrerpolicy keeps Wikimedia happy.
+    const shape = d.kind === 'coin' ? 'mn-coin' : 'mn-bill';
+    return `<span class="mn-piece mn-photo ${shape}" style="--mm:${d.mm}">${draw}` +
+        `<img src="${d.img}" alt="${mnLabel(d)}" draggable="false" ` +
+        `referrerpolicy="no-referrer" onerror="this.remove()"></span>`;
+}
+
+function mnCoinSVG(d) {
+    const label = mnLabel(d);
+    const fs = label.length >= 4 ? 24 : label.length === 3 ? 29 : 34;
+    return `<svg viewBox="0 0 100 100" class="mn-piece mn-coin" style="--mm:${d.mm}" ` +
+        `role="img" aria-label="${label}" xmlns="http://www.w3.org/2000/svg">` +
+        `<circle cx="50" cy="50" r="49" fill="${d.edge}"/>` +
+        `<circle cx="50" cy="50" r="43" fill="${d.face}"/>` +
+        `<circle cx="50" cy="50" r="43" fill="none" stroke="rgba(255,255,255,0.5)" stroke-width="2"/>` +
+        `<text x="50" y="50" text-anchor="middle" dominant-baseline="central" font-size="${fs}" ` +
+        `font-weight="800" fill="${d.ink}">${label}</text></svg>`;
+}
+
+// viewBox units are millimetres, so the drawn note matches a real one's proportions.
+function mnBillSVG(d) {
+    const label = mnLabel(d);
+    return `<svg viewBox="0 0 156 66.3" class="mn-piece mn-bill" style="--mm:${d.mm}" ` +
+        `role="img" aria-label="${label}" xmlns="http://www.w3.org/2000/svg">` +
+        `<rect x="1" y="1" width="154" height="64.3" rx="4" fill="${d.face}" stroke="#2b2b2b" stroke-width="1.6"/>` +
+        `<rect x="8" y="7" width="140" height="52.3" rx="3" fill="none" stroke="rgba(255,255,255,0.55)" stroke-width="1.2"/>` +
+        `<circle cx="78" cy="33" r="16" fill="rgba(255,255,255,0.28)" stroke="rgba(255,255,255,0.5)" stroke-width="1.2"/>` +
+        `<text x="78" y="33" text-anchor="middle" dominant-baseline="central" font-size="17" font-weight="800" fill="${d.ink}">${label}</text>` +
+        `<text x="22" y="16" text-anchor="middle" dominant-baseline="central" font-size="9" font-weight="800" fill="${d.ink}">${label}</text>` +
+        `<text x="134" y="50" text-anchor="middle" dominant-baseline="central" font-size="9" font-weight="800" fill="${d.ink}">${label}</text>` +
+        `</svg>`;
+}
+
+// Renders [{v, n}] as one column per distinct denomination, largest value on the
+// left. A column shows up to MN_COL_MAX real pieces; beyond that it keeps the
+// stack readable and marks the true count with a ×N badge (so "all pennies" of a
+// big amount is a neat stack labelled ×137, not a wall of 137 coins).
+function mnRenderGroups(groups) {
+    if (!groups.length) return '';
+    const cols = groups.map(g => {
+        const d = mnDenom(g.v);
+        const show = Math.min(g.n, MN_COL_MAX);
+        const badge = g.n > show ? `<span class="mn-col-badge">×${g.n}</span>` : '';
+        return `<div class="mn-col">${badge}${mnPieceHTML(d).repeat(show)}</div>`;
+    }).join('');
+    return `<div class="mn-stage">${cols}</div>`;
+}
+
+// Grow the pieces as large as will fit the box, trying BOTH orientations and
+// keeping whichever lets the pieces be bigger: 'mn-cols' stacks each
+// denomination vertically (columns side by side), 'mn-rows' lays each
+// denomination in a horizontal row (rows stacked top to bottom). Wide bills
+// usually win in one orientation and not the other, so this picks the larger.
+function mnFitStage(box) {
+    if (!box) return;
+    const stage = box.querySelector('.mn-stage');
+    if (!stage) return;
+    // Collapse the pieces first, THEN read the box size: a wide pile can inflate
+    // the box's own width, so measuring the target while the stage is tiny gives
+    // the true, content-independent limit to grow back into.
+    box.style.setProperty('--mn-ppm', MN_PPM_MIN);
+    const maxW = box.clientWidth * MN_WIDTH_FILL, maxH = box.clientHeight;
+    if (!maxH) return;
+
+    let best = { ppm: 0, mode: 'mn-cols' };
+    for (const mode of ['mn-cols', 'mn-rows']) {
+        stage.classList.remove('mn-cols', 'mn-rows');
+        stage.classList.add(mode);
+        const ppm = mnMaxPpm(box, stage, maxW, maxH);
+        if (ppm > best.ppm) best = { ppm, mode };
+    }
+    stage.classList.remove('mn-cols', 'mn-rows');
+    stage.classList.add(best.mode);
+    box.style.setProperty('--mn-ppm', best.ppm);
+}
+
+// Largest --mn-ppm at which the stage fits maxW × maxH, by binary search.
+function mnMaxPpm(box, stage, maxW, maxH) {
+    const fits = (ppm) => {
+        box.style.setProperty('--mn-ppm', ppm);
+        return stage.offsetWidth <= maxW && stage.offsetHeight <= maxH;
+    };
+    if (fits(MN_PPM_MAX)) return MN_PPM_MAX;
+    let lo = MN_PPM_MIN, hi = MN_PPM_MAX;
+    for (let i = 0; i < 12; i++) {
+        const mid = (lo + hi) / 2;
+        if (fits(mid)) lo = mid; else hi = mid;
+    }
+    return lo;
+}
+
+// The Build toolbar is a wrap-row of single buttons, not columns; shrink it by
+// height alone so it never spills past its fixed strip.
+function mnFitHeight(el, maxPpm) {
+    if (!el || !el.clientHeight) return;
+    el.style.setProperty('--mn-ppm', maxPpm);
+    if (el.scrollHeight <= el.clientHeight) return;
+    let lo = MN_PPM_MIN, hi = maxPpm;
+    for (let i = 0; i < 8; i++) {
+        const mid = (lo + hi) / 2;
+        el.style.setProperty('--mn-ppm', mid);
+        if (el.scrollHeight <= el.clientHeight) lo = mid; else hi = mid;
+    }
+    el.style.setProperty('--mn-ppm', lo);
+}
+
+function mnRenderInto(el, groups) {
+    el.innerHTML = mnRenderGroups(groups);
+    mnFitStage(el);
+}
+
+function mnSummary(groups) {
+    if (!groups.length) return '';
+    const parts = groups.map(g => `${g.n} × ${mnLabel(mnDenom(g.v))}`);
+    const n = mnCount(groups);
+    return `${n} ${n === 1 ? 'piece' : 'pieces'}: ${parts.join(' + ')}`;
+}
+
+// ---- Money: cash-register amount entry ----
+
+// Digits fill in from the right, so 1 → 0.01, 12 → 0.12, 1234 → 12.34.
+// Leading zeros are dropped so the field stays stable as digits accumulate.
+function mnFieldCents(el) {
+    const digits = el.value.replace(/\D/g, '');
+    return digits ? parseInt(digits, 10) : null;
+}
+
+function mnAttachAmount(el, onChange) {
+    el.addEventListener('input', (e) => {
+        let digits = el.value.replace(/\D/g, '').replace(/^0+(?=\d)/, '').slice(0, MN_DIGITS);
+        // Without this, backspacing bottoms out at "0.00" and can never clear,
+        // because the re-format keeps handing a zero back to the field.
+        if (/^0*$/.test(digits) && e.inputType && e.inputType.startsWith('delete')) digits = '';
+        el.value = digits ? (parseInt(digits, 10) / 100).toFixed(2) : '';
+        if (onChange) onChange(mnFieldCents(el));
+    });
+}
+
+function mnSetField(el, cents) {
+    el.value = cents == null ? '' : (cents / 100).toFixed(2);
+}
+
+// ---- Money: shared ----
+
+function mnInit() {
+    const saved = localStorage.getItem('mnCurrency');
+    if (saved && MN_CURRENCIES[saved]) mnState.currency = saved;
+    document.getElementById('mn-currency').value = mnState.currency;
+    mnState.range = parseInt(document.getElementById('mn-range').value, 10);
+    mnState.score = 0;
+    mnUpdateScore();
+    mnSyncLabels();
+    mnSetMode(mnState.mode);
+}
+
+// Currency symbols appear in several places that aren't re-rendered per round.
+function mnSyncLabels() {
+    const cur = mnCur();
+    const sel = document.getElementById('mn-range');
+    sel.options[0].textContent = `Under ${cur.symbol}1`;
+    sel.options[1].textContent = `Under ${cur.symbol}1000`;
+    document.querySelectorAll('.mn-cur-sym').forEach(el => el.textContent = cur.symbol);
+}
+
+function mnSetMode(mode) {
+    mnState.mode = mode;
+    document.querySelectorAll('.mn-mode-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.mnMode === mode));
+    ['identify', 'build', 'change', 'shop'].forEach(m =>
+        document.getElementById('mn-' + m).classList.toggle('hidden', m !== mode));
+    // Range and score belong to the two quiz modes only.
+    const quiz = mode === 'identify' || mode === 'build';
+    document.getElementById('mn-range-row').classList.toggle('hidden', !quiz);
+    document.getElementById('mn-score-bar').classList.toggle('hidden', !quiz);
+    mnFeedback('', '');
+    if (mode === 'identify') mnNewIdentify();
+    if (mode === 'build')    mnNewBuild();
+    if (mode === 'change')   mnRenderChange();
+    // Built on first entry, not up front: the tiles pull ~10 photos off the
+    // network, and most visitors never open this mode.
+    if (mode === 'shop')     mnShop.results.length ? mnShopRender() : mnShopSearch();
+}
+
+function mnSetCurrency(code) {
+    mnState.currency = code;
+    localStorage.setItem('mnCurrency', code);
+    mnSyncLabels();
+    mnSetMode(mnState.mode);
+}
+
+function mnSetRange(range) {
+    mnState.range = range;
+    mnSetMode(mnState.mode);
+}
+
+function mnFeedback(text, cls) {
+    const fb = document.getElementById('mn-feedback');
+    fb.textContent = text;
+    fb.className = 'feedback-display' + (cls ? ' ' + cls : '');
+}
+
+function mnUpdateScore() {
+    document.getElementById('mn-score').textContent = `Score: ${mnState.score}`;
+}
+
+// Refit the visible pile when the window changes shape.
+function mnRefit() {
+    if (mnState.mode === 'identify') mnFitStage(document.getElementById('mn-id-pieces'));
+    if (mnState.mode === 'build') {
+        mnFitStage(document.getElementById('mn-build-pieces'));
+        mnFitHeight(document.getElementById('mn-denom-bar'), MN_BAR_PPM_MAX);
+    }
+    if (mnState.mode === 'change')   mnFitStage(document.getElementById('mn-change-pieces'));
+}
+
+// ---- Money: Identify ----
+
+function mnNewIdentify() {
+    mnState.locked = false;
+    mnState.target = mnRandomAmount();
+    mnRenderInto(document.getElementById('mn-id-pieces'),
+                 mnFewest(mnState.target, mnPool()) || []);
+    const input = document.getElementById('mn-id-input');
+    input.value = '';
+    input.focus();
+}
+
+function mnCheckIdentify() {
+    if (mnState.locked) return;
+    const cents = mnFieldCents(document.getElementById('mn-id-input'));
+    if (cents === null) return mnFeedback('Type the amount', 'fr-fb-wrong');
+    if (cents === mnState.target) {
+        mnState.locked = true;
+        mnFeedback('✓ ' + mnFormat(mnState.target), 'fr-fb-correct');
+        mnState.score++;
+        mnUpdateScore();
+        setTimeout(mnNewIdentify, 900);
+    } else {
+        mnFeedback('✗ Try again', 'fr-fb-wrong');
+    }
+}
+
+// ---- Money: Build ----
+
+function mnNewBuild() {
+    mnState.locked = false;
+    mnState.tray = [];
+    mnState.target = mnRandomAmount();
+    document.getElementById('mn-target').textContent = mnFormat(mnState.target);
+    mnRenderDenomBar();
+    mnRenderTray();
+}
+
+function mnRenderDenomBar() {
+    document.getElementById('mn-denom-bar').innerHTML = mnPool()
+        .map(d => `<button class="mn-denom-btn" data-mn-v="${d.v}" aria-label="Add ${mnLabel(d)}">` +
+                  `${mnPieceHTML(d)}</button>`)
+        .join('');
+    mnFitHeight(document.getElementById('mn-denom-bar'), MN_BAR_PPM_MAX);
+}
+
+function mnBuildAdd(v) {
+    if (mnState.locked) return;
+    mnState.tray.push(v);
+    mnRenderTray();
+    mnCheckBuild();
+}
+
+function mnBuildUndo() {
+    if (mnState.locked) return;
+    mnState.tray.pop();
+    mnFeedback('', '');
+    mnRenderTray();
+}
+
+function mnBuildClear() {
+    if (mnState.locked) return;
+    mnState.tray = [];
+    mnFeedback('', '');
+    mnRenderTray();
+}
+
+function mnTrayGroups() {
+    const counts = new Map();
+    mnState.tray.forEach(v => counts.set(v, (counts.get(v) || 0) + 1));
+    return mnGroups(counts);
+}
+
+function mnRenderTray() {
+    const groups = mnTrayGroups();
+    const total  = mnTotal(groups);
+    mnRenderInto(document.getElementById('mn-build-pieces'), groups);
+    const el = document.getElementById('mn-total');
+    el.textContent = mnFormat(total);
+    el.classList.toggle('mn-over', total > mnState.target);
+    el.classList.toggle('mn-exact', total === mnState.target && total > 0);
+}
+
+function mnCheckBuild() {
+    const groups = mnTrayGroups();
+    const total  = mnTotal(groups);
+    if (total < mnState.target) return;
+    if (total > mnState.target) {
+        mnFeedback(`Too much — that's ${mnFormat(total - mnState.target)} over`, 'fr-fb-wrong');
+        return;
+    }
+    mnState.locked = true;
+    mnState.score++;
+    mnUpdateScore();
+    const fewest = mnFewest(mnState.target, mnPool());
+    const best   = fewest ? mnCount(fewest) : Infinity;
+    mnFeedback(mnCount(groups) <= best
+        ? '✓ Perfect — fewest pieces!'
+        : `✓ Correct! It can also be done with ${best} ${best === 1 ? 'piece' : 'pieces'}`, 'fr-fb-correct');
+    setTimeout(mnNewBuild, 1500);
+}
+
+// ---- Money: Change ----
+
+// Every way of showing the amount that's worth a look: the practical one, a
+// coins-only version, and the "all pennies" novelties that divide evenly.
+function mnChangeOptions(cents) {
+    const cur   = mnCur();
+    const coins = cur.denoms.filter(d => d.kind === 'coin');
+    const opts  = [];
+
+    const fewest = mnFewest(cents, cur.denoms);
+    if (fewest) opts.push({ key: 'fewest', label: 'Exact change', groups: fewest });
+
+    const coinsOnly = mnFewest(cents, coins);
+    if (coinsOnly && (!fewest || mnCount(coinsOnly) !== mnCount(fewest))) {
+        opts.push({ key: 'coins', label: 'Coins only', groups: coinsOnly });
+    }
+    for (const d of cur.denoms) {
+        if (cents % d.v !== 0) continue;
+        const n = cents / d.v;
+        if (n < 2) continue; // a single piece is already the "exact change" answer
+        opts.push({ key: 'all' + d.v, label: `All ${mnLabel(d)}`, groups: [{ v: d.v, n }] });
+    }
+    return opts;
+}
+
+function mnRenderChange() {
+    const cents  = mnFieldCents(document.getElementById('mn-amount'));
+    const opts   = document.getElementById('mn-options');
+    const sum    = document.getElementById('mn-change-summary');
+    const pieces = document.getElementById('mn-change-pieces');
+    const clear  = (msg) => { opts.innerHTML = ''; sum.textContent = msg; pieces.innerHTML = ''; };
+
+    if (cents === null || cents <= 0) return clear('');
+    if (cents > MN_MAX_AMOUNT) return clear(`Keep it under ${mnFormat(MN_MAX_AMOUNT)}`);
+
+    const list = mnChangeOptions(cents);
+    if (!list.length) {
+        // Only reachable when the amount isn't a multiple of the smallest piece —
+        // e.g. $1.37 in Canada, which retired the penny.
+        return clear(`${mnFormat(cents)} can't be made — the smallest piece is ${mnLabel(mnCur().denoms[0])}`);
+    }
+    if (!list.some(o => o.key === mnState.changeKey)) mnState.changeKey = list[0].key;
+
+    opts.innerHTML = list.map(o =>
+        `<button class="mn-opt${o.key === mnState.changeKey ? ' active' : ''}" data-mn-opt="${o.key}">` +
+        `${o.label}<span class="mn-opt-n">${mnCount(o.groups)}</span></button>`).join('');
+
+    const chosen = list.find(o => o.key === mnState.changeKey);
+    sum.textContent = mnSummary(chosen.groups);
+    mnRenderInto(pieces, chosen.groups);
+}
+
+function mnSetChangeOption(key) {
+    mnState.changeKey = key;
+    mnRenderChange();
+}
+
+// ---- Money: Shopping ----
+
+// A fixed catalogue rather than a live storefront: a static page can't query a
+// retailer (cross-origin requests are blocked and their APIs need server-side
+// keys), so prices live here and only the photos are fetched, straight from
+// Wikimedia Commons. Each name describes what its photo actually shows.
+// Photos are CC-licensed — `by`/`lic` carry the required credit to the tile.
+const MN_SHOP_CATALOG = [
+    { name: "LEGO City Passenger Train", price: 12999, img: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c7/LEGO_7897_City_Passenger_Train_-_2006.jpg/500px-LEGO_7897_City_Passenger_Train_-_2006.jpg", by: "Josh Hallett", lic: "CC BY 2.0" },
+    { name: "LEGO City Airport", price: 8999, img: "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ea/LEGO_City_10159_LEGO_City_Airport_%2829018734008%29.jpg/500px-LEGO_City_10159_LEGO_City_Airport_%2829018734008%29.jpg", by: "Jinko Cruz", lic: "CC BY 2.0" },
+    { name: "LEGO Castle & Knights", price: 7499, img: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cb/LEGO_Castle_and_Knights_%286740904281%29.jpg/500px-LEGO_Castle_and_Knights_%286740904281%29.jpg", by: "Tim Moreillon", lic: "CC BY-SA 2.0" },
+    { name: "LEGO Technic Tractor", price: 5999, img: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/26/LEGO_Technic_John_Deere_6130R.jpg/500px-LEGO_Technic_John_Deere_6130R.jpg", by: "Lasse Deleuran", lic: "Public domain" },
+    { name: "LEGO Himeji Castle", price: 11999, img: "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f7/Himeji_Castle_Lego.jpg/500px-Himeji_Castle_Lego.jpg", by: "Nzquincyma", lic: "CC BY-SA 4.0" },
+    { name: "LEGO Pirate Set", price: 4599, img: "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b0/JLL_Childhood_Collection-_Display_of_Lego-_Pirate_Lego_2760.JPG/500px-JLL_Childhood_Collection-_Display_of_Lego-_Pirate_Lego_2760.JPG", by: "Clem Rutter", lic: "CC BY-SA 3.0" },
+    { name: "LEGO Race Car", price: 3999, img: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/29/2016_Porsche_919_Hybrid_LEGO_Car_Show_%2831410942020%29.jpg/500px-2016_Porsche_919_Hybrid_LEGO_Car_Show_%2831410942020%29.jpg", by: "Prayitno", lic: "CC BY 2.0" },
+    { name: "LEGO Mindstorms Robot", price: 6999, img: "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/EV3_Robot_fight.jpg/500px-EV3_Robot_fight.jpg", by: "Klaus-Dieter Keller", lic: "CC0" },
+    { name: "LEGO Fuel Cell Car", price: 2999, img: "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b6/LEGO_fuel_cell_car_construction_kit.jpg/500px-LEGO_fuel_cell_car_construction_kit.jpg", by: "Matthew Venn", lic: "CC BY-SA 2.0" },
+    { name: "LEGO Technic Bits", price: 1499, img: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/LEGO_Technic_Bits.jpg/500px-LEGO_Technic_Bits.jpg", by: "Windell Oskay", lic: "CC BY 2.0" },
+    { name: "LEGO Technic Gear", price: 299, img: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/A_LEGO_Technic_gear_with_24_teeth.jpg/500px-A_LEGO_Technic_gear_with_24_teeth.jpg", by: "Didaictor", lic: "CC BY-SA 4.0" },
+    { name: "LEGO Duplo Bricks", price: 499, img: "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0f/2_duplo_lego_bricks.jpg/500px-2_duplo_lego_bricks.jpg", by: "Klasbricks", lic: "Public domain" },
+    { name: "LEGO Brick Pile", price: 999, img: "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e0/LEGO-01.jpg/500px-LEGO-01.jpg", by: "Priwo", lic: "Public domain" },
+    { name: "LEGO Duplo Tower", price: 1999, img: "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b8/Duplo_bouwwerk.jpg/500px-Duplo_bouwwerk.jpg", by: "Wiki183", lic: "CC BY-SA 3.0" },
+    { name: "LEGO House Model", price: 2499, img: "https://upload.wikimedia.org/wikipedia/commons/thumb/1/10/Billund_Lego_House_03.jpg/500px-Billund_Lego_House_03.jpg", by: "Andrzej Otrębski", lic: "CC BY-SA 4.0" },
+];
+
+const MN_SHOP_TOP = 10;
+
+// These photos are hot-linked, so a URL can rot without warning. On failure the
+// tile keeps its name and price and just shows an empty frame, rather than a
+// browser broken-image icon.
+const MN_IMG_FALLBACK = `referrerpolicy="no-referrer" onerror="this.style.visibility='hidden'"`;
+
+const mnShop = { budget: 7500, cart: [], results: [], term: 'lego' };
+
+// $25–$250 in $5 steps: always affords something, never affords everything.
+function mnShopRoll() {
+    mnShop.budget = (5 + Math.floor(Math.random() * 46)) * 500;
+    mnShop.cart = [];
+    mnSetField(document.getElementById('mn-shop-budget'), mnShop.budget);
+    mnShopRender();
+}
+
+function mnShopSearch() {
+    const el = document.getElementById('mn-shop-term');
+    const term = (el ? el.value : 'lego').trim().toLowerCase();
+    mnShop.term = term;
+    mnShop.results = MN_SHOP_CATALOG
+        .filter(p => !term || p.name.toLowerCase().includes(term))
+        .slice(0, MN_SHOP_TOP);
+    mnShopRender();
+}
+
+function mnShopSpent() { return mnShop.cart.reduce((s, p) => s + p.price, 0); }
+function mnShopLeft()  { return mnShop.budget - mnShopSpent(); }
+
+function mnShopToggle(name) {
+    const at = mnShop.cart.findIndex(p => p.name === name);
+    if (at >= 0) { mnShop.cart.splice(at, 1); mnShopRender(); return; }
+    const item = mnShop.results.find(p => p.name === name);
+    if (item && item.price <= mnShopLeft()) { mnShop.cart.push(item); mnShopRender(); }
+}
+
+function mnShopRender() {
+    const left = mnShopLeft();
+    const leftEl = document.getElementById('mn-shop-left');
+    leftEl.textContent = mnFormat(left);
+    leftEl.classList.toggle('mn-over', left < 0);
+
+    const spent = document.getElementById('mn-shop-spent');
+    spent.textContent = mnShop.cart.length
+        ? `${mnShop.cart.length} in cart · ${mnFormat(mnShopSpent())} spent` : '';
+
+    const grid = document.getElementById('mn-shop-grid');
+    if (!mnShop.results.length) {
+        grid.innerHTML = `<div class="mn-shop-empty">Nothing found for “${mnShop.term}” — try “lego”, “castle”, or “duplo”.</div>`;
+    } else {
+        grid.innerHTML = mnShop.results.map(p => {
+            const inCart = mnShop.cart.some(c => c.name === p.name);
+            const afford = p.price <= left;
+            const cls = 'mn-prod' + (inCart ? ' mn-in-cart' : afford ? '' : ' mn-unafford');
+            const credit = `${p.name} — photo: ${p.by} / ${p.lic}, via Wikimedia Commons`;
+            return `<button class="${cls}" data-mn-prod="${encodeURIComponent(p.name)}"` +
+                `${inCart || afford ? '' : ' disabled'} title="${credit}">` +
+                `<img class="mn-prod-img" src="${p.img}" alt="" ${MN_IMG_FALLBACK}>` +
+                `<span class="mn-prod-name">${p.name}</span>` +
+                `<span class="mn-prod-price">${mnFormat(p.price)}</span>` +
+                `<span class="mn-prod-tag">${inCart ? 'In cart ✓' : afford ? 'Add' : 'Too expensive'}</span>` +
+                `</button>`;
+        }).join('');
+    }
+
+    document.getElementById('mn-shop-cart').innerHTML = mnShop.cart.length
+        ? mnShop.cart.map(p =>
+            `<button class="mn-cart-item" data-mn-cart="${encodeURIComponent(p.name)}" title="Remove ${p.name}">` +
+            `<img class="mn-cart-img" src="${p.img}" alt="" ${MN_IMG_FALLBACK}>` +
+            `<span class="mn-cart-name">${p.name}</span>` +
+            `<span class="mn-cart-price">${mnFormat(p.price)}</span>` +
+            `<span class="mn-cart-x">✕</span></button>`).join('')
+        : '<div class="mn-cart-empty">Cart is empty — tap something to add it.</div>';
+}
+
+// ============================================
 // INIT
 // ============================================
 
@@ -2027,10 +3781,15 @@ const TAB_ENTRY = {
     'ten-frame':  () => { showScreen('ten-frame'); tfClear(); },
     'visualizer': () => {
         showScreen('visualizer');
+        vizSetMainMode('multiply');
         initVisualizer();
         handleVisualizerClear();
+        vizSetPhase('idle');
     },
     'sudoku':     () => showScreen('sudoku'),
+    'times-grid': () => { showScreen('times-grid'); ttInit(); },
+    'fractions':  () => { showScreen('fractions');  frInit(); },
+    'money':      () => { showScreen('money');      mnInit(); },
 };
 
 function onTabLeave(fromTab) {
@@ -2127,14 +3886,37 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
     // ---- Sorting ----
-    document.getElementById('word-sort-menu-screen')
-        .querySelectorAll('.ws-diff-btn')
-        .forEach(btn => btn.addEventListener('click', () => startWordSort(btn.dataset.diff)));
+    const sortMenu = document.getElementById('word-sort-menu-screen');
+
+    sortMenu.querySelectorAll('.ws-type-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            sortMenu.querySelectorAll('.ws-type-btn').forEach(b => {
+                b.classList.toggle('active', b === btn);
+                b.className = b === btn ? 'btn btn-primary ws-type-btn active' : 'btn btn-secondary ws-type-btn';
+            });
+            initWordSortMenu();
+        });
+    });
+
+    sortMenu.querySelectorAll('.ws-diff-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            sortMenu.querySelectorAll('.ws-diff-btn').forEach(b => {
+                b.className = b === btn ? 'btn btn-primary ws-diff-btn active' : 'btn btn-secondary ws-diff-btn';
+            });
+            initWordSortMenu();
+        });
+    });
+
+    document.getElementById('ws-start-btn').addEventListener('click', () => {
+        const type = sortMenu.querySelector('.ws-type-btn.active')?.dataset.type || 'letters';
+        const diff = sortMenu.querySelector('.ws-diff-btn.active')?.dataset.diff || 'easy';
+        startWordSort(type, diff);
+    });
 
     document.getElementById('ws-check-btn').addEventListener('click', wsCheckOrder);
 
     document.getElementById('ws-play-again-btn').addEventListener('click', () => {
-        startWordSort(state.wsDifficulty);
+        startWordSort(state.wsType, state.wsDifficulty.split('_')[1] || 'easy');
     });
 
     document.getElementById('ws-menu-btn').addEventListener('click', () => {
@@ -2150,6 +3932,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     document.getElementById('ciphers-generate-btn').addEventListener('click', pgGenerateCiphers);
 
+    // ---- Cipher solver ----
+    document.getElementById('cs-start-btn').addEventListener('click', csStart);
+    document.getElementById('cs-reset-btn').addEventListener('click', csReset);
+    document.getElementById('cs-edit-btn').addEventListener('click', csEdit);
+    document.getElementById('cs-share-btn').addEventListener('click', csShare);
+    csLoadFromHash();
+
     // ---- Make Ten ----
     document.getElementById('mt-target-btns').addEventListener('click', (e) => {
         const btn = e.target.closest('[data-target]');
@@ -2158,10 +3947,20 @@ document.addEventListener('DOMContentLoaded', () => {
             .forEach(b => b.classList.toggle('active', b === btn));
     });
 
+    document.getElementById('mt-reps-btns').addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-reps]');
+        if (!btn) return;
+        document.querySelectorAll('#mt-reps-btns [data-reps]')
+            .forEach(b => b.classList.toggle('active', b === btn));
+    });
+
     document.getElementById('mt-start-btn').addEventListener('click', () => {
         const sel = document.querySelector('#mt-target-btns [data-target].active');
         const target = parseInt(sel ? sel.dataset.target : '10', 10);
-        startTapGame('make-ten', { target });
+        const repSel = document.querySelector('#mt-reps-btns [data-reps].active');
+        const reps = parseInt(repSel ? repSel.dataset.reps : '1', 10);
+        const tenFrame = document.getElementById('mt-tenframe').checked;
+        startTapGame('make-ten', { target, tenFrame, reps });
     });
 
     document.getElementById('tg-play-again-btn').addEventListener('click', () => {
@@ -2178,35 +3977,127 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById(id).addEventListener('input', tfShow);
     });
 
+    // ---- Times Tables ----
+    document.getElementById('tt-mode-group').addEventListener('click', (e) => {
+        const btn = e.target.closest('.tt-mode-btn');
+        if (btn) ttSetMode(btn.dataset.ttMode);
+    });
+    document.getElementById('tt-max').addEventListener('change', ttInit);
+    document.getElementById('tt-quiz-submit').addEventListener('click', ttSubmitQuiz);
+    document.getElementById('tt-quiz-input').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') ttSubmitQuiz();
+    });
+
+    // ---- Fractions ----
+    document.getElementById('fr-mode-group').addEventListener('click', (e) => {
+        const btn = e.target.closest('.fr-mode-btn');
+        if (btn) frSetMode(btn.dataset.frMode);
+    });
+    document.getElementById('fr-shape-group').addEventListener('click', (e) => {
+        const btn = e.target.closest('.fr-shape-btn');
+        if (btn) frSetShape(btn.dataset.frShape);
+    });
+    document.getElementById('fr-max-den').addEventListener('change', frInit);
+    document.getElementById('fr-id-check').addEventListener('click', frCheckIdentify);
+    ['fr-id-num', 'fr-id-den'].forEach(id =>
+        document.getElementById(id).addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') frCheckIdentify();
+        }));
+
+    // ---- Money visualizer ----
+    document.getElementById('mn-mode-group').addEventListener('click', (e) => {
+        const btn = e.target.closest('.mn-mode-btn');
+        if (btn) mnSetMode(btn.dataset.mnMode);
+    });
+    document.getElementById('mn-currency').addEventListener('change', (e) => mnSetCurrency(e.target.value));
+    document.getElementById('mn-range').addEventListener('change', (e) => mnSetRange(parseInt(e.target.value, 10)));
+
+    // Identify
+    mnAttachAmount(document.getElementById('mn-id-input'));
+    document.getElementById('mn-id-check').addEventListener('click', mnCheckIdentify);
+    document.getElementById('mn-id-input').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') mnCheckIdentify();
+    });
+
+    // Build
+    document.getElementById('mn-denom-bar').addEventListener('click', (e) => {
+        const btn = e.target.closest('.mn-denom-btn');
+        if (btn) mnBuildAdd(parseInt(btn.dataset.mnV, 10));
+    });
+    document.getElementById('mn-undo').addEventListener('click', mnBuildUndo);
+    document.getElementById('mn-clear').addEventListener('click', mnBuildClear);
+
+    // Change
+    mnAttachAmount(document.getElementById('mn-amount'), mnRenderChange);
+    document.getElementById('mn-options').addEventListener('click', (e) => {
+        const btn = e.target.closest('.mn-opt');
+        if (btn) mnSetChangeOption(btn.dataset.mnOpt);
+    });
+
+    // Shopping
+    mnAttachAmount(document.getElementById('mn-shop-budget'), (cents) => {
+        mnShop.budget = cents || 0;
+        mnShopRender();
+    });
+    document.getElementById('mn-shop-roll').addEventListener('click', mnShopRoll);
+    document.getElementById('mn-shop-go').addEventListener('click', mnShopSearch);
+    document.getElementById('mn-shop-term').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') mnShopSearch();
+    });
+    document.getElementById('mn-shop-grid').addEventListener('click', (e) => {
+        const btn = e.target.closest('.mn-prod');
+        if (btn) mnShopToggle(decodeURIComponent(btn.dataset.mnProd));
+    });
+    document.getElementById('mn-shop-cart').addEventListener('click', (e) => {
+        const btn = e.target.closest('.mn-cart-item');
+        if (btn) mnShopToggle(decodeURIComponent(btn.dataset.mnCart));
+    });
+
+    // Piece sizing is measured from live layout, so re-fit when that changes.
+    window.addEventListener('resize', mnRefit);
+
+    // ---- Place-value visualizer ----
+    document.getElementById('viz-mode-toggle').addEventListener('click', (e) => {
+        const btn = e.target.closest('.viz-mode-btn');
+        if (btn) vizSetMainMode(btn.dataset.vizMode);
+    });
+    document.getElementById('pv-input').addEventListener('input', (e) => {
+        // Auto-reject input after 4 digits
+        const str = String(e.target.value).replace(/\D/g, '');
+        if (str.length > 4) {
+            e.target.value = str.slice(0, 4);
+        }
+        pvRender(e.target.value);
+    });
+    document.getElementById('pv-play').addEventListener('click', pvSpeak);
+    // Warm up the voice list so the first tap has en-GB available.
+    if ('speechSynthesis' in window) speechSynthesis.getVoices();
+
     // ---- Visualizer ----
     ['visualizer-input-1', 'visualizer-input-2', 'visualizer-input-3'].forEach(id => {
-        document.getElementById(id).addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') handleVisualizerInput();
+        const el = document.getElementById(id);
+        el.addEventListener('input', handleVisualizerInputChange);
+        el.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && state.vizPhase === 'idle' && vizInputsFilled()) handleVisualizerShow();
         });
     });
 
-    document.querySelectorAll('.visualizer-op-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const opIndex = btn.dataset.opIndex;
-            const stateKey = `visualizerOp${opIndex}`;
-            state[stateKey] = state[stateKey] === '×' ? '+' : '×';
-            btn.textContent = state[stateKey];
-        });
+    document.getElementById('visualizer-drop-btn').addEventListener('click', () => {
+        if (state.vizPhase === 'idle') handleVisualizerShow();
+        else handleVisualizerDrop();
     });
-
-    document.getElementById('visualizer-reset-btn').addEventListener('click', handleVisualizerReset);
-    document.getElementById('visualizer-drop-btn').addEventListener('click', handleVisualizerDrop);
     document.getElementById('visualizer-clear-btn').addEventListener('click', handleVisualizerClear);
 
-    const spacingSlider = document.getElementById('visualizer-spacing');
-    const spacingValueEl = document.getElementById('visualizer-spacing-value');
-    if (spacingSlider && spacingValueEl) {
-        const updateSpacingLabel = () => {
-            spacingValueEl.textContent = parseFloat(spacingSlider.value).toFixed(1);
-        };
-        spacingSlider.addEventListener('input', updateSpacingLabel);
-        updateSpacingLabel();
-    }
+    // Slider live value displays
+    document.getElementById('viz-friction').addEventListener('input', (e) => {
+        document.getElementById('viz-friction-val').textContent = parseFloat(e.target.value).toFixed(2);
+    });
+    document.getElementById('viz-row-delay').addEventListener('input', (e) => {
+        document.getElementById('viz-row-delay-val').textContent = `${e.target.value}ms`;
+    });
+    document.getElementById('viz-rotation').addEventListener('input', (e) => {
+        document.getElementById('viz-rotation-val').textContent = parseFloat(e.target.value).toFixed(1);
+    });
 
     // ---- Sudoku ----
     document.getElementById('sudoku-generate-btn').addEventListener('click', pgGenerateSudoku);

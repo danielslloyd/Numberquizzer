@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=21">
+    <link rel="stylesheet" href="styles.css?v=37">
 </head>
 <body>
 
@@ -19,6 +19,9 @@
         <button class="tab-btn" data-tab="ciphers">Ciphers</button>
         <button class="tab-btn" data-tab="make-ten">Make Ten</button>
         <button class="tab-btn" data-tab="ten-frame">Ten Frame</button>
+        <button class="tab-btn" data-tab="times-grid">Times Tables</button>
+        <button class="tab-btn" data-tab="fractions">Fractions</button>
+        <button class="tab-btn" data-tab="money">Money</button>
         <button class="tab-btn" data-tab="visualizer">Visualizer</button>
         <button class="tab-btn" data-tab="sudoku">Sudoku</button>
     </nav>
@@ -167,11 +170,12 @@
     <div id="worksheets-screen" class="screen pg-screen">
         <div class="container pg-container">
             <div class="pg-type-selector">
-                <button class="pg-type-btn active" data-type="addition">Add</button>
-                <button class="pg-type-btn" data-type="subtraction">Sub</button>
-                <button class="pg-type-btn" data-type="multiplication">Multiply</button>
-                <button class="pg-type-btn" data-type="division">Divide</button>
-                <button class="pg-type-btn" data-type="bonds">Bonds</button>
+                <button class="pg-type-btn active" data-type="addition">+</button>
+                <button class="pg-type-btn" data-type="subtraction">−</button>
+                <button class="pg-type-btn" data-type="multiplication">×</button>
+                <button class="pg-type-btn" data-type="division">÷</button>
+                <!-- Bonds button hidden — functionality preserved in pgPDFBonds(); activate via pgSetType('bonds') -->
+                <button class="pg-type-btn hidden" data-type="bonds">Bonds</button>
             </div>
 
             <div id="pg-addition-config" class="pg-config">
@@ -334,31 +338,21 @@
 
     <div id="word-sort-menu-screen" class="screen">
         <div class="container">
-            <h1 class="app-title">Word<br>Sort</h1>
+            <h1 class="app-title">Sorting</h1>
             <div class="ws-best-panel">
-                <div class="ws-best-row">
-                    <span class="ws-best-label">BASIC</span>
-                    <span id="ws-best-basic" class="ws-best-value">--:--</span>
-                </div>
-                <div class="ws-best-row">
-                    <span class="ws-best-label">INTERMEDIATE</span>
-                    <span id="ws-best-intermediate" class="ws-best-value">--:--</span>
-                </div>
-                <div class="ws-best-row">
-                    <span class="ws-best-label">ADVANCED</span>
-                    <span id="ws-best-advanced" class="ws-best-value">--:--</span>
-                </div>
-                <div class="ws-best-row">
-                    <span class="ws-best-label">NUMBERS</span>
-                    <span id="ws-best-numbers" class="ws-best-value">--:--</span>
-                </div>
+                <span id="ws-best-label" class="ws-best-label">Best Time</span>
+                <span id="ws-best-current" class="ws-best-value">--:--</span>
             </div>
-            <div class="ws-diff-btns">
-                <button class="btn btn-primary ws-diff-btn" data-diff="basic">Basic</button>
-                <button class="btn btn-secondary ws-diff-btn" data-diff="intermediate">Intermediate</button>
-                <button class="btn btn-secondary ws-diff-btn" data-diff="advanced">Advanced</button>
-                <button class="btn btn-secondary ws-diff-btn" data-diff="numbers">Numbers (−9999 to 9999)</button>
+            <div class="ws-type-btns ws-btn-group">
+                <button class="btn btn-primary ws-type-btn active" data-type="letters">Letters</button>
+                <button class="btn btn-secondary ws-type-btn" data-type="numbers">Numbers</button>
             </div>
+            <div class="ws-diff-btns ws-btn-group">
+                <button class="btn btn-primary ws-diff-btn active" data-diff="easy">Easy</button>
+                <button class="btn btn-secondary ws-diff-btn" data-diff="medium">Medium</button>
+                <button class="btn btn-secondary ws-diff-btn" data-diff="hard">Hard</button>
+            </div>
+            <button id="ws-start-btn" class="btn btn-primary ws-start-btn">Start</button>
         </div>
     </div>
 
@@ -369,7 +363,14 @@
         </div>
         <div class="ws-game-body">
             <p class="ws-prompt">Sort A → Z</p>
-            <div id="ws-word-list" class="ws-word-list"></div>
+            <div class="ws-sort-area">
+                <div class="ws-scale" aria-hidden="true">
+                    <span class="ws-scale-end" id="ws-scale-top">A</span>
+                    <span class="ws-scale-line"></span>
+                    <span class="ws-scale-end" id="ws-scale-bottom">Z</span>
+                </div>
+                <div id="ws-word-list" class="ws-word-list"></div>
+            </div>
             <button id="ws-check-btn" class="btn btn-primary ws-check-btn">Check Order</button>
         </div>
     </div>
@@ -404,53 +405,74 @@
          ===================================================== -->
 
     <div id="ciphers-screen" class="screen pg-screen">
-        <div class="container pg-container">
-            <div id="pg-cipher-config" class="pg-config">
-                <div class="setting-row">
-                    <label>Cipher type</label>
-                    <select id="pg-cipher-type" class="setting-select">
-                        <option value="letter" selected>Letter → Letter</option>
-                        <option value="number">Letter → Number</option>
-                        <option value="glyph">Letter → Glyph</option>
-                    </select>
+        <div class="container pg-container cs-screen-container">
+            <!-- Shared input panel -->
+            <div id="cs-input-panel" class="cs-input-panel">
+                <textarea id="pg-cipher-text" class="pg-textarea cs-text-area-main" placeholder="Paste your text here…"></textarea>
+                <textarea id="cs-plain-input" class="pg-textarea cs-text-area-plain" placeholder="Plain text to solve against (optional — if provided, cipher is inferred)…"></textarea>
+                <div class="cs-pdf-settings">
+                    <div class="setting-row">
+                        <label>Cipher type</label>
+                        <select id="pg-cipher-type" class="setting-select">
+                            <option value="letter" selected>Letter → Letter</option>
+                            <option value="number">Letter → Number</option>
+                            <option value="glyph">Letter → Glyph</option>
+                        </select>
+                    </div>
+                    <div id="pg-cipher-glyph-selector" class="setting-row hidden">
+                        <label>Glyph font</label>
+                        <select id="pg-cipher-glyph-font" class="setting-select">
+                            <option value="dingbat" selected>Dingbat</option>
+                            <option value="rune">Rune</option>
+                            <option value="noto">Noto Symbol</option>
+                        </select>
+                    </div>
+                    <div class="setting-row">
+                        <label>Grid size</label>
+                        <select id="pg-cipher-grid-size" class="setting-select">
+                            <option value="small" selected>Small</option>
+                            <option value="medium">Medium</option>
+                            <option value="large">Large</option>
+                        </select>
+                    </div>
+                    <div class="setting-row">
+                        <label class="cipher-checkbox-label">
+                            <input type="checkbox" id="pg-cipher-gridlines" class="pg-checkbox" checked>
+                            <span>Show gridlines</span>
+                        </label>
+                    </div>
+                    <div class="setting-row">
+                        <label class="cipher-checkbox-label">
+                            <input type="checkbox" id="pg-cipher-show-key" class="pg-checkbox">
+                            <span>Print key on each page</span>
+                        </label>
+                    </div>
+                    <div class="setting-row">
+                        <label class="cipher-checkbox-label">
+                            <input type="checkbox" id="pg-cipher-answer-key" class="pg-checkbox">
+                            <span>Include answer key</span>
+                        </label>
+                    </div>
                 </div>
-                <div id="pg-cipher-glyph-selector" class="setting-row hidden">
-                    <label>Glyph font</label>
-                    <select id="pg-cipher-glyph-font" class="setting-select">
-                        <option value="dingbat" selected>Dingbat</option>
-                        <option value="rune">Rune</option>
-                        <option value="noto">Noto Symbol</option>
-                    </select>
-                </div>
-                <div class="setting-row">
-                    <label>Grid size</label>
-                    <select id="pg-cipher-grid-size" class="setting-select">
-                        <option value="small" selected>Small</option>
-                        <option value="medium">Medium</option>
-                        <option value="large">Large</option>
-                    </select>
-                </div>
-                <textarea id="pg-cipher-text" class="pg-textarea" placeholder="Paste your text here…"></textarea>
-                <div class="setting-row">
-                    <label class="cipher-checkbox-label">
-                        <input type="checkbox" id="pg-cipher-gridlines" class="pg-checkbox" checked>
-                        <span>Show gridlines</span>
-                    </label>
-                </div>
-                <div class="setting-row">
-                    <label class="cipher-checkbox-label">
-                        <input type="checkbox" id="pg-cipher-show-key" class="pg-checkbox">
-                        <span>Print key on each page</span>
-                    </label>
-                </div>
-                <div class="setting-row">
-                    <label class="cipher-checkbox-label">
-                        <input type="checkbox" id="pg-cipher-answer-key" class="pg-checkbox">
-                        <span>Include answer key</span>
-                    </label>
+                <div class="cs-action-row">
+                    <button id="ciphers-generate-btn" class="btn btn-secondary cs-action-btn">GENERATE PDF</button>
+                    <button id="cs-start-btn" class="btn btn-primary cs-action-btn">SOLVE</button>
                 </div>
             </div>
-            <button id="ciphers-generate-btn" class="btn btn-primary" style="width:100%">Generate PDF</button>
+            <!-- Solver -->
+            <div id="cs-solver" class="cs-solver hidden">
+                <div class="cs-solver-bar">
+                    <button id="cs-reset-btn" class="btn btn-secondary cs-bar-btn">RESET</button>
+                    <span id="cs-status" class="cs-status"></span>
+                    <button id="cs-share-btn" class="btn btn-secondary cs-bar-btn">SHARE</button>
+                    <button id="cs-edit-btn" class="btn btn-secondary cs-bar-btn">EDIT</button>
+                </div>
+                <div id="cs-key-row" class="cs-key-row"></div>
+                <div id="cs-grid-wrapper" class="cs-grid-wrapper">
+                    <div id="cs-grid" class="cs-grid"></div>
+                </div>
+                <div id="cs-solved-banner" class="cs-solved-banner hidden">✓ Solved!</div>
+            </div>
         </div>
     </div>
 
@@ -470,6 +492,19 @@
                     <button class="op-toggle" data-target="20">20</button>
                 </div>
             </div>
+            <div class="setting-block">
+                <div class="setting-block-label">Reps each</div>
+                <div class="mt-target-btns" id="mt-reps-btns">
+                    <button class="op-toggle active" data-reps="1">1</button>
+                    <button class="op-toggle" data-reps="2">2</button>
+                    <button class="op-toggle" data-reps="3">3</button>
+                    <button class="op-toggle" data-reps="5">5</button>
+                </div>
+            </div>
+            <label class="mt-tenframe-toggle">
+                <input type="checkbox" id="mt-tenframe" class="pg-checkbox">
+                <span>Show ten frame</span>
+            </label>
             <button id="mt-start-btn" class="btn btn-primary">Start</button>
         </div>
     </div>
@@ -484,6 +519,7 @@
             <div class="card-wrap">
                 <div id="tg-question" class="tg-question"></div>
             </div>
+            <div id="tg-visual" class="tg-visual hidden"></div>
             <div id="tg-choices" class="tg-choices"></div>
             <div id="tg-feedback" class="feedback-display"></div>
         </div>
@@ -534,31 +570,56 @@
 
     <div id="visualizer-screen" class="screen">
         <div class="visualizer-container">
+            <div class="viz-mode-toggle" id="viz-mode-toggle">
+                <button class="btn btn-secondary viz-mode-btn active" data-viz-mode="multiply">Multiply</button>
+                <button class="btn btn-secondary viz-mode-btn" data-viz-mode="place">Place Value</button>
+            </div>
+          <div id="viz-multiply-mode">
             <div class="visualizer-input-bar">
                 <div class="visualizer-inputs-row">
                     <input type="number" id="visualizer-input-1" class="visualizer-input-field" autocomplete="off" min="1" max="20">
-                    <button class="visualizer-op-btn" data-op-index="1" title="Click to toggle × / +">×</button>
+                    <span class="visualizer-op-static">×</span>
                     <input type="number" id="visualizer-input-2" class="visualizer-input-field" autocomplete="off" min="1" max="20">
-                    <button class="visualizer-op-btn" data-op-index="2" title="Click to toggle × / +">×</button>
+                    <span class="visualizer-op-static">×</span>
                     <input type="number" id="visualizer-input-3" class="visualizer-input-field" autocomplete="off" min="1" max="20">
                 </div>
                 <div class="visualizer-actions">
-                    <button id="visualizer-reset-btn" class="btn btn-secondary" title="Snap blocks back to formation">RESET</button>
-                    <button id="visualizer-drop-btn" class="btn btn-primary" title="Drop the blocks">DROP</button>
+                    <button id="visualizer-drop-btn" class="btn btn-primary visualizer-btn-disabled" disabled title="Enter all three numbers first">SHOW</button>
                     <button id="visualizer-clear-btn" class="btn btn-secondary visualizer-clear-btn" title="Clear inputs and visualization">✕</button>
                 </div>
             </div>
-            <div class="visualizer-spacing-bar">
-                <label for="visualizer-spacing">Spacing</label>
-                <input type="range" id="visualizer-spacing" min="1" max="4" step="0.1" value="2">
-                <span id="visualizer-spacing-value">2.0</span>
-                <label class="visualizer-physics-toggle" title="Run Cannon physics on a Web Worker so the main thread stays free for rendering and UI">
-                    <input type="checkbox" id="visualizer-worker-toggle">
-                    <span>Background physics (Web Worker)</span>
+            <div class="visualizer-sliders">
+                <label class="visualizer-slider-row">
+                    <span class="visualizer-slider-label">Friction</span>
+                    <input type="range" id="viz-friction" min="0" max="1" step="0.05" value="0.5">
+                    <span id="viz-friction-val" class="visualizer-slider-val">0.50</span>
+                </label>
+                <label class="visualizer-slider-row">
+                    <span class="visualizer-slider-label">Row Delay</span>
+                    <input type="range" id="viz-row-delay" min="0" max="400" step="10" value="60">
+                    <span id="viz-row-delay-val" class="visualizer-slider-val">60ms</span>
+                </label>
+                <label class="visualizer-slider-row">
+                    <span class="visualizer-slider-label">Rotation</span>
+                    <input type="range" id="viz-rotation" min="0" max="3" step="0.1" value="0.5">
+                    <span id="viz-rotation-val" class="visualizer-slider-val">0.5</span>
                 </label>
             </div>
             <div id="visualizer-canvas-container" class="visualizer-canvas-container"></div>
             <div id="visualizer-answer" class="visualizer-answer hidden"></div>
+          </div>
+          <div id="viz-place-mode" class="hidden">
+            <div class="pv-input-row">
+                <input type="number" id="pv-input" class="visualizer-input-field pv-input" autocomplete="off" min="0" max="9999" placeholder="123">
+            </div>
+            <div class="pv-words-row">
+                <div id="pv-words" class="pv-words"></div>
+                <button id="pv-play" class="pv-play hidden" aria-label="Read the number aloud" title="Read aloud">
+                    <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>
+                </button>
+            </div>
+            <div id="pv-svg-wrap" class="pv-svg-wrap"></div>
+          </div>
         </div>
     </div>
 
@@ -608,6 +669,199 @@
         </div>
     </div>
 
+    <!-- =====================================================
+         TIMES TABLES TAB
+         ===================================================== -->
+
+    <div id="times-grid-screen" class="screen">
+        <div class="container tt-container">
+            <div class="tt-config">
+                <div class="tt-btn-group" id="tt-mode-group">
+                    <button class="btn btn-secondary tt-mode-btn active" data-tt-mode="explore">Explore</button>
+                    <button class="btn btn-secondary tt-mode-btn" data-tt-mode="quiz">Quiz</button>
+                </div>
+                <div class="setting-row tt-range-row">
+                    <label>Tables up to</label>
+                    <select id="tt-max" class="setting-select">
+                        <option value="5">5</option>
+                        <option value="10" selected>10</option>
+                        <option value="12">12</option>
+                    </select>
+                </div>
+            </div>
+            <div id="tt-grid-wrap" class="tt-grid-wrap">
+                <div id="tt-grid" class="tt-grid"></div>
+            </div>
+            <div id="tt-equation" class="tt-equation hidden"></div>
+            <div id="tt-quiz-bar" class="tt-quiz-bar hidden">
+                <span id="tt-quiz-prompt" class="tt-quiz-prompt"></span>
+                <input type="number" id="tt-quiz-input" class="tt-quiz-input" inputmode="numeric" placeholder="?">
+                <button id="tt-quiz-submit" class="btn btn-primary tt-quiz-submit">✓</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- =====================================================
+         FRACTIONS TAB
+         ===================================================== -->
+
+    <div id="fractions-screen" class="screen">
+        <div class="container fr-container">
+            <div class="fr-config">
+                <div class="tt-btn-group" id="fr-mode-group">
+                    <button class="btn btn-secondary fr-mode-btn active" data-fr-mode="compare">Compare</button>
+                    <button class="btn btn-secondary fr-mode-btn" data-fr-mode="identify">Identify</button>
+                </div>
+                <div class="setting-row">
+                    <label>Up to</label>
+                    <select id="fr-max-den" class="setting-select">
+                        <option value="6" selected>Sixths</option>
+                        <option value="10">Tenths</option>
+                        <option value="12">Twelfths</option>
+                    </select>
+                </div>
+                <div class="tt-btn-group" id="fr-shape-group">
+                    <button class="btn btn-secondary fr-shape-btn active" data-fr-shape="bar">Bar</button>
+                    <button class="btn btn-secondary fr-shape-btn" data-fr-shape="pie">Pie</button>
+                </div>
+            </div>
+            <div class="fr-score-bar">
+                <span id="fr-score" class="fr-score">Score: 0</span>
+            </div>
+            <div id="fr-compare">
+                <div class="fr-prompt">Which is bigger?</div>
+                <div id="fr-shapes" class="fr-shapes"></div>
+            </div>
+            <div id="fr-identify" class="hidden">
+                <div class="fr-prompt">Name this fraction</div>
+                <div id="fr-id-shape" class="fr-id-shape"></div>
+                <div class="fr-id-inputs">
+                    <div class="fr-id-fraction">
+                        <input type="number" id="fr-id-num" class="fr-id-input" inputmode="numeric" placeholder="?" aria-label="Numerator">
+                        <span class="fr-id-bar"></span>
+                        <input type="number" id="fr-id-den" class="fr-id-input" inputmode="numeric" placeholder="?" aria-label="Denominator">
+                    </div>
+                    <button id="fr-id-check" class="btn btn-primary fr-id-check">✓</button>
+                </div>
+            </div>
+            <div id="fr-feedback" class="feedback-display"></div>
+        </div>
+    </div>
+
+    <!-- =====================================================
+         MONEY TAB
+         ===================================================== -->
+
+    <div id="money-screen" class="screen">
+        <div class="container mn-container">
+            <div class="fr-config">
+                <div class="tt-btn-group" id="mn-mode-group">
+                    <button class="btn btn-secondary mn-mode-btn active" data-mn-mode="identify">Identify</button>
+                    <button class="btn btn-secondary mn-mode-btn" data-mn-mode="build">Build</button>
+                    <button class="btn btn-secondary mn-mode-btn" data-mn-mode="change">Change</button>
+                    <button class="btn btn-secondary mn-mode-btn" data-mn-mode="shop">Shopping</button>
+                </div>
+                <div class="setting-row">
+                    <label for="mn-currency">Money</label>
+                    <select id="mn-currency" class="setting-select">
+                        <option value="USD" selected>🇺🇸 US Dollar</option>
+                        <option value="GBP">🇬🇧 British Pound</option>
+                        <option value="EUR">🇪🇺 Euro</option>
+                        <option value="CAD">🇨🇦 Canadian Dollar</option>
+                        <option value="AUD">🇦🇺 Australian Dollar</option>
+                    </select>
+                </div>
+                <div class="setting-row" id="mn-range-row">
+                    <label for="mn-range">Amount</label>
+                    <select id="mn-range" class="setting-select">
+                        <option value="100" selected>Under $1</option>
+                        <option value="100000">Under $1000</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="fr-score-bar" id="mn-score-bar">
+                <span id="mn-score" class="fr-score">Score: 0</span>
+            </div>
+
+            <!-- Identify: read the pile -->
+            <div id="mn-identify">
+                <div class="fr-prompt">How much money is this?</div>
+                <div id="mn-id-pieces" class="mn-pieces"></div>
+                <div class="mn-answer-row">
+                    <div class="mn-amount-field">
+                        <span class="mn-cur-sym">$</span>
+                        <input type="text" id="mn-id-input" class="mn-input" inputmode="numeric"
+                               autocomplete="off" spellcheck="false" aria-label="Amount">
+                    </div>
+                    <button id="mn-id-check" class="btn btn-primary mn-check">✓</button>
+                </div>
+            </div>
+
+            <!-- Build: tap denominations up to the target -->
+            <div id="mn-build" class="hidden">
+                <div class="fr-prompt">Make <span id="mn-target" class="mn-target"></span></div>
+                <div id="mn-build-pieces" class="mn-pieces mn-tray"></div>
+                <div class="mn-total-row">
+                    <span id="mn-total" class="mn-total">$0.00</span>
+                    <button id="mn-undo" class="btn btn-secondary mn-small-btn">Undo</button>
+                    <button id="mn-clear" class="btn btn-secondary mn-small-btn">Clear</button>
+                </div>
+                <div id="mn-denom-bar" class="mn-denom-bar"></div>
+            </div>
+
+            <!-- Change: enter an amount, see the ways to make it -->
+            <div id="mn-change" class="hidden">
+                <div class="mn-change-row">
+                    <label class="mn-change-label" for="mn-amount">Show me</label>
+                    <div class="mn-amount-field">
+                        <span class="mn-cur-sym">$</span>
+                        <input type="text" id="mn-amount" class="mn-input" inputmode="numeric"
+                               autocomplete="off" spellcheck="false">
+                    </div>
+                </div>
+                <div id="mn-options" class="mn-options"></div>
+                <div id="mn-change-summary" class="mn-summary"></div>
+                <div id="mn-change-pieces" class="mn-pieces"></div>
+            </div>
+
+            <!-- Shopping: spend a budget without going over -->
+            <div id="mn-shop" class="hidden">
+                <div class="mn-shop-bar">
+                    <div class="mn-shop-ctl">
+                        <label class="mn-shop-label" for="mn-shop-budget">Budget</label>
+                        <div class="mn-amount-field">
+                            <span class="mn-cur-sym">$</span>
+                            <input type="text" id="mn-shop-budget" class="mn-input mn-input-sm"
+                                   inputmode="numeric" autocomplete="off" spellcheck="false" value="75.00">
+                        </div>
+                        <button id="mn-shop-roll" class="btn btn-secondary mn-small-btn">Surprise me</button>
+                    </div>
+                    <div class="mn-shop-ctl">
+                        <label class="mn-shop-label" for="mn-shop-term">Search</label>
+                        <input type="text" id="mn-shop-term" class="mn-text-input" value="lego"
+                               autocomplete="off" spellcheck="false">
+                        <button id="mn-shop-go" class="btn btn-secondary mn-small-btn">Go</button>
+                    </div>
+                </div>
+                <div class="mn-shop-totals">
+                    <span class="mn-shop-left-label">Left to spend</span>
+                    <b id="mn-shop-left" class="mn-shop-left">$0.00</b>
+                    <span id="mn-shop-spent" class="mn-shop-spent"></span>
+                </div>
+                <div id="mn-shop-grid" class="mn-shop-grid"></div>
+                <div class="mn-cart-head">Cart</div>
+                <div id="mn-shop-cart" class="mn-cart"></div>
+                <div class="mn-credit">
+                    Photos from Wikimedia Commons, used under their CC licences —
+                    hover an item for its credit.
+                </div>
+            </div>
+
+            <div id="mn-feedback" class="feedback-display"></div>
+        </div>
+    </div>
+
     <!-- Sprite layer: fixed overlay for floating number particles -->
     <div id="sprite-layer" class="sprite-layer" aria-hidden="true"></div>
 
@@ -617,8 +871,8 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
     <script src="parser.js?v=15"></script>
-    <script src="physics.js?v=15"></script>
-    <script src="animator.js?v=15"></script>
-    <script src="app.js?v=37"></script>
+    <script src="physics.js?v=16"></script>
+    <script src="animator.js?v=20"></script>
+    <script src="app.js?v=55"></script>
 </body>
 </html>

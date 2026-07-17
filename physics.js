@@ -74,18 +74,26 @@ class PhysicsWorld {
         return Promise.resolve();
     }
 
-    addCube(x, y, z, size = 1) {
+    addCube(x, y, z, size = 1, linearDamping = 0.3, angularDamping = 0.3, spin = 0) {
         const half = size / 2;
         const shape = new CANNON.Box(new CANNON.Vec3(half, half, half));
         const body = new CANNON.Body({ mass: 1, shape });
-        body.linearDamping = 0.3;
-        body.angularDamping = 0.3;
+        body.linearDamping = linearDamping;
+        body.angularDamping = angularDamping;
         body.position.set(x, y, z);
         body.velocity.set(
             (Math.random() - 0.5) * 2,
             0,
             (Math.random() - 0.5) * 2
         );
+        // Random angular velocity = imperfect release, so blocks tumble as they fall
+        if (spin) {
+            body.angularVelocity.set(
+                (Math.random() - 0.5) * 2 * spin,
+                (Math.random() - 0.5) * 2 * spin,
+                (Math.random() - 0.5) * 2 * spin
+            );
+        }
         this.world.addBody(body);
         this.bodies.push(body);
     }
@@ -113,7 +121,7 @@ class PhysicsWorld {
             states[base + 4] = b.quaternion.y;
             states[base + 5] = b.quaternion.z;
             states[base + 6] = b.quaternion.w;
-            if (b.velocity.length() > 0.01) settled = false;
+            if (b.velocity.length() > 0.01 || b.angularVelocity.length() > 0.05) settled = false;
         }
         return { states, settled };
     }
@@ -129,87 +137,3 @@ class PhysicsWorld {
     }
 }
 
-// Cannon.js running on a separate Web Worker thread.
-// Same API as PhysicsWorld; messages are batched per `addCube` and one
-// `step` round-trip per frame returns a transferable Float32Array.
-class PhysicsWorldWorker {
-    constructor(workerUrl) {
-        this.worker = new Worker(workerUrl);
-        this.pendingStep = null;
-        this.pendingReset = null;
-
-        this._readyPromise = new Promise((resolve) => {
-            this._resolveReady = resolve;
-        });
-
-        this.worker.addEventListener('message', (e) => {
-            const msg = e.data;
-            switch (msg.type) {
-                case 'ready':
-                    this._resolveReady();
-                    break;
-                case 'stepResult':
-                    if (this.pendingStep) {
-                        const p = this.pendingStep;
-                        this.pendingStep = null;
-                        p.resolve({ states: msg.states, settled: msg.settled });
-                    }
-                    break;
-                case 'resetDone':
-                    if (this.pendingReset) {
-                        const p = this.pendingReset;
-                        this.pendingReset = null;
-                        p.resolve();
-                    }
-                    break;
-            }
-        });
-        this.worker.addEventListener('error', (e) => {
-            console.error('[Physics] Worker error:', e.message, e);
-        });
-
-        this.worker.postMessage({ type: 'init' });
-
-        console.log('%c[Physics] Backend: Web Worker (off main thread)', 'font-weight: bold; color: #2a9d3f');
-        console.log('  Engine    : Cannon.js (still CPU, but on its own thread)');
-        console.log('  Transport : Float32Array states transferred (no clone) per step');
-    }
-
-    waitReady() {
-        return this._readyPromise;
-    }
-
-    addCube(x, y, z, size = 1) {
-        this.worker.postMessage({ type: 'addCube', x, y, z, size });
-    }
-
-    reset() {
-        // Fire-and-forget reset; subsequent addCube/step messages are
-        // queued and processed in order on the worker.
-        this.worker.postMessage({ type: 'reset' });
-    }
-
-    stepAndGetStates() {
-        // If a previous step is still in flight (e.g. user did RESET → DROP
-        // before the worker replied), settle the stale awaiter so it can
-        // unblock and check its own dropAborted flag.
-        if (this.pendingStep) {
-            const stale = this.pendingStep;
-            this.pendingStep = null;
-            stale.resolve({ states: new Float32Array(0), settled: true, stale: true });
-        }
-        return new Promise((resolve) => {
-            this.pendingStep = { resolve };
-            this.worker.postMessage({ type: 'step' });
-        });
-    }
-
-    clear() {
-        this.reset();
-    }
-
-    dispose() {
-        this.worker.terminate();
-        this.worker = null;
-    }
-}

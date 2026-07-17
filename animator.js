@@ -12,12 +12,11 @@ class MathAnimator {
             container.style.height = '100%';
         }
 
-        this.camera = new THREE.PerspectiveCamera(
-            45,
-            Math.max(container.clientWidth, window.innerWidth) / Math.max(container.clientHeight, window.innerHeight),
-            0.1,
-            1000
-        );
+        // Aspect must match the renderer's actual pixel size (the container), or
+        // the scene renders vertically stretched/squished until a resize fires.
+        const cw = container.clientWidth  || window.innerWidth;
+        const ch = container.clientHeight || window.innerHeight;
+        this.camera = new THREE.PerspectiveCamera(45, cw / ch, 0.1, 1000);
         this.camera.position.set(0, 8, 12);
         this.camera.lookAt(0, 0, 0);
 
@@ -26,10 +25,10 @@ class MathAnimator {
             alpha: false,
             powerPreference: 'high-performance'
         });
-        this.renderer.setSize(
-            container.clientWidth || window.innerWidth,
-            container.clientHeight || window.innerHeight
-        );
+        // updateStyle=false: leave the canvas's CSS size to the stylesheet
+        // (100% of the container). If Three.js writes an inline px size instead,
+        // it feeds back into the container's height and the aspect never settles.
+        this.renderer.setSize(cw, ch, false);
         // Cap pixel ratio at 2 — uncapped retina would render 4× the pixels
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
         this.renderer.shadowMap.enabled = true;
@@ -46,18 +45,26 @@ class MathAnimator {
         this.instancedMesh = null;
         this.labels = [];
         this.physics = new PhysicsWorld();
-        this.useWorkerPhysics = false;
-        this.physicsWorkerUrl = null; // set by setUseWorkerPhysics first time
         this.isAnimating = false;
         this.animationFrameId = null;
         this.disposed = false;
-        this.spacing = 2;
+        this.spacing = 1.2;
         this.hasFilled = false;
         this.preDropState = null;
         this.dropAborted = false;
 
         this.resizeHandler = () => this.onWindowResize();
         window.addEventListener('resize', this.resizeHandler);
+
+        // The container is often not at its final size the instant we construct
+        // (the tab was just shown), and it can change without a window resize.
+        // Keep the camera aspect and canvas locked to the container's real size,
+        // or the scene renders vertically squished.
+        if (typeof ResizeObserver !== 'undefined') {
+            this.resizeObserver = new ResizeObserver(() => this.onWindowResize());
+            this.resizeObserver.observe(this.container);
+        }
+        requestAnimationFrame(() => this.onWindowResize());
 
         this.logRendererInfo();
     }
@@ -102,25 +109,6 @@ class MathAnimator {
 
     // Swap between inline (main-thread) Cannon and worker-thread Cannon.
     // No-op if the requested backend is already active.
-    setUseWorkerPhysics(useWorker, workerUrl) {
-        if (useWorker === this.useWorkerPhysics && this.physics) return;
-
-        if (this.physics) {
-            this.physics.dispose();
-            this.physics = null;
-        }
-
-        if (useWorker) {
-            const url = workerUrl || this.physicsWorkerUrl;
-            this.physics = new PhysicsWorldWorker(url);
-            this.physicsWorkerUrl = url;
-        } else {
-            this.physics = new PhysicsWorld();
-        }
-
-        this.useWorkerPhysics = useWorker;
-    }
-
     setupLighting() {
         // Ambient light
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
@@ -263,6 +251,8 @@ class MathAnimator {
 
     _addCube(x, y, z, color, scale = 1) {
         const i = this.cubeData.length;
+        // Blocks generate perfectly axis-aligned. Any tumble is imparted as
+        // angular momentum at DROP time, not baked into the resting formation.
         this.cubeData.push({
             position: new THREE.Vector3(x, y, z),
             quaternion: new THREE.Quaternion(),
@@ -572,103 +562,86 @@ class MathAnimator {
         });
     }
 
-    async startDrop() {
+    async startDrop({ friction = 0.5, rowDelay = 60, rotRange = 0.5 } = {}) {
         if (!this.hasFilled || this.isAnimating) return;
         this.isAnimating = true;
         this.dropAborted = false;
 
-        // Snapshot each cube's pre-drop position/orientation so RESET can
-        // snap back here.
+        // Snapshot pre-drop state for RESET
         this.preDropState = this.cubeData.map(d => ({
             position: d.position.clone(),
             quaternion: d.quaternion.clone()
         }));
 
-        // Make sure the backend is initialized (worker boot is async).
         await this.physics.waitReady();
-
-        // Reset and populate the backend with one body per instance.
         this.physics.reset();
-        for (const data of this.cubeData) {
-            // Apply slight random rotation to each cube
-            const randomAxis = new THREE.Vector3(
-                Math.random() - 0.5,
-                Math.random() - 0.5,
-                Math.random() - 0.5
-            ).normalize();
-            const randomAngle = (Math.random() - 0.5) * 0.3;  // Small angle (-0.15 to 0.15 radians)
-            const randomQuat = new THREE.Quaternion();
-            randomQuat.setFromAxisAngle(randomAxis, randomAngle);
-            data.quaternion.multiplyQuaternions(randomQuat, data.quaternion);
 
-            this.physics.addCube(data.position.x, data.position.y, data.position.z, 1);
+        // Group cubes by y-row (round to nearest 0.5), sort bottom (lowest y) first
+        const rowMap = new Map();
+        this.cubeData.forEach((data, idx) => {
+            const rowKey = Math.round(data.position.y * 2) / 2;
+            if (!rowMap.has(rowKey)) rowMap.set(rowKey, []);
+            rowMap.get(rowKey).push(idx);
+        });
+        const sortedRowKeys = [...rowMap.keys()].sort((a, b) => a - b);
+
+        // rotRange scales the random angular velocity given to each block on
+        // release (an imperfect drop), so they tumble on the way down instead of
+        // landing as a clean stack. It is NOT an orientation change — blocks stay
+        // axis-aligned until physics spins them.
+        const spin = rotRange * MathAnimator.SPIN_SCALE;
+        const addRowToPhysics = (rowKey) => {
+            if (this.dropAborted) return;
+            for (const idx of rowMap.get(rowKey)) {
+                const data = this.cubeData[idx];
+                this.physics.addCube(
+                    data.position.x, data.position.y, data.position.z,
+                    1, friction, friction, spin
+                );
+            }
+        };
+
+        // Add bottom row immediately, schedule subsequent rows
+        addRowToPhysics(sortedRowKeys[0]);
+        for (let i = 1; i < sortedRowKeys.length; i++) {
+            const key = sortedRowKeys[i];
+            const delay = i * rowDelay;
+            setTimeout(() => addRowToPhysics(key), delay);
         }
 
-        const maxIterations = 300;
-        let iterations = 0;
-
-        const logEveryN = 60;
-        let physicsTimeMs = 0;
-        let meshUpdateTimeMs = 0;
         const dropStart = performance.now();
         const cubeCount = this.cubeData.length;
-        const backendName = this.useWorkerPhysics ? 'Web Worker' : 'inline (main thread)';
-        console.log(
-            `[Drop] Starting physics simulation: ${cubeCount} bodies on backend "${backendName}". ` +
-            `Visual is one InstancedMesh — render cost is roughly constant in cube count.`
-        );
 
         return new Promise(resolve => {
             const simulate = async () => {
                 if (this.dropAborted) {
                     this.isAnimating = false;
-                    console.log('[Drop] Aborted by RESET');
                     resolve();
                     return;
                 }
 
-                const physStart = performance.now();
                 const result = await this.physics.stepAndGetStates();
                 if (this.dropAborted || result.stale) {
                     this.isAnimating = false;
                     resolve();
                     return;
                 }
-                physicsTimeMs += performance.now() - physStart;
 
-                const meshStart = performance.now();
-                const states = result.states;
-                const n = this.cubeData.length;
-                for (let i = 0; i < n; i++) {
+                // Only update cubes that have been added to physics so far
+                const physicsN = result.states.length / 7;
+                for (let i = 0; i < physicsN; i++) {
                     const base = i * 7;
                     const data = this.cubeData[i];
-                    data.position.set(states[base], states[base + 1], states[base + 2]);
-                    data.quaternion.set(states[base + 3], states[base + 4], states[base + 5], states[base + 6]);
+                    if (!data) continue;
+                    data.position.set(result.states[base], result.states[base + 1], result.states[base + 2]);
+                    data.quaternion.set(result.states[base + 3], result.states[base + 4], result.states[base + 5], result.states[base + 6]);
                     this._writeInstance(i);
                 }
                 this._markInstanceDirty();
-                meshUpdateTimeMs += performance.now() - meshStart;
 
-                iterations++;
-
-                if (iterations % logEveryN === 0) {
-                    const avgPhys = (physicsTimeMs / logEveryN).toFixed(2);
-                    const avgMesh = (meshUpdateTimeMs / logEveryN).toFixed(2);
-                    console.log(
-                        `[Drop] frame ${iterations}: avg physics step ${avgPhys}ms ` +
-                        `(${backendName}), instance-sync ${avgMesh}ms`
-                    );
-                    physicsTimeMs = 0;
-                    meshUpdateTimeMs = 0;
-                }
-
-                if (result.settled || iterations > maxIterations) {
+                // Only settle once all cubes are in physics
+                if (result.settled && physicsN >= cubeCount) {
                     this.isAnimating = false;
-                    const totalMs = (performance.now() - dropStart).toFixed(0);
-                    console.log(
-                        `[Drop] Settled in ${iterations} steps over ${totalMs}ms ` +
-                        `(${cubeCount} bodies, backend "${backendName}")`
-                    );
                     resolve();
                 } else {
                     requestAnimationFrame(simulate);
@@ -711,9 +684,10 @@ class MathAnimator {
     onWindowResize() {
         const width = this.container.clientWidth;
         const height = this.container.clientHeight;
+        if (!width || !height) return;   // container not laid out yet
         this.camera.aspect = width / height;
         this.camera.updateProjectionMatrix();
-        this.renderer.setSize(width, height);
+        this.renderer.setSize(width, height, false);  // keep CSS-driven canvas size
     }
 
     clear() {
@@ -754,6 +728,14 @@ class MathAnimator {
     }
 
     render() {
+        // Self-correct if the container's size drifted (it can settle a frame or
+        // two after the tab is shown, and ResizeObserver timing isn't reliable
+        // everywhere). Cheap guard: only touch the camera when it actually moved.
+        const w = this.container.clientWidth, h = this.container.clientHeight;
+        if (w && h && (w !== this._lastW || h !== this._lastH)) {
+            this._lastW = w; this._lastH = h;
+            this.onWindowResize();
+        }
         this.renderer.render(this.scene, this.camera);
     }
 
@@ -767,6 +749,7 @@ class MathAnimator {
         }
 
         window.removeEventListener('resize', this.resizeHandler);
+        if (this.resizeObserver) { this.resizeObserver.disconnect(); this.resizeObserver = null; }
 
         // Tear down the physics backend (terminates the worker if active)
         if (this.physics) {
@@ -797,3 +780,6 @@ class MathAnimator {
 // allocating thousands of Matrix4/Vector3 per frame during physics.
 MathAnimator._tmpMatrix = new THREE.Matrix4();
 MathAnimator._tmpScaleVec = new THREE.Vector3();
+// Multiplies the "Rotation" slider (rotRange) into an angular-velocity range
+// (rad/s) applied to each block on drop. Bigger = more tumbling.
+MathAnimator.SPIN_SCALE = 6;

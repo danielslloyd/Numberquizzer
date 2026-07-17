@@ -671,9 +671,13 @@ body {
    ============================================================ */
 
 .ws-best-panel {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
     width: 100%;
     max-width: 300px;
     border: 3px solid #000000;
+    padding: 0.75rem 1.2rem;
 }
 
 .ws-best-row {
@@ -701,6 +705,26 @@ body {
     font-variant-numeric: tabular-nums;
 }
 
+.ws-btn-group {
+    display: flex;
+    flex-direction: row;
+    gap: 0.5rem;
+    width: 100%;
+    max-width: 300px;
+    justify-content: center;
+}
+
+.ws-btn-group .btn {
+    flex: 1;
+}
+
+.ws-start-btn {
+    width: 100%;
+    max-width: 300px;
+    margin-top: 0.5rem;
+}
+
+/* Legacy — keep for any remaining references */
 .ws-diff-btns {
     display: flex;
     flex-direction: column;
@@ -757,6 +781,58 @@ body {
     opacity: 0.4;
 }
 
+/* Sort area = a direction rail beside the draggable list */
+.ws-sort-area {
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    gap: 0.7rem;
+    width: 100%;
+    max-width: 400px;
+}
+
+.ws-scale {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    padding: 0.15rem 0;
+}
+
+.ws-scale-end {
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    opacity: 0.65;
+    white-space: nowrap;
+}
+
+/* Vertical line with a downward arrowhead: order increases top → bottom */
+.ws-scale-line {
+    position: relative;
+    flex: 1;
+    width: 3px;
+    min-height: 40px;
+    margin: 0.5rem 0;
+    background: #000;
+    border-radius: 2px;
+}
+
+.ws-scale-line::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 50%;
+    transform: translateX(-50%);
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-top: 9px solid #000;
+}
+
 .ws-word-list {
     display: flex;
     flex-direction: column;
@@ -767,6 +843,13 @@ body {
     user-select: none;
     -webkit-user-select: none;
     touch-action: none;
+}
+
+/* Inside the sort area the list flexes to share width with the rail */
+.ws-sort-area .ws-word-list {
+    max-width: none;
+    flex: 1 1 auto;
+    min-width: 0;
 }
 
 .ws-bubble {
@@ -828,6 +911,18 @@ body {
     flex-direction: column;
 }
 
+/* The active mode fills the container as a flex column, so its canvas / SVG gets
+   a definite height. Without this the canvas container's flex:1 has no flex
+   context (block parent) and its height is content-driven and unstable, which
+   left the 3D scene vertically squished. */
+#viz-multiply-mode:not(.hidden),
+#viz-place-mode:not(.hidden) {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
 .visualizer-input-bar {
     display: flex;
     gap: 1rem;
@@ -878,25 +973,11 @@ body {
     -moz-appearance: textfield;
 }
 
-.visualizer-op-btn {
-    padding: 0.6rem 0.9rem;
-    font-size: 1.2rem;
+.visualizer-op-static {
+    font-size: 1.4rem;
     font-weight: 700;
-    border: 2px solid #000000;
-    background-color: #ffffff;
     color: #000000;
-    cursor: pointer;
-    border-radius: 4px;
-    min-width: 2.5rem;
-    text-align: center;
-}
-
-.visualizer-op-btn:hover {
-    background-color: #f5f5f5;
-}
-
-.visualizer-op-btn:active {
-    background-color: #e0e0e0;
+    user-select: none;
 }
 
 .visualizer-actions {
@@ -914,53 +995,50 @@ body {
     font-size: 1rem;
 }
 
-.visualizer-spacing-bar {
+.visualizer-btn-disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.visualizer-sliders {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0.5rem 2rem 0.75rem;
+    background: #f8f8f8;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.visualizer-slider-row {
     display: flex;
     align-items: center;
-    gap: 1rem;
-    padding: 0.75rem 2rem;
-    background-color: #ffffff;
-    border-bottom: 3px solid #000000;
-    font-weight: 600;
-    font-size: 1rem;
+    gap: 0.6rem;
+    cursor: default;
 }
 
-.visualizer-spacing-bar label {
-    min-width: 80px;
+.visualizer-slider-label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    opacity: 0.6;
+    width: 5rem;
+    flex-shrink: 0;
 }
 
-.visualizer-spacing-bar input[type="range"] {
+.visualizer-slider-row input[type=range] {
     flex: 1;
-    max-width: 360px;
+    height: 4px;
+    cursor: pointer;
+    accent-color: #000000;
 }
 
-.visualizer-spacing-bar span {
-    min-width: 3ch;
-    text-align: right;
+.visualizer-slider-val {
+    font-size: 0.7rem;
+    font-weight: 600;
     font-variant-numeric: tabular-nums;
-}
-
-.visualizer-physics-toggle {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-    cursor: pointer;
-    margin-left: 1.5rem;
-    user-select: none;
-    font-weight: 500;
-    font-size: 0.95rem;
-    white-space: nowrap;
-}
-
-.visualizer-physics-toggle input {
-    width: 1.1rem;
-    height: 1.1rem;
-    cursor: pointer;
-}
-
-.visualizer-physics-toggle span {
-    min-width: 0;
-    text-align: left;
+    width: 3rem;
+    text-align: right;
+    opacity: 0.7;
 }
 
 .visualizer-canvas-container {
@@ -1026,10 +1104,8 @@ body {
     padding: 0.7rem 0;
     border: 2px solid #000000;
     border-right: none;
-    font-size: 0.82rem;
+    font-size: 1.1rem;
     font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
     background: #ffffff;
     color: #000000;
     cursor: pointer;
@@ -1124,8 +1200,647 @@ body {
 }
 
 /* ============================================================
+   CIPHER SOLVER
+   ============================================================ */
+
+.cs-screen-container {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    padding: 0 1.5rem;
+    box-sizing: border-box;
+    width: 100%;
+}
+
+.cs-input-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    width: 100%;
+}
+
+.cs-text-area-main {
+    height: 7rem;
+}
+
+.cs-text-area-plain {
+    height: 3.5rem;
+}
+
+.cs-pdf-settings {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    border-top: 1px solid #e0e0e0;
+    padding-top: 0.5rem;
+}
+
+.cs-action-row {
+    display: flex;
+    gap: 0.6rem;
+    padding-top: 0.2rem;
+}
+
+.cs-action-btn {
+    flex: 1;
+}
+
+/* ---- Active solver ---- */
+
+.cs-solver {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    flex: 1;
+    min-height: 0;
+}
+
+/* ---- Key row ---- */
+
+.cs-key-row {
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-bottom: 2px solid #000;
+    margin-bottom: 0.5rem;
+    flex-shrink: 0;
+    justify-content: center;
+}
+
+.cs-key-cell {
+    border-left: 1px solid #d0d0d0;
+    border-right: 1px solid transparent;
+    background: #fafafa;
+}
+
+/* ---- Collision (duplicate mapping) ---- */
+
+.cs-collision .cs-guess-char {
+    color: #d32f2f !important;
+}
+
+.cs-collision .cs-cipher-char {
+    color: #d32f2f !important;
+}
+
+.cs-solver-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0 0.75rem;
+    flex-shrink: 0;
+}
+
+.cs-bar-btn {
+    padding: 0.4rem 0.9rem;
+    font-size: 0.82rem;
+}
+
+.cs-status {
+    flex: 1;
+    text-align: center;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    opacity: 0.55;
+}
+
+.cs-grid-wrapper {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 1rem;
+}
+
+/* ---- Cipher grid ---- */
+
+.cs-grid {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 0;
+    user-select: none;
+}
+
+.cs-word {
+    display: flex;
+    flex-direction: row;
+}
+
+/* A full-width invisible block that forces the next word to a new row */
+.cs-linebreak {
+    width: 100%;
+    height: 0.4rem;
+}
+
+.cs-space {
+    width: 1.4rem;
+    flex-shrink: 0;
+    align-self: stretch;
+}
+
+/* ---- Individual cipher cell ---- */
+
+.cs-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 2.4rem;
+    flex-shrink: 0;
+    cursor: pointer;
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+    border-left: 1px solid #d0d0d0;
+    border-right: 1px solid transparent; /* collapsed with adjacent cell */
+    transition: background 0.08s;
+}
+
+.cs-cell:active {
+    background: #f5f5f5;
+}
+
+/* Non-letter cells (punctuation) — no border, no hover */
+.cs-cell.cs-nonletter {
+    cursor: default;
+    touch-action: auto;
+    border-color: transparent;
+}
+
+.cs-cell.cs-nonletter:active {
+    background: none;
+}
+
+.cs-cipher-char {
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #888;
+    padding: 3px 2px 2px;
+    width: 100%;
+    text-align: center;
+    line-height: 1;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.cs-cell.cs-nonletter .cs-cipher-char {
+    color: #bbb;
+    border-bottom-color: transparent;
+}
+
+.cs-guess-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 2.4rem;
+    width: 100%;
+    overflow: hidden;
+    position: relative;
+}
+
+.cs-guess-char {
+    font-size: 1.35rem;
+    font-weight: 800;
+    color: #000;
+    line-height: 1;
+    transition: transform 0.08s ease, opacity 0.08s ease;
+    will-change: transform;
+}
+
+.cs-guess-char.cs-unset {
+    color: #ccc;
+    font-weight: 400;
+}
+
+.cs-cell.cs-nonletter .cs-guess-char {
+    color: #999;
+    font-weight: 500;
+    font-size: 1.1rem;
+}
+
+/* ---- Solved state ---- */
+
+.cs-grid.cs-solved .cs-cell:not(.cs-nonletter) {
+    background: #e8f5e9;
+    border-color: #a5d6a7;
+}
+
+.cs-grid.cs-solved .cs-cipher-char {
+    color: #66bb6a;
+    border-bottom-color: #a5d6a7;
+}
+
+.cs-grid.cs-solved .cs-guess-char {
+    color: #2e7d32;
+}
+
+.cs-solved-banner {
+    text-align: center;
+    font-size: 2rem;
+    font-weight: 900;
+    color: #2e7d32;
+    letter-spacing: 0.1em;
+    padding: 1rem 0 0.5rem;
+    animation: cs-pop 0.35s ease;
+    flex-shrink: 0;
+}
+
+@keyframes cs-pop {
+    0%   { transform: scale(0.6); opacity: 0; }
+    70%  { transform: scale(1.12); }
+    100% { transform: scale(1);   opacity: 1; }
+}
+
+/* ============================================================
+   TIMES TABLES GRID
+   ============================================================ */
+
+.tt-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.8rem;
+    width: 100%;
+    max-width: 640px;
+}
+
+.tt-config {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.tt-btn-group {
+    display: flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+/* On a phone the inherited 2rem side padding (64px) plus the 11-column grid
+   pushes these two containers past the viewport. Trim the sides on narrow
+   screens so the grid and button groups fit. */
+@media (max-width: 420px) {
+    .tt-container,
+    .fr-container {
+        padding-left: 0.75rem;
+        padding-right: 0.75rem;
+    }
+}
+
+.tt-mode-btn.active,
+.fr-shape-btn.active {
+    background: #000;
+    color: #fff;
+}
+
+.tt-range-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.tt-grid-wrap {
+    width: 100%;
+    overflow-x: auto;
+}
+
+.tt-grid {
+    display: grid;
+    gap: 2px;
+    width: 100%;
+    min-width: 320px;
+}
+
+.tt-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    aspect-ratio: 1;
+    font-size: clamp(0.6rem, 2.2vw, 1rem);
+    font-weight: 600;
+    user-select: none;
+}
+
+.tt-corner {
+    background: #000;
+    color: #fff;
+    font-weight: 800;
+}
+
+.tt-header {
+    background: #222;
+    color: #fff;
+    font-weight: 700;
+}
+
+.tt-header.tt-hl {
+    background: #2e7d32;
+}
+
+.tt-answer {
+    background: #f2f2f2;
+    border: 1px solid #ddd;
+    cursor: pointer;
+    transition: background 0.1s;
+}
+
+.tt-answer:hover { background: #e6e6e6; }
+
+.tt-answer.tt-filled {
+    background: #e8f5e9;
+    color: #2e7d32;
+    font-weight: 800;
+}
+
+.tt-answer.tt-active {
+    background: #fff3cd;
+    border-color: #000;
+    box-shadow: inset 0 0 0 2px #000;
+}
+
+.tt-answer.tt-wrong {
+    animation: tg-shake 0.4s ease;
+    background: #ffe5e5;
+}
+
+.tt-quiz-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    justify-content: center;
+}
+
+.tt-quiz-prompt {
+    font-size: 1.4rem;
+    font-weight: 800;
+    min-width: 4.5rem;
+    text-align: right;
+}
+
+.tt-quiz-input {
+    width: 4rem;
+    padding: 0.4rem;
+    font-size: 1.3rem;
+    text-align: center;
+    border: 2px solid #000;
+    border-radius: 6px;
+}
+
+.tt-quiz-submit {
+    padding: 0.4rem 1rem;
+    font-size: 1.2rem;
+}
+
+.tt-equation {
+    font-size: clamp(1.8rem, 7vw, 3rem);
+    font-weight: 800;
+    letter-spacing: 0.02em;
+    min-height: 1.2em;
+    text-align: center;
+}
+
+/* ============================================================
+   FRACTIONS — COMPARE TWO
+   ============================================================ */
+
+.fr-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    width: 100%;
+    max-width: 520px;
+}
+
+.fr-config {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.fr-score-bar {
+    font-size: 1rem;
+    font-weight: 700;
+    opacity: 0.7;
+}
+
+.fr-prompt {
+    font-size: 1.5rem;
+    font-weight: 800;
+}
+
+.fr-shapes {
+    display: flex;
+    gap: 1.5rem;
+    justify-content: center;
+    flex-wrap: wrap;
+}
+
+.fr-shape-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 1rem;
+    border: 3px solid transparent;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: border-color 0.12s, background 0.12s;
+}
+
+.fr-shape-card:hover { background: #f5f5f5; }
+
+.fr-svg {
+    width: clamp(120px, 38vw, 180px);
+    height: auto;
+}
+
+.fr-label {
+    font-size: 1.4rem;
+    font-weight: 800;
+}
+
+.fr-shape-card.fr-correct {
+    border-color: #2e7d32;
+    background: #e8f5e9;
+}
+
+.fr-shape-card.fr-wrong {
+    border-color: #cc0000;
+    background: #ffe5e5;
+}
+
+.fr-fb-correct { color: #2e7d32; }
+.fr-fb-wrong   { color: #cc0000; }
+
+/* ---- Fractions: Identify ---- */
+
+.fr-id-shape {
+    display: flex;
+    justify-content: center;
+}
+
+.fr-id-inputs {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.8rem;
+}
+
+/* Numerator over denominator, stacked like a real fraction */
+.fr-id-fraction {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.fr-id-input {
+    width: 4rem;
+    padding: 0.4rem;
+    font-size: 1.5rem;
+    text-align: center;
+    border: 2px solid #000;
+    border-radius: 6px;
+}
+
+.fr-id-bar {
+    width: 4.5rem;
+    height: 3px;
+    background: #000;
+}
+
+.fr-id-check {
+    padding: 0.4rem 1rem;
+    font-size: 1.2rem;
+}
+
+/* ============================================================
+   PLACE-VALUE BLOCK VISUALIZER
+   ============================================================ */
+
+.viz-mode-toggle {
+    display: flex;
+    gap: 0.4rem;
+    justify-content: center;
+    margin-bottom: 0.8rem;
+}
+
+.viz-mode-btn.active {
+    background: #000;
+    color: #fff;
+}
+
+.pv-input-row {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 0.8rem;
+}
+
+.pv-input {
+    width: 8rem;
+    text-align: center;
+    font-size: 2rem;
+}
+
+.pv-svg-wrap {
+    flex: 1;
+    min-height: 320px;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    width: 100%;
+}
+
+.pv-svg {
+    width: 100%;
+    height: 100%;
+    max-height: 70vh;
+}
+
+.pv-empty {
+    align-self: center;
+    opacity: 0.4;
+    font-size: 1.2rem;
+}
+
+.pv-digit {
+    font-size: 11px;
+    font-weight: 900;
+}
+
+.pv-place {
+    font-size: 4.5px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+
+/* Colour-coded number-in-words + read-aloud button */
+.pv-words-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.6rem;
+    min-height: 2.4rem;
+}
+
+.pv-words {
+    font-size: clamp(1.4rem, 5vw, 2.4rem);
+    font-weight: 800;
+    text-align: center;
+    line-height: 1.15;
+}
+
+.pv-play {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.8rem;
+    height: 2.8rem;
+    border-radius: 50%;
+    border: 3px solid #000;
+    background: #000;
+    color: #fff;
+    cursor: pointer;
+    transition: transform 0.08s ease, background 0.12s ease;
+}
+
+.pv-play:hover  { background: #333; }
+.pv-play:active { transform: scale(0.92); }
+
+/* ============================================================
    TAP GAMES (Make Ten · Within 20 · Missing Number)
    ============================================================ */
+
+.mt-tenframe-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    font-weight: 600;
+    cursor: pointer;
+    margin-bottom: 0.5rem;
+}
+
+.tg-visual {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.6rem;
+    margin: 0.5rem 0 1rem;
+    transform: scale(0.8);
+    transform-origin: center;
+}
 
 .mt-subtitle {
     text-align: center;
@@ -1133,6 +1848,19 @@ body {
     font-weight: 600;
     opacity: 0.7;
 }
+
+/* Tap Game screen — 2-area grid (reuses .quiz-top-bar / .quiz-body) */
+#tap-game-screen {
+    grid-template-rows: auto 1fr; /* Only 2 rows — no footer */
+    grid-template-areas:
+        "topbar"
+        "main";
+}
+
+/* Equal-width side displays keep the centred title truly centred */
+#tap-game-screen .progress-display { flex: 1; }
+#tap-game-screen .timer-display    { flex: 1; text-align: right; }
+#tap-game-screen .tg-title         { flex: 0 0 auto; text-align: center; }
 
 /* Make Ten menu target selector reuses the op-toggle button group */
 .mt-target-btns {
@@ -1176,6 +1904,23 @@ body {
     justify-content: center;
     gap: 0.6rem;
     max-width: 420px;
+}
+
+/* Keypad layout for the 0–10 range: 1–9 as a 3×3 block, 0 flanking top-left,
+   10 flanking bottom-right (positions assigned per-button in tgRenderRound). */
+.tg-choices.tg-keypad {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(3rem, 4rem));
+    grid-template-rows: repeat(3, auto);
+    gap: 0.5rem;
+    max-width: none;
+}
+
+.tg-keypad .tg-choice {
+    min-width: 0;
+    flex: none;
+    aspect-ratio: 1;
+    padding: 0;
 }
 
 .tg-choice {
@@ -1295,4 +2040,564 @@ body {
     font-size: 3.5rem;
     font-weight: 800;
     font-variant-numeric: tabular-nums;
+}
+
+/* ============================================================
+   MONEY VISUALIZER
+   ============================================================ */
+
+.mn-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    width: 100%;
+    max-width: 880px;
+    padding: 1.5rem 1rem;
+}
+
+/* Four modes + two selects don't fit at full .btn size */
+.mn-mode-btn {
+    font-size: 0.8rem;
+    padding: 0.5rem 0.9rem;
+    letter-spacing: 0.04em;
+}
+
+/* .tt-btn-group doesn't wrap, so four buttons set a min-content width that
+   pushes the whole container past a phone viewport. Wrap just this group. */
+#mn-mode-group {
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.mn-mode-btn.active {
+    background: #000;
+    color: #fff;
+}
+
+/* The container centres its children, which leaves each mode panel shrink-to-fit.
+   The pile box needs a stable full width for the 90%-of-width sizing to mean
+   anything, so the panels span the container. */
+#mn-identify,
+#mn-build,
+#mn-change,
+#mn-shop {
+    width: 100%;
+}
+
+/* A money pile: one group per distinct denomination. --mn-ppm (px per real-world
+   mm) is set by mnFitStage() in JS, grown until the pieces fill ~the box, in
+   whichever orientation (mn-cols / mn-rows) lets them be largest. */
+.mn-pieces {
+    --mn-ppm: 2.5;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    height: 50vh;
+    max-height: 460px;
+    overflow: hidden;
+}
+
+/* Shrink-to-content, so mnFitStage can measure the true size */
+.mn-stage {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: flex-end;
+    justify-content: center;
+    gap: clamp(8px, 3vw, 32px);
+}
+
+/* Rows orientation: denominations stacked top-to-bottom, each laid horizontally */
+.mn-stage.mn-rows {
+    flex-direction: column;
+    align-items: center;
+}
+
+.mn-col {
+    position: relative;
+    display: flex;
+    flex-direction: column-reverse;
+    align-items: center;
+    gap: 3px;
+}
+
+.mn-stage.mn-rows .mn-col {
+    flex-direction: row;
+    align-items: center;
+}
+
+/* True count when a column holds more pieces than it draws (e.g. "×137") */
+.mn-col-badge {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translate(-50%, -35%);
+    z-index: 2;
+    background: #000;
+    color: #fff;
+    font-size: 0.8rem;
+    font-weight: 800;
+    padding: 0.08rem 0.42rem;
+    border-radius: 999px;
+    pointer-events: none;
+    white-space: nowrap;
+}
+
+/* Every piece is sized from its real width in mm, so all pieces — drawn or
+   photographed, coin or note — stay to scale against each other. */
+.mn-piece {
+    width: calc(var(--mm, 24) * var(--mn-ppm) * 1px);
+    height: auto;
+    flex-shrink: 0;
+    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.3));
+}
+
+.mn-coin {
+    aspect-ratio: 1;
+    border-radius: 50%;
+}
+
+/* Matches a real note's 156 x 66.3 mm, which is also the photo crop ratio */
+.mn-bill {
+    aspect-ratio: 156 / 66.3;
+    border-radius: 3px;
+}
+
+/* A photo piece: the drawn SVG and the hot-linked <img> stacked in one box, the
+   image on top. If the image fails to load it removes itself and the drawing
+   shows through. overflow:hidden makes the round/rounded corners clip the photo. */
+.mn-photo {
+    position: relative;
+    overflow: hidden;
+}
+
+.mn-photo > .mn-piece,
+.mn-photo > img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+}
+
+.mn-photo > .mn-piece {
+    filter: none;          /* the wrapper carries the drop-shadow */
+}
+
+.mn-photo > img {
+    object-fit: cover;     /* fill the frame; sources are already tight-cropped */
+}
+
+/* Money: Identify */
+
+.mn-answer-row {
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+/* Currency symbol sits outside the field, so the field itself holds only the
+   digits the cash-register entry formats. */
+.mn-amount-field {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    border: 3px solid #000;
+    background: #fff;
+    padding: 0 0.5rem;
+}
+
+.mn-amount-field:focus-within {
+    outline: 3px solid #000;
+    outline-offset: 2px;
+}
+
+.mn-cur-sym {
+    font-size: 1.4rem;
+    font-weight: 800;
+    opacity: 0.55;
+}
+
+.mn-input {
+    font-family: inherit;
+    font-size: 1.6rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    width: 6.5rem;
+    padding: 0.4rem 0.2rem;
+    border: none;
+    background: transparent;
+    text-align: center;
+}
+
+.mn-input:focus { outline: none; }
+
+.mn-input-sm {
+    font-size: 1.15rem;
+    width: 4.6rem;
+    padding: 0.3rem 0.2rem;
+}
+
+.mn-text-input {
+    font-family: inherit;
+    font-size: 1rem;
+    font-weight: 700;
+    width: 8rem;
+    padding: 0.45rem 0.6rem;
+    border: 3px solid #000;
+    background: #fff;
+}
+
+.mn-text-input:focus {
+    outline: 3px solid #000;
+    outline-offset: 2px;
+}
+
+.mn-check {
+    font-size: 1.4rem;
+    padding: 0.4rem 1.2rem;
+}
+
+/* Money: Build */
+
+.mn-target {
+    font-variant-numeric: tabular-nums;
+}
+
+.mn-tray {
+    border: 3px dashed #bbb;
+    border-radius: 10px;
+    padding: 0.6rem;
+    height: 26vh;
+    max-height: 220px;
+}
+
+.mn-total-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    margin: 0.8rem 0;
+}
+
+.mn-total {
+    font-size: 1.8rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    min-width: 6rem;
+    text-align: center;
+}
+
+.mn-total.mn-over  { color: #cc0000; }
+.mn-total.mn-exact { color: #2e7d32; }
+
+.mn-small-btn {
+    font-size: 0.75rem;
+    padding: 0.4rem 0.9rem;
+}
+
+/* The denomination buttons are a pile too, so they scale by the same rule */
+.mn-denom-bar {
+    --mn-ppm: 1.5;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    height: 16vh;
+    max-height: 150px;
+    overflow: hidden;
+}
+
+.mn-denom-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.3rem;
+    border: 3px solid transparent;
+    border-radius: 10px;
+    background: none;
+    cursor: pointer;
+    transition: border-color 0.1s ease, background 0.1s ease, transform 0.06s ease;
+}
+
+.mn-denom-btn:hover  { border-color: #000; background: #f5f5f5; }
+.mn-denom-btn:active { transform: scale(0.92); }
+
+/* Money: Change */
+
+.mn-change-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+}
+
+.mn-change-label {
+    font-size: 1.2rem;
+    font-weight: 700;
+}
+
+.mn-options {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+}
+
+.mn-opt {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-family: inherit;
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.45rem 0.8rem;
+    border: 2px solid #000;
+    background: #fff;
+    color: #000;
+    border-radius: 999px;
+    cursor: pointer;
+}
+
+.mn-opt:hover { background: #f5f5f5; }
+
+.mn-opt.active {
+    background: #000;
+    color: #fff;
+}
+
+/* Piece count badge on each breakdown chip */
+.mn-opt-n {
+    font-size: 0.7rem;
+    font-weight: 800;
+    padding: 0.05rem 0.4rem;
+    border-radius: 999px;
+    background: rgba(0, 0, 0, 0.12);
+}
+
+.mn-opt.active .mn-opt-n {
+    background: rgba(255, 255, 255, 0.25);
+}
+
+.mn-summary {
+    font-size: 0.95rem;
+    font-weight: 700;
+    text-align: center;
+    opacity: 0.75;
+    min-height: 1.2rem;
+}
+
+/* Money: Shopping */
+
+.mn-shop-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    margin-bottom: 0.7rem;
+}
+
+.mn-shop-ctl {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.mn-shop-label {
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.mn-shop-totals {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.7rem;
+}
+
+.mn-shop-left-label {
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    opacity: 0.6;
+}
+
+.mn-shop-left {
+    font-size: 1.7rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: #2e7d32;
+}
+
+.mn-shop-left.mn-over { color: #cc0000; }
+
+.mn-shop-spent {
+    font-size: 0.85rem;
+    font-weight: 700;
+    opacity: 0.6;
+}
+
+.mn-shop-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+    gap: 0.6rem;
+    width: 100%;
+}
+
+.mn-prod {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.5rem;
+    border: 3px solid #000;
+    border-radius: 10px;
+    background: #fff;
+    font-family: inherit;
+    cursor: pointer;
+    transition: transform 0.06s ease, background 0.12s ease;
+}
+
+.mn-prod:hover:not(:disabled) { background: #f5f5f5; }
+.mn-prod:active:not(:disabled) { transform: scale(0.97); }
+
+.mn-prod-img {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    border-radius: 5px;
+    background: #eee;
+}
+
+.mn-prod-name {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-align: center;
+    line-height: 1.2;
+}
+
+.mn-prod-price {
+    font-size: 1.1rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+
+.mn-prod-tag {
+    font-size: 0.6rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    opacity: 0.65;
+}
+
+/* Out of reach on the current budget — still readable, clearly not clickable */
+.mn-prod.mn-unafford {
+    border-color: #bbb;
+    color: #999;
+    cursor: not-allowed;
+}
+
+.mn-prod.mn-unafford .mn-prod-img {
+    filter: grayscale(1) opacity(0.45);
+}
+
+.mn-prod.mn-in-cart {
+    border-color: #2e7d32;
+    background: #e8f5e9;
+}
+
+.mn-shop-empty {
+    grid-column: 1 / -1;
+    text-align: center;
+    font-weight: 700;
+    opacity: 0.6;
+    padding: 1.5rem 0;
+}
+
+.mn-cart-head {
+    align-self: flex-start;
+    font-size: 0.85rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-top: 1rem;
+}
+
+.mn-cart {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    width: 100%;
+    min-height: 52px;
+    padding: 0.5rem;
+    border: 3px dashed #bbb;
+    border-radius: 10px;
+}
+
+.mn-cart-item {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.3rem 0.5rem;
+    border: 2px solid #2e7d32;
+    border-radius: 999px;
+    background: #e8f5e9;
+    font-family: inherit;
+    cursor: pointer;
+}
+
+.mn-cart-item:hover {
+    background: #ffe5e5;
+    border-color: #cc0000;
+}
+
+.mn-cart-img {
+    width: 26px;
+    height: 26px;
+    object-fit: cover;
+    border-radius: 50%;
+}
+
+.mn-cart-name {
+    font-size: 0.72rem;
+    font-weight: 700;
+}
+
+.mn-cart-price {
+    font-size: 0.8rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+
+.mn-cart-x {
+    font-size: 0.7rem;
+    font-weight: 800;
+    opacity: 0.5;
+}
+
+.mn-cart-empty {
+    font-size: 0.85rem;
+    font-weight: 700;
+    opacity: 0.5;
+    margin: auto;
+}
+
+.mn-credit {
+    font-size: 0.65rem;
+    text-align: center;
+    opacity: 0.5;
+    margin-top: 0.8rem;
+    line-height: 1.4;
 }
