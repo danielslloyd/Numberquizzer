@@ -12,12 +12,11 @@ class MathAnimator {
             container.style.height = '100%';
         }
 
-        this.camera = new THREE.PerspectiveCamera(
-            45,
-            Math.max(container.clientWidth, window.innerWidth) / Math.max(container.clientHeight, window.innerHeight),
-            0.1,
-            1000
-        );
+        // Aspect must match the renderer's actual pixel size (the container), or
+        // the scene renders vertically stretched/squished until a resize fires.
+        const cw = container.clientWidth  || window.innerWidth;
+        const ch = container.clientHeight || window.innerHeight;
+        this.camera = new THREE.PerspectiveCamera(45, cw / ch, 0.1, 1000);
         this.camera.position.set(0, 8, 12);
         this.camera.lookAt(0, 0, 0);
 
@@ -26,10 +25,10 @@ class MathAnimator {
             alpha: false,
             powerPreference: 'high-performance'
         });
-        this.renderer.setSize(
-            container.clientWidth || window.innerWidth,
-            container.clientHeight || window.innerHeight
-        );
+        // updateStyle=false: leave the canvas's CSS size to the stylesheet
+        // (100% of the container). If Three.js writes an inline px size instead,
+        // it feeds back into the container's height and the aspect never settles.
+        this.renderer.setSize(cw, ch, false);
         // Cap pixel ratio at 2 — uncapped retina would render 4× the pixels
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
         this.renderer.shadowMap.enabled = true;
@@ -56,6 +55,16 @@ class MathAnimator {
 
         this.resizeHandler = () => this.onWindowResize();
         window.addEventListener('resize', this.resizeHandler);
+
+        // The container is often not at its final size the instant we construct
+        // (the tab was just shown), and it can change without a window resize.
+        // Keep the camera aspect and canvas locked to the container's real size,
+        // or the scene renders vertically squished.
+        if (typeof ResizeObserver !== 'undefined') {
+            this.resizeObserver = new ResizeObserver(() => this.onWindowResize());
+            this.resizeObserver.observe(this.container);
+        }
+        requestAnimationFrame(() => this.onWindowResize());
 
         this.logRendererInfo();
     }
@@ -242,9 +251,16 @@ class MathAnimator {
 
     _addCube(x, y, z, color, scale = 1) {
         const i = this.cubeData.length;
+        // Each block sits at its own slight random tilt about the X and Z axes
+        // (never Y) so the formation reads as a lively pile of cubes rather than
+        // a flat, uniform sheet.
+        const t = MathAnimator.TILT;
+        const quaternion = new THREE.Quaternion().setFromEuler(new THREE.Euler(
+            (Math.random() - 0.5) * t, 0, (Math.random() - 0.5) * t
+        ));
         this.cubeData.push({
             position: new THREE.Vector3(x, y, z),
-            quaternion: new THREE.Quaternion(),
+            quaternion,
             scale,
             color
         });
@@ -676,9 +692,10 @@ class MathAnimator {
     onWindowResize() {
         const width = this.container.clientWidth;
         const height = this.container.clientHeight;
+        if (!width || !height) return;   // container not laid out yet
         this.camera.aspect = width / height;
         this.camera.updateProjectionMatrix();
-        this.renderer.setSize(width, height);
+        this.renderer.setSize(width, height, false);  // keep CSS-driven canvas size
     }
 
     clear() {
@@ -719,6 +736,14 @@ class MathAnimator {
     }
 
     render() {
+        // Self-correct if the container's size drifted (it can settle a frame or
+        // two after the tab is shown, and ResizeObserver timing isn't reliable
+        // everywhere). Cheap guard: only touch the camera when it actually moved.
+        const w = this.container.clientWidth, h = this.container.clientHeight;
+        if (w && h && (w !== this._lastW || h !== this._lastH)) {
+            this._lastW = w; this._lastH = h;
+            this.onWindowResize();
+        }
         this.renderer.render(this.scene, this.camera);
     }
 
@@ -732,6 +757,7 @@ class MathAnimator {
         }
 
         window.removeEventListener('resize', this.resizeHandler);
+        if (this.resizeObserver) { this.resizeObserver.disconnect(); this.resizeObserver = null; }
 
         // Tear down the physics backend (terminates the worker if active)
         if (this.physics) {
@@ -762,3 +788,5 @@ class MathAnimator {
 // allocating thousands of Matrix4/Vector3 per frame during physics.
 MathAnimator._tmpMatrix = new THREE.Matrix4();
 MathAnimator._tmpScaleVec = new THREE.Vector3();
+// Max random per-block tilt (radians) about X and Z in the resting formation.
+MathAnimator.TILT = 0.5;

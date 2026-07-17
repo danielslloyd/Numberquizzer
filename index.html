@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=34">
+    <link rel="stylesheet" href="styles.css?v=36">
 </head>
 <body>
 
@@ -485,6 +485,15 @@
                     <button class="op-toggle" data-target="20">20</button>
                 </div>
             </div>
+            <div class="setting-block">
+                <div class="setting-block-label">Reps each</div>
+                <div class="mt-target-btns" id="mt-reps-btns">
+                    <button class="op-toggle active" data-reps="1">1</button>
+                    <button class="op-toggle" data-reps="2">2</button>
+                    <button class="op-toggle" data-reps="3">3</button>
+                    <button class="op-toggle" data-reps="5">5</button>
+                </div>
+            </div>
             <label class="mt-tenframe-toggle">
                 <input type="checkbox" id="mt-tenframe" class="pg-checkbox">
                 <span>Show ten frame</span>
@@ -595,6 +604,12 @@
           <div id="viz-place-mode" class="hidden">
             <div class="pv-input-row">
                 <input type="number" id="pv-input" class="visualizer-input-field pv-input" autocomplete="off" min="0" max="9999" placeholder="123">
+            </div>
+            <div class="pv-words-row">
+                <div id="pv-words" class="pv-words"></div>
+                <button id="pv-play" class="pv-play hidden" aria-label="Read the number aloud" title="Read aloud">
+                    <svg viewBox="0 0 24 24" width="26" height="26" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>
+                </button>
             </div>
             <div id="pv-svg-wrap" class="pv-svg-wrap"></div>
           </div>
@@ -848,7 +863,7 @@
 
     <script src="parser.js?v=15"></script>
     <script src="physics.js?v=15"></script>
-    <script src="animator.js?v=15"></script>
-    <script src="app.js?v=53"></script>
+    <script src="animator.js?v=19"></script>
+    <script src="app.js?v=54"></script>
 </body>
 </html>

@@ -852,6 +852,18 @@ body {
     flex-direction: column;
 }
 
+/* The active mode fills the container as a flex column, so its canvas / SVG gets
+   a definite height. Without this the canvas container's flex:1 has no flex
+   context (block parent) and its height is content-driven and unstable, which
+   left the 3D scene vertically squished. */
+#viz-multiply-mode:not(.hidden),
+#viz-place-mode:not(.hidden) {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
 .visualizer-input-bar {
     display: flex;
     gap: 1rem;
@@ -1703,6 +1715,42 @@ body {
     letter-spacing: 0.04em;
 }
 
+/* Colour-coded number-in-words + read-aloud button */
+.pv-words-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.6rem;
+    min-height: 2.4rem;
+}
+
+.pv-words {
+    font-size: clamp(1.4rem, 5vw, 2.4rem);
+    font-weight: 800;
+    text-align: center;
+    line-height: 1.15;
+}
+
+.pv-play {
+    flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.8rem;
+    height: 2.8rem;
+    border-radius: 50%;
+    border: 3px solid #000;
+    background: #000;
+    color: #fff;
+    cursor: pointer;
+    transition: transform 0.08s ease, background 0.12s ease;
+}
+
+.pv-play:hover  { background: #333; }
+.pv-play:active { transform: scale(0.92); }
+
 /* ============================================================
    TAP GAMES (Make Ten · Within 20 · Missing Number)
    ============================================================ */
@@ -1789,6 +1837,23 @@ body {
     justify-content: center;
     gap: 0.6rem;
     max-width: 420px;
+}
+
+/* Keypad layout for the 0–10 range: 1–9 as a 3×3 block, 0 flanking top-left,
+   10 flanking bottom-right (positions assigned per-button in tgRenderRound). */
+.tg-choices.tg-keypad {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(3rem, 4rem));
+    grid-template-rows: repeat(3, auto);
+    gap: 0.5rem;
+    max-width: none;
+}
+
+.tg-keypad .tg-choice {
+    min-width: 0;
+    flex: none;
+    aspect-ratio: 1;
+    padding: 0;
 }
 
 .tg-choice {
@@ -1920,7 +1985,7 @@ body {
     align-items: center;
     gap: 1rem;
     width: 100%;
-    max-width: 620px;
+    max-width: 880px;
     padding: 1.5rem 1rem;
 }
 
@@ -1953,27 +2018,33 @@ body {
     width: 100%;
 }
 
-/* A money pile: one column per distinct denomination, stacks resting on a
-   common baseline. --mn-ppm (px per real-world mm) is set by mnFitStage() in JS,
-   grown until the columns fill 90% of the width (or all of the height). */
+/* A money pile: one group per distinct denomination. --mn-ppm (px per real-world
+   mm) is set by mnFitStage() in JS, grown until the pieces fill ~the box, in
+   whichever orientation (mn-cols / mn-rows) lets them be largest. */
 .mn-pieces {
     --mn-ppm: 2.5;
     display: flex;
     justify-content: center;
-    align-items: flex-end;
+    align-items: center;
     width: 100%;
-    height: 42vh;
-    max-height: 380px;
+    height: 50vh;
+    max-height: 460px;
     overflow: hidden;
 }
 
-/* Shrink-to-content row of columns, so mnFitStage can measure the true size */
+/* Shrink-to-content, so mnFitStage can measure the true size */
 .mn-stage {
     display: flex;
     flex: 0 0 auto;
     align-items: flex-end;
     justify-content: center;
-    gap: clamp(8px, 3vw, 30px);
+    gap: clamp(8px, 3vw, 32px);
+}
+
+/* Rows orientation: denominations stacked top-to-bottom, each laid horizontally */
+.mn-stage.mn-rows {
+    flex-direction: column;
+    align-items: center;
 }
 
 .mn-col {
@@ -1982,6 +2053,11 @@ body {
     flex-direction: column-reverse;
     align-items: center;
     gap: 3px;
+}
+
+.mn-stage.mn-rows .mn-col {
+    flex-direction: row;
+    align-items: center;
 }
 
 /* True count when a column holds more pieces than it draws (e.g. "×137") */

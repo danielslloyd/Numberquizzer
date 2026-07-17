@@ -649,22 +649,35 @@ function endQuiz() {
 //   choices — numbers shown as tappable buttons (must include answer)
 // ============================================
 
-const TAP_ROUNDS = 10;
-
 function tgRandInt(lo, hi) {
     return lo + Math.floor(Math.random() * (hi - lo + 1));
 }
 
+// Fisher–Yates, returns a new shuffled array.
+function tgShuffle(arr) {
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+}
 
 const TAP_MODES = {
     'make-ten': {
         title: (o) => `Make ${o.target}`,
-        bestKey: (o) => `tapBest_makeTen_${o.target}`,
-        genRound(o) {
-            const known = tgRandInt(0, o.target);
-            const answer = o.target - known;
+        // Best time is per target AND per reps — a 33-card run isn't the same race
+        // as an 11-card one.
+        bestKey: (o) => `tapBest_makeTen_${o.target}_r${o.reps || 1}`,
+        // One card per complement 0..target, so every key (including 0 and the
+        // target itself) shows up as an answer across a deck.
+        buildDeck(o) {
             const choices = Array.from({ length: o.target + 1 }, (_, i) => i);
-            return { tokens: [String(known), '+', '?', '=', String(o.target)], answer, choices };
+            return choices.map(known => ({
+                tokens: [String(known), '+', '?', '=', String(o.target)],
+                answer: o.target - known,
+                choices,
+            }));
         },
     },
 };
@@ -684,7 +697,12 @@ function startTapGame(mode, opts = {}) {
     state.tgMode = mode;
     state.tgOpts = opts;
     const def = TAP_MODES[mode];
-    state.tgRounds = Array.from({ length: TAP_ROUNDS }, () => def.genRound(opts));
+    // reps copies of the whole deck, shuffled together — so it's truly random,
+    // not deck 1 then deck 2 then deck 3 in sequence.
+    const reps = Math.max(1, opts.reps || 1);
+    let deck = [];
+    for (let r = 0; r < reps; r++) deck = deck.concat(def.buildDeck(opts));
+    state.tgRounds = tgShuffle(deck);
     state.tgIndex = 0;
     state.tgCorrect = 0;
 
@@ -711,19 +729,31 @@ function tgRenderRound() {
     }).join('');
 
     document.getElementById('tg-progress-display').textContent =
-        `${state.tgIndex + 1} / ${TAP_ROUNDS}`;
+        `${state.tgIndex + 1} / ${state.tgRounds.length}`;
     const feedback = document.getElementById('tg-feedback');
     feedback.textContent = '';
     feedback.className = 'feedback-display';
 
     tgRenderVisual(round);
 
+    // For the 0–10 range, lay the choices out as a keypad: 1–9 in a 3×3 block,
+    // 0 to the left of 1 (top-left), 10 to the right of 9 (bottom-right).
+    const keypad = round.choices.length === 11 && round.choices[10] === 10;
     const choices = document.getElementById('tg-choices');
+    choices.classList.toggle('tg-keypad', keypad);
     choices.innerHTML = '';
     round.choices.forEach(n => {
         const btn = document.createElement('button');
         btn.className = 'tg-choice';
         btn.textContent = n;
+        if (keypad) {
+            let col, row;
+            if (n === 0)       { col = 1; row = 1; }
+            else if (n === 10) { col = 5; row = 3; }
+            else { col = 2 + ((n - 1) % 3); row = 1 + Math.floor((n - 1) / 3); }
+            btn.style.gridColumn = col;
+            btn.style.gridRow = row;
+        }
         btn.addEventListener('click', () => tgChoose(n, btn));
         choices.appendChild(btn);
     });
@@ -770,7 +800,7 @@ function tgChoose(value, btn) {
         state.tgIndex++;
         state.tgActive = false;  // block taps during the flip
         const next = () => {
-            if (state.tgIndex >= TAP_ROUNDS) {
+            if (state.tgIndex >= state.tgRounds.length) {
                 tgEnd();
             } else {
                 tgRenderRound();
@@ -808,7 +838,7 @@ function tgEnd() {
     document.getElementById('tg-best-time').textContent = formatTime(isNewBest ? elapsed : best);
     document.getElementById('tg-new-record').classList.toggle('hidden', !isNewBest);
     document.getElementById('tg-results-title').textContent =
-        state.tgCorrect === TAP_ROUNDS ? 'Perfect!' : 'Done!';
+        state.tgCorrect === state.tgRounds.length ? 'Perfect!' : 'Done!';
 
     showScreen('tap-game-results');
 }
@@ -2905,10 +2935,18 @@ const PV_PLACES = [
     { name: 'Ones',      color: '#fb8c00' },
 ];
 
+const pvState = { speech: '' };  // last number in words, for the read-aloud button
+
 function pvRender(raw) {
     const wrap = document.getElementById('pv-svg-wrap');
     const str = String(raw).replace(/\D/g, '');
-    if (!str.length) { wrap.innerHTML = '<div class="pv-empty">Enter a number</div>'; return; }
+    if (!str.length) {
+        wrap.innerHTML = '<div class="pv-empty">Enter a number</div>';
+        document.getElementById('pv-words').innerHTML = '';
+        document.getElementById('pv-play').classList.add('hidden');
+        pvState.speech = '';
+        return;
+    }
 
     // Take up to 4 digits (thousands max); pad to the number's own length
     const digits = str.slice(-4).split('').map(Number); // most-significant first
@@ -2962,11 +3000,11 @@ function pvRender(raw) {
             const py = groupTop + p.y;
             body += pvBlock(px, py, p.w, p.h, g.def.color, p.layers);
         });
-        // Label: big bold digit + place name angled
+        // Label: big bold digit beneath each place group (the place name is now
+        // conveyed by the colour-coded words above, so no angled label here).
         const cx = cursorX + g.w / 2;
         const ly = maxH + 13;
         body += `<text x="${cx.toFixed(2)}" y="${ly}" text-anchor="middle" class="pv-digit" fill="${g.def.color}">${g.digit}</text>`;
-        body += `<text x="${(cx + 1).toFixed(2)}" y="${(ly + 9).toFixed(2)}" text-anchor="start" class="pv-place" fill="${g.def.color}" transform="rotate(22 ${(cx + 1).toFixed(2)} ${(ly + 9).toFixed(2)})">${g.def.name}</text>`;
 
         // Add comma after thousands digit (when we have 4 digits)
         if (groupIdx === 0 && groups.length === 4) {
@@ -2986,6 +3024,64 @@ function pvRender(raw) {
         `<defs><pattern id="pvgrid" width="1" height="1" patternUnits="userSpaceOnUse">` +
         `<rect width="1" height="1" fill="none" stroke="rgba(0,0,0,0.28)" stroke-width="0.06"/></pattern></defs>` +
         body + `</svg>`;
+
+    pvRenderWords(parseInt(digits.join(''), 10));
+}
+
+// The number written out in words, each place coloured to match its blocks and
+// digit (thousands purple, hundreds blue, tens green, ones orange; connectors
+// grey). British style: "one thousand, two hundred and thirty-four".
+const PV_ONES = ['zero','one','two','three','four','five','six','seven','eight','nine'];
+const PV_TEENS = ['ten','eleven','twelve','thirteen','fourteen','fifteen','sixteen','seventeen','eighteen','nineteen'];
+const PV_TENS = ['','','twenty','thirty','forty','fifty','sixty','seventy','eighty','ninety'];
+
+function pvWords(n) {
+    const C = {}; PV_PLACES.forEach(p => C[p.name] = p.color);
+    const CN = '#888';                       // connectors: commas, "and", hyphen
+    const seg = [];
+    const push = (text, color) => seg.push({ text, color });
+
+    if (n === 0) {
+        push('zero', C.Ones);
+    } else {
+        const th = Math.floor(n / 1000), rem = n % 1000;
+        const h = Math.floor(rem / 100), low = rem % 100;
+        if (th)  push(PV_ONES[th] + ' thousand', C.Thousands);
+        if (h) { if (seg.length) push(', ', CN); push(PV_ONES[h] + ' hundred', C.Hundreds); }
+        if (low) {
+            if (seg.length) push(' and ', CN);
+            if (low < 10)       push(PV_ONES[low], C.Ones);
+            else if (low < 20)  push(PV_TEENS[low - 10], C.Tens);
+            else {
+                push(PV_TENS[Math.floor(low / 10)], C.Tens);
+                if (low % 10) { push('-', CN); push(PV_ONES[low % 10], C.Ones); }
+            }
+        }
+    }
+    const speech = seg.map(s => s.text).join('').replace(/\s+/g, ' ').trim();
+    return { segments: seg, speech };
+}
+
+function pvRenderWords(n) {
+    const { segments, speech } = pvWords(n);
+    document.getElementById('pv-words').innerHTML =
+        segments.map(s => `<span style="color:${s.color}">${s.text}</span>`).join('');
+    pvState.speech = speech;
+    document.getElementById('pv-play').classList.toggle('hidden', !speech);
+}
+
+// Read the current number aloud, preferring a British English voice.
+function pvSpeak() {
+    if (!pvState.speech || !('speechSynthesis' in window)) return;
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(pvState.speech);
+    u.lang = 'en-GB';
+    u.rate = 0.95;
+    const voices = speechSynthesis.getVoices();
+    const gb = voices.find(v => /en[-_]GB/i.test(v.lang)) ||
+               voices.find(v => /United Kingdom|British|Daniel|Kate|Serena|Arthur|Oliver/i.test(v.name));
+    if (gb) u.voice = gb;
+    speechSynthesis.speak(u);
 }
 
 // A single base-ten piece: colored fill + unit-cell grid overlay + bold border.
@@ -3104,6 +3200,7 @@ const MN_CURRENCIES = {
 
 const MN_MAX_AMOUNT = 100000; // $1000.00 ceiling for Change mode
 const MN_COL_MAX = 12;      // pieces drawn in one denomination column before a ×N badge
+const MN_WIDTH_FILL = 0.98; // pieces may grow to fill this fraction of the box width
 const MN_PPM_MAX = 6;       // px per mm when a pile is small enough to show full size
 const MN_PPM_MIN = 0.2;     // ...and the floor past which pieces stop shrinking
 const MN_BAR_PPM_MAX = 1.6; // denomination toolbar (Build) sizes smaller than the pile
@@ -3231,9 +3328,11 @@ function mnRenderGroups(groups) {
     return `<div class="mn-stage">${cols}</div>`;
 }
 
-// Grow the pieces to the largest size where the columns still fit 90% of the
-// box width and all of its height (binary search on --mn-ppm, the px-per-mm
-// scale every piece derives its size from).
+// Grow the pieces as large as will fit the box, trying BOTH orientations and
+// keeping whichever lets the pieces be bigger: 'mn-cols' stacks each
+// denomination vertically (columns side by side), 'mn-rows' lays each
+// denomination in a horizontal row (rows stacked top to bottom). Wide bills
+// usually win in one orientation and not the other, so this picks the larger.
 function mnFitStage(box) {
     if (!box) return;
     const stage = box.querySelector('.mn-stage');
@@ -3242,19 +3341,34 @@ function mnFitStage(box) {
     // the box's own width, so measuring the target while the stage is tiny gives
     // the true, content-independent limit to grow back into.
     box.style.setProperty('--mn-ppm', MN_PPM_MIN);
-    const maxW = box.clientWidth * 0.9, maxH = box.clientHeight;
+    const maxW = box.clientWidth * MN_WIDTH_FILL, maxH = box.clientHeight;
     if (!maxH) return;
+
+    let best = { ppm: 0, mode: 'mn-cols' };
+    for (const mode of ['mn-cols', 'mn-rows']) {
+        stage.classList.remove('mn-cols', 'mn-rows');
+        stage.classList.add(mode);
+        const ppm = mnMaxPpm(box, stage, maxW, maxH);
+        if (ppm > best.ppm) best = { ppm, mode };
+    }
+    stage.classList.remove('mn-cols', 'mn-rows');
+    stage.classList.add(best.mode);
+    box.style.setProperty('--mn-ppm', best.ppm);
+}
+
+// Largest --mn-ppm at which the stage fits maxW × maxH, by binary search.
+function mnMaxPpm(box, stage, maxW, maxH) {
     const fits = (ppm) => {
         box.style.setProperty('--mn-ppm', ppm);
         return stage.offsetWidth <= maxW && stage.offsetHeight <= maxH;
     };
-    if (fits(MN_PPM_MAX)) return;
+    if (fits(MN_PPM_MAX)) return MN_PPM_MAX;
     let lo = MN_PPM_MIN, hi = MN_PPM_MAX;
     for (let i = 0; i < 12; i++) {
         const mid = (lo + hi) / 2;
         if (fits(mid)) lo = mid; else hi = mid;
     }
-    box.style.setProperty('--mn-ppm', lo);
+    return lo;
 }
 
 // The Build toolbar is a wrap-row of single buttons, not columns; shrink it by
@@ -3821,11 +3935,20 @@ document.addEventListener('DOMContentLoaded', () => {
             .forEach(b => b.classList.toggle('active', b === btn));
     });
 
+    document.getElementById('mt-reps-btns').addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-reps]');
+        if (!btn) return;
+        document.querySelectorAll('#mt-reps-btns [data-reps]')
+            .forEach(b => b.classList.toggle('active', b === btn));
+    });
+
     document.getElementById('mt-start-btn').addEventListener('click', () => {
         const sel = document.querySelector('#mt-target-btns [data-target].active');
         const target = parseInt(sel ? sel.dataset.target : '10', 10);
+        const repSel = document.querySelector('#mt-reps-btns [data-reps].active');
+        const reps = parseInt(repSel ? repSel.dataset.reps : '1', 10);
         const tenFrame = document.getElementById('mt-tenframe').checked;
-        startTapGame('make-ten', { target, tenFrame });
+        startTapGame('make-ten', { target, tenFrame, reps });
     });
 
     document.getElementById('tg-play-again-btn').addEventListener('click', () => {
@@ -3934,6 +4057,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         pvRender(e.target.value);
     });
+    document.getElementById('pv-play').addEventListener('click', pvSpeak);
+    // Warm up the voice list so the first tap has en-GB available.
+    if ('speechSynthesis' in window) speechSynthesis.getVoices();
 
     // ---- Visualizer ----
     ['visualizer-input-1', 'visualizer-input-2', 'visualizer-input-3'].forEach(id => {
