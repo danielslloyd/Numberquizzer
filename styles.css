@@ -1493,6 +1493,7 @@ body {
 }
 
 .tt-mode-btn.active,
+.fr-mode-btn.active,
 .fr-shape-btn.active {
     background: #000;
     color: #fff;
