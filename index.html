@@ -191,8 +191,8 @@
                     <label>Problems per sheet</label>
                     <select class="pg-count setting-select">
                         <option value="20">20</option>
-                        <option value="30" selected>30</option>
-                        <option value="40">40</option>
+                        <option value="30">30</option>
+                        <option value="40" selected>40</option>
                     </select>
                 </div>
                 <div class="setting-row">
@@ -221,8 +221,8 @@
                     <label>Problems per sheet</label>
                     <select class="pg-count setting-select">
                         <option value="20">20</option>
-                        <option value="30" selected>30</option>
-                        <option value="40">40</option>
+                        <option value="30">30</option>
+                        <option value="40" selected>40</option>
                     </select>
                 </div>
                 <div class="setting-row">
@@ -251,8 +251,8 @@
                     <label>Problems per sheet</label>
                     <select class="pg-count setting-select">
                         <option value="20">20</option>
-                        <option value="30" selected>30</option>
-                        <option value="40">40</option>
+                        <option value="30">30</option>
+                        <option value="40" selected>40</option>
                     </select>
                 </div>
                 <div class="setting-row">
@@ -281,8 +281,8 @@
                     <label>Problems per sheet</label>
                     <select class="pg-count setting-select">
                         <option value="20">20</option>
-                        <option value="30" selected>30</option>
-                        <option value="40">40</option>
+                        <option value="30">30</option>
+                        <option value="40" selected>40</option>
                     </select>
                 </div>
                 <div class="setting-row">
@@ -418,6 +418,18 @@
                             <option value="number">Letter → Number</option>
                             <option value="glyph">Letter → Glyph</option>
                         </select>
+                    </div>
+                    <div id="pg-cipher-method-row" class="setting-row">
+                        <label>Method</label>
+                        <select id="pg-cipher-method" class="setting-select">
+                            <option value="random" selected>Random substitution</option>
+                            <option value="caesar">Caesar shift</option>
+                            <option value="atbash">Atbash (reversed)</option>
+                        </select>
+                    </div>
+                    <div id="pg-cipher-shift-row" class="setting-row hidden">
+                        <label for="pg-cipher-shift">Shift by</label>
+                        <input type="number" id="pg-cipher-shift" class="setting-select" min="1" max="25" value="3">
                     </div>
                     <div id="pg-cipher-glyph-selector" class="setting-row hidden">
                         <label>Glyph font</label>
@@ -872,8 +884,8 @@
 
     <script src="parser.js?v=15"></script>
     <script src="physics.js?v=16"></script>
-    <script src="animator.js?v=20"></script>
-    <script src="app.js?v=55"></script>
+    <script src="animator.js?v=21"></script>
+    <script src="app.js?v=56"></script>
     <script src="language-arts.js?v=5"></script>
 </body>
 </html>

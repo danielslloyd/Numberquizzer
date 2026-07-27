@@ -67,20 +67,22 @@ Sprites remove themselves on `animationend`.
 
 ## Development workflow
 
-Branch: `claude/flashcard-app-netlify-BlGXx`
+Branch: `main` — the only branch. The repo was consolidated onto `main` on
+2026-07-27; the old `claude/*` feature branches were merged or retired and deleted.
 
-Always push to this branch. Do not push to `main` without explicit permission.
+Work on a short-lived branch off `main` and merge it back, or commit straight to
+`main` for small changes. Do not push to `main` without explicit permission.
 
 ```bash
 git add <files>
 git commit -m "description"
-git push -u origin claude/flashcard-app-netlify-BlGXx
+git push origin main
 ```
 
 If push is rejected (remote has new commits), pull with rebase first:
 ```bash
-git pull origin claude/flashcard-app-netlify-BlGXx --rebase
-git push -u origin claude/flashcard-app-netlify-BlGXx
+git pull origin main --rebase
+git push origin main
 ```
 
 ## Cache busting
@@ -144,4 +146,5 @@ A **fixed catalogue** (`MN_SHOP_CATALOG`), not a live storefront. A static page 
 - The settings burger is **only visible on the home screen** (managed in `showScreen()`)
 - `state.animations` and `state.showTranscript` are read at quiz start from the burger toggles; they do not hot-reload mid-quiz
 - **Visualizer (multiply) canvas sizing** (`animator.js`) — the camera aspect must track the *container's* real size, or the 3D scene renders vertically squished. Keep all three: camera aspect from `container.client{Width,Height}` (not `window`), `renderer.setSize(w, h, false)` so Three.js doesn't write an inline canvas size that feeds back into the container height, and the `render()` loop's size-drift check that re-syncs when the container settles late. `#viz-{multiply,place}-mode:not(.hidden)` are flex columns so the canvas gets a definite height.
+- **Visualizer (multiply) fill staging** — `fillBox()` reveals the box one *dimension* at a time (X row → Y rows complete the base layer → Z layers stack), so `a × b × c` reads as three dimensions rather than a uniform sweep. Delays are precomputed per instance into a `delays[]` array indexed to the creation order (layer outermost, then row, then col) — if you change either loop order, change both. Stages whose extent is 1 collapse to zero width. `MathAnimator.FILL_DURATION` is the worst-case total and `handleVisualizerShow()` in `app.js` times the answer reveal off it — **keep them in step** rather than re-hardcoding a delay.
 - **Visualizer (multiply) block rotation** — blocks generate perfectly axis-aligned (`_addCube` uses an identity quaternion; **never** bake a resting tilt in). The tumble is **angular momentum** given on DROP: the physics `addCube(..., spin)` sets a random `angularVelocity` (both backends), scaled from the Rotation slider by `MathAnimator.SPIN_SCALE`. `settled` checks angular velocity too, so a spinning block isn't called to rest early.

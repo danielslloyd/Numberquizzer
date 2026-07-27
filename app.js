@@ -925,7 +925,7 @@ function generateNumberSet(diff) {
                      : diff === 'medium' ? [1, 100]
                      :                    [-9999, 9999];
     const numbers = [];
-    const count = diff === 'hard' ? 6 : 6;
+    const count = diff === 'hard' ? 8 : 6;
     while (numbers.length < count) {
         const n = Math.floor(Math.random() * (max - min + 1)) + min;
         if (!numbers.includes(n)) numbers.push(n);
@@ -988,19 +988,28 @@ function wsRenderBubbles(words) {
     });
 }
 
+// The target order for whatever is currently on screen.
+function wsTargetOrder(current) {
+    if (state.wsType === 'numbers') {
+        return [...current].sort((a, b) => Number(a) - Number(b));  // smallest first
+    }
+    return [...current].sort((a, b) => a.localeCompare(b));
+}
+
+// Silent correctness test — no .ws-wrong marking, for the auto-check on drop.
+function wsIsSorted() {
+    const current = [...document.getElementById('ws-word-list')
+        .querySelectorAll('.ws-bubble')].map(b => b.dataset.word);
+    const correct = wsTargetOrder(current);
+    return current.every((w, i) => w === correct[i]);
+}
+
 function wsCheckOrder() {
     const list = document.getElementById('ws-word-list');
     const bubbles = [...list.querySelectorAll('.ws-bubble')];
     const current = bubbles.map(b => b.dataset.word);
 
-    let correct;
-    if (state.wsType === 'numbers') {
-        const nums = current.map(Number);
-        const sorted = [...nums].sort((a, b) => a - b);  // smallest first
-        correct = sorted.map(String);
-    } else {
-        correct = [...current].sort((a, b) => a.localeCompare(b));
-    }
+    const correct = wsTargetOrder(current);
 
     let allCorrect = true;
     bubbles.forEach((bubble, i) => {
@@ -1108,6 +1117,10 @@ function wsDragEnd(e) {
     ds.placeholder.remove();
 
     state.wsDragState = null;
+
+    // Finish the moment the order comes out right — no need to press Check.
+    // The button stays for the "which ones are wrong?" hint while working.
+    if (state.wsTimerInterval && wsIsSorted()) wsEndGame();
 }
 
 // ============================================
@@ -1204,7 +1217,7 @@ function handleVisualizerShow() {
     setTimeout(() => {
         answerEl.textContent = `= ${a * b * c}`;
         answerEl.classList.remove('hidden');
-    }, 1500);
+    }, MathAnimator.FILL_DURATION);
 }
 
 function handleVisualizerDrop() {
@@ -1359,9 +1372,14 @@ function pgMakeDivision(max, count) {
 // We use 26 of them (one per letter) as cipher tokens — jsPDF renders them correctly.
 const ZAPFDINGBATS_TOKENS = Array.from({ length: 26 }, (_, i) => String.fromCharCode(0x21 + i));
 
-function pgMakeCipherMap() {
+// method: 'random' (shuffled substitution), 'caesar' (rotate by shift) or
+// 'atbash' (reverse the alphabet). Caesar/Atbash are solvable by hand, which
+// makes them a gentler starting point than a full random substitution.
+function pgMakeCipherMap(method = 'random', shift = 3) {
     const A = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
-    const S = shuffleArray([...A]);
+    const S = method === 'caesar' ? A.map((_, i) => A[(i + (((shift % 26) + 26) % 26)) % 26])
+            : method === 'atbash' ? A.map((_, i) => A[25 - i])
+            :                       shuffleArray([...A]);
     const fwd = {}, rev = {};
     A.forEach((ch, i) => { fwd[ch] = S[i]; rev[S[i]] = ch; });
     return { fwd, rev };
@@ -2066,7 +2084,7 @@ function pgDrawCipherKeyTop(doc, revMap, gridX, gridY, cellW, cellH, gridCols, e
     }
 }
 
-function pgPDFCipher(text, _unused, cipherType = 'letter', glyphFont = 'dingbat', gridSize = 'small', showGridlines = true, showKeyOnPage = false, includeAnswerKey = false) {
+function pgPDFCipher(text, _unused, cipherType = 'letter', glyphFont = 'dingbat', gridSize = 'small', showGridlines = true, showKeyOnPage = false, includeAnswerKey = false, method = 'random', shift = 3) {
     const { jsPDF } = window.jspdf;
     const doc  = new jsPDF({ unit: 'mm', format: 'letter' });
     const alpha = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
@@ -2104,7 +2122,7 @@ function pgPDFCipher(text, _unused, cipherType = 'letter', glyphFont = 'dingbat'
     const origChunks = pgCipherSplitToPages(allWords, TEXT_COLS, TEXT_ROWS);
 
     const ciphers = origChunks.map(() =>
-        effectiveCipherType === 'letter' ? pgMakeCipherMap()       :
+        effectiveCipherType === 'letter' ? pgMakeCipherMap(method, shift) :
         effectiveCipherType === 'number' ? pgMakeCipherMapNumber() :
         effectiveCipherType === 'rune'   ? pgMakeCipherMapRune()   :
                                            pgMakeCipherMapGlyph()
@@ -2223,6 +2241,14 @@ function pgGenerateWorksheets() {
     }
 }
 
+// The shift box is only meaningful for a Caesar cipher on the letter type.
+function pgSyncCipherShiftRow() {
+    const isLetter = document.getElementById('pg-cipher-type').value === 'letter';
+    const isCaesar = document.getElementById('pg-cipher-method').value === 'caesar';
+    document.getElementById('pg-cipher-shift-row')
+        .classList.toggle('hidden', !(isLetter && isCaesar));
+}
+
 function pgGenerateCiphers() {
     if (!pgCheckJsPDF()) return;
     const text = document.getElementById('pg-cipher-text').value.trim();
@@ -2233,7 +2259,9 @@ function pgGenerateCiphers() {
     const showGridlines   = document.getElementById('pg-cipher-gridlines').checked;
     const showKey         = document.getElementById('pg-cipher-show-key').checked;
     const includeAnswerKey = document.getElementById('pg-cipher-answer-key').checked;
-    pgPDFCipher(text, null, cipherType, glyphFont, gridSize, showGridlines, showKey, includeAnswerKey);
+    const method          = document.getElementById('pg-cipher-method').value;
+    const shift           = parseInt(document.getElementById('pg-cipher-shift').value, 10) || 3;
+    pgPDFCipher(text, null, cipherType, glyphFont, gridSize, showGridlines, showKey, includeAnswerKey, method, shift);
 }
 
 // ============================================
@@ -3928,7 +3956,14 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('pg-cipher-type').addEventListener('change', (e) => {
         document.getElementById('pg-cipher-glyph-selector')
             .classList.toggle('hidden', e.target.value !== 'glyph');
+        // Caesar/Atbash only make sense letter → letter; the other types are
+        // always a random mapping onto their own token set.
+        document.getElementById('pg-cipher-method-row')
+            .classList.toggle('hidden', e.target.value !== 'letter');
+        pgSyncCipherShiftRow();
     });
+
+    document.getElementById('pg-cipher-method').addEventListener('change', pgSyncCipherShiftRow);
 
     document.getElementById('ciphers-generate-btn').addEventListener('click', pgGenerateCiphers);
 

@@ -462,9 +462,29 @@ class MathAnimator {
             this.instancedMesh.instanceColor.needsUpdate = true;
         }
 
-        const fillDuration = 2000; // fixed window regardless of cube count
-        const cellGrow = 250;
-        const stagger = total > 1 ? (fillDuration - cellGrow) / (total - 1) : 0;
+        // Reveal in three stages so the box builds one dimension at a time:
+        // first the X row, then the Y rows complete the base layer, then the Z
+        // layers stack up. Makes a x b x c read as three dimensions rather than
+        // a uniform sweep. Stages with extent 1 collapse to zero width.
+        const stageDur = MathAnimator.FILL_STAGE_MS;
+        const cellGrow = MathAnimator.FILL_GROW_MS;
+        const rowsStart   = stageDur;
+        const layersStart = rowsStart + (b > 1 ? stageDur : 0);
+
+        // Delay per instance, indexed to match the creation order above
+        // (layer outermost, then row, then col).
+        const delays = new Array(total);
+        for (let layer = 0; layer < c; layer++) {
+            for (let row = 0; row < b; row++) {
+                for (let col = 0; col < a; col++) {
+                    const d = layer > 0 ? layersStart + (layer - 1) * (stageDur / (c - 1))
+                            : row   > 0 ? rowsStart   + (row   - 1) * (stageDur / (b - 1))
+                            : a > 1     ? col * (stageDur / a)
+                            :             0;
+                    delays[layer * b * a + row * a + col] = d;
+                }
+            }
+        }
 
         const startTime = Date.now();
         return new Promise(resolve => {
@@ -472,7 +492,7 @@ class MathAnimator {
                 const elapsed = Date.now() - startTime;
                 let allDone = true;
                 for (let i = 0; i < total; i++) {
-                    const t = Math.max(0, Math.min(1, (elapsed - i * stagger) / cellGrow));
+                    const t = Math.max(0, Math.min(1, (elapsed - delays[i]) / cellGrow));
                     if (this.cubeData[i].scale !== t) {
                         this.cubeData[i].scale = t;
                         this._writeInstance(i);
@@ -783,3 +803,10 @@ MathAnimator._tmpScaleVec = new THREE.Vector3();
 // Multiplies the "Rotation" slider (rotRange) into an angular-velocity range
 // (rad/s) applied to each block on drop. Bigger = more tumbling.
 MathAnimator.SPIN_SCALE = 6;
+// fillBox() reveals the box in three stages (X row, Y rows, Z layers) of
+// FILL_STAGE_MS each, with each cube growing over FILL_GROW_MS. FILL_DURATION
+// is the worst case (all three stages present) — app.js syncs the answer
+// reveal to it, so keep them in step.
+MathAnimator.FILL_STAGE_MS = 500;
+MathAnimator.FILL_GROW_MS = 150;
+MathAnimator.FILL_DURATION = MathAnimator.FILL_STAGE_MS * 3 + MathAnimator.FILL_GROW_MS;
