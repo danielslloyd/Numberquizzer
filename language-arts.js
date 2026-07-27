@@ -362,6 +362,16 @@
                 { s: 'The children built a castle in the sand.', subject: 'children', subjMods: ['The'], verb: 'built', object: 'castle', objMods: ['a'], preps: [{ prep: 'in', object: 'sand', mods: ['the'], attach: 'verb' }] },
                 { s: 'A girl with red hair sang.', subject: 'girl', subjMods: ['A'], verb: 'sang', preps: [{ prep: 'with', object: 'hair', mods: ['red'], attach: 'subject' }] },
                 { s: 'Birds fly to the south.', subject: 'Birds', verb: 'fly', preps: [{ prep: 'to', object: 'south', mods: ['the'], attach: 'verb' }] },
+                // Participles work as ordinary adjective modifiers on the noun.
+                { s: 'The barking dog scared the mail carrier.', subject: 'dog', subjMods: ['The', 'barking'], verb: 'scared', object: 'carrier', objMods: ['the', 'mail'] },
+                { s: 'The frightened kitten hid.', subject: 'kitten', subjMods: ['The', 'frightened'], verb: 'hid' },
+                // Adverb clauses: the conjunction rides the dashed connector to the sub-clause.
+                { s: 'The dog barked when the mail came.', subject: 'dog', subjMods: ['The'], verb: 'barked', subordinate: { kind: 'adverb', attach: 'verb', conj: 'when', subject: 'mail', subjMods: ['the'], verb: 'came' } },
+                { s: 'We stayed inside because it rained.', subject: 'We', verb: 'stayed', verbMods: ['inside'], subordinate: { kind: 'adverb', attach: 'verb', conj: 'because', subject: 'it', verb: 'rained' } },
+                { s: 'She smiled after she won.', subject: 'She', verb: 'smiled', subordinate: { kind: 'adverb', attach: 'verb', conj: 'after', subject: 'she', verb: 'won' } },
+                // Relative clauses: the relative pronoun sits in its clause slot, joined by a dash.
+                { s: 'The book that I read was long.', subject: 'book', subjMods: ['The'], verb: 'was', subjComp: { kind: 'PA', word: 'long' }, subordinate: { kind: 'relative', attach: 'subject', relRole: 'object', subject: 'I', verb: 'read', object: 'that' } },
+                { s: 'The dog that barked ran away.', subject: 'dog', subjMods: ['The'], verb: 'ran', verbMods: ['away'], subordinate: { kind: 'relative', attach: 'subject', relRole: 'subject', subject: 'that', verb: 'barked' } },
             ],
         },
     };
@@ -734,6 +744,27 @@
             tok: resolve(p.prep), attach: p.attach || 'verb',
             object: { tok: resolve(p.object), mods: (p.mods || []).map(resolve) },
         }));
+        // Subordinate clause (resolved AFTER the main clause so shared duplicate words
+        // are consumed in sentence order). kind 'adverb' rides a conjunction on the
+        // dashed connector; kind 'relative' puts the relative pronoun in a clause slot.
+        if (item.subordinate) {
+            const sub = item.subordinate;
+            const subSpec = {
+                subject: { tok: resolve(sub.subject), mods: (sub.subjMods || []).map(resolve) },
+                verb: { tok: resolve(sub.verb), mods: (sub.verbMods || []).map(resolve) },
+                preps: [],
+            };
+            if (sub.iobject) subSpec.iobject = { tok: resolve(sub.iobject.word), mods: (sub.iobject.mods || []).map(resolve) };
+            if (sub.object) subSpec.object = { tok: resolve(sub.object), mods: (sub.objMods || []).map(resolve) };
+            if (sub.subjComp) subSpec.subjComp = { kind: sub.subjComp.kind, tok: resolve(sub.subjComp.word), mods: (sub.subjComp.mods || []).map(resolve) };
+            spec.subordinate = {
+                spec: subSpec,
+                kind: sub.kind || 'adverb',
+                attach: sub.attach || 'verb',
+                relRole: sub.relRole || null,
+                conjTok: sub.conj ? resolve(sub.conj) : -1,
+            };
+        }
         return { tokens, spec };
     }
 
@@ -741,9 +772,14 @@
      * `expect` token index), text labels, and the diagram's intrinsic {w,h}. */
     const D = { PAD: 26, LINE_Y: 64, SLOT_H: 30, WMIN: 46, GAPD: 13, MOD_DY: 42, MOD_DX: 26, PREP_DY: 46, PREP_DX: 24 };
     const LBL = { subject: 'subject', verb: 'verb', object: 'object', comp: 'complement', iobject: 'indirect' };
-    function laDiagLayout(spec, tokens) {
+    // Lay out a single clause anchored at (ox, oy). idp namespaces slot ids so a main
+    // clause and a subordinate clause don't collide. Returns heads (role -> cx) too.
+    function laDiagLayout(spec, tokens, ox, oy, idp) {
+        ox = ox == null ? D.PAD : ox;
+        oy = oy == null ? D.LINE_Y : oy;
+        idp = idp || '';
         const lines = [], slots = [], labels = [];
-        let maxX = 0, maxY = D.LINE_Y + D.SLOT_H;
+        let maxX = 0, maxY = oy + D.SLOT_H;
         const bump = (x, y) => { if (x > maxX) maxX = x; if (y > maxY) maxY = y; };
         const r = (n) => Math.round(n * 10) / 10;
         const L = (x1, y1, x2, y2, cls) => `<line x1="${r(x1)}" y1="${r(y1)}" x2="${r(x2)}" y2="${r(y2)}" class="la-diag-line${cls ? ' ' + cls : ''}"/>`;
@@ -751,31 +787,31 @@
         const heads = {};
 
         // ---- Phase 1: baseline (subject | verb | object/complement) ----
-        let x = D.PAD;
+        let x = ox;
         function baseWord(node, role, id) {
             const w = wslot(node.tok);
             const cx = x + w / 2;
-            slots.push({ id, role, expect: node.tok, cx, cy: D.LINE_Y - D.SLOT_H / 2 - 3, w });
-            if (LBL[role]) labels.push({ x: cx, y: D.LINE_Y - D.SLOT_H - 8, text: LBL[role] });
+            slots.push({ id: idp + id, role, expect: node.tok, cx, cy: oy - D.SLOT_H / 2 - 3, w });
+            if (LBL[role]) labels.push({ x: cx, y: oy - D.SLOT_H - 8, text: LBL[role] });
             heads[id] = cx;
-            x += w; bump(x + D.PAD, D.LINE_Y + D.SLOT_H);
+            x += w; bump(x + D.PAD, oy + D.SLOT_H);
         }
         baseWord(spec.subject, 'subject', 'subject');
         x += D.GAPD; const dv1 = x; x += D.GAPD;
-        lines.push(L(dv1, D.LINE_Y - 26, dv1, D.LINE_Y + 14));                 // subject|verb crosses the line
+        lines.push(L(dv1, oy - 26, dv1, oy + 14));                 // subject|verb crosses the line
         baseWord(spec.verb, 'verb', 'verb');
         if (spec.object) {
             x += D.GAPD; const dv2 = x; x += D.GAPD;
-            lines.push(L(dv2, D.LINE_Y - 26, dv2, D.LINE_Y));                  // verb|object sits on the line
+            lines.push(L(dv2, oy - 26, dv2, oy));                  // verb|object sits on the line
             baseWord(spec.object, 'object', 'object');
         } else if (spec.subjComp) {
             x += D.GAPD; const dv2 = x; x += D.GAPD;
-            lines.push(L(dv2, D.LINE_Y, dv2 - 16, D.LINE_Y - 22, 'la-diag-slant')); // complement line leans toward subject
+            lines.push(L(dv2, oy, dv2 - 16, oy - 22, 'la-diag-slant')); // complement line leans toward subject
             baseWord(spec.subjComp, 'comp', 'comp');
         }
         const baseRight = x;
-        lines.unshift(L(D.PAD - 8, D.LINE_Y, baseRight + 8, D.LINE_Y));        // baseline (behind everything)
-        bump(baseRight + D.PAD, D.LINE_Y + D.SLOT_H);
+        lines.unshift(L(ox - 8, oy, baseRight + 8, oy));        // baseline (behind everything)
+        bump(baseRight + D.PAD, oy + D.SLOT_H);
 
         // ---- Phase 2: hang danglers (modifiers, prep phrases, indirect object) ----
         // A head can carry several danglers at once (e.g. an article AND a prep phrase),
@@ -788,10 +824,10 @@
         function ioWidth(node) { return D.PREP_DX + wslot(node.tok) + 24 + 8; }
 
         function addModAt(topX, tok, id) {
-            const botX = topX + D.MOD_DX, botY = D.LINE_Y + D.MOD_DY;
-            lines.push(L(topX, D.LINE_Y + 1, botX, botY, 'la-diag-slant'));
+            const botX = topX + D.MOD_DX, botY = oy + D.MOD_DY;
+            lines.push(L(topX, oy + 1, botX, botY, 'la-diag-slant'));
             const w = wslot(tok);
-            slots.push({ id, role: 'modifier', expect: tok, cx: (topX + botX) / 2 + w / 2, cy: (D.LINE_Y + 1 + botY) / 2 + 4, w });
+            slots.push({ id, role: 'modifier', expect: tok, cx: (topX + botX) / 2 + w / 2, cy: (oy + 1 + botY) / 2 + 4, w });
             bump(botX + w, botY + D.SLOT_H);
         }
         // slant down from topX to a horizontal carrying `node` (+ its own modifiers)
@@ -810,15 +846,15 @@
             });
         }
         function addPrepAt(topX, p, id) {
-            const kx = topX + D.PREP_DX, ky = D.LINE_Y + D.PREP_DY;
-            lines.push(L(topX, D.LINE_Y + 1, kx, ky, 'la-diag-slant'));
+            const kx = topX + D.PREP_DX, ky = oy + D.PREP_DY;
+            lines.push(L(topX, oy + 1, kx, ky, 'la-diag-slant'));
             const pw = wslot(p.tok);
-            slots.push({ id, role: 'prep', expect: p.tok, cx: (topX + kx) / 2 + pw / 2 - 2, cy: (D.LINE_Y + ky) / 2, w: pw });
+            slots.push({ id, role: 'prep', expect: p.tok, cx: (topX + kx) / 2 + pw / 2 - 2, cy: (oy + ky) / 2, w: pw });
             addHorizObject(kx, ky, p.object, id + 'o');
         }
         function addIOAt(topX, node, id) {
-            const kx = topX + D.PREP_DX, ky = D.LINE_Y + D.PREP_DY;
-            lines.push(L(topX, D.LINE_Y + 1, kx, ky, 'la-diag-slant'));
+            const kx = topX + D.PREP_DX, ky = oy + D.PREP_DY;
+            lines.push(L(topX, oy + 1, kx, ky, 'la-diag-slant'));
             labels.push({ x: kx + (wslot(node.tok) + 24) / 2, y: ky + 16, text: 'indirect' });
             addHorizObject(kx, ky, node, id);
         }
@@ -828,13 +864,13 @@
             const hx = heads[headId];
             if (hx === undefined) return;
             const dl = [];
-            (modList || []).forEach((tok, i) => dl.push({ type: 'mod', tok, id: idPfx + i, w: widthOf(tok) }));
+            (modList || []).forEach((tok, i) => dl.push({ type: 'mod', tok, id: idp + idPfx + i, w: widthOf(tok) }));
             (spec.preps || []).forEach((p, pi) => {
                 let at = p.attach || 'verb';
                 if (at === 'object' && heads['object'] === undefined) at = 'verb';
-                if (at === headId) dl.push({ type: 'prep', prep: p, id: 'prep' + pi, w: prepWidth(p) });
+                if (at === headId) dl.push({ type: 'prep', prep: p, id: idp + 'prep' + pi, w: prepWidth(p) });
             });
-            if (headId === 'verb' && spec.iobject) dl.push({ type: 'io', node: spec.iobject, id: 'iobject', w: ioWidth(spec.iobject) });
+            if (headId === 'verb' && spec.iobject) dl.push({ type: 'io', node: spec.iobject, id: idp + 'iobject', w: ioWidth(spec.iobject) });
             if (!dl.length) return;
             const gap = 8;
             const totalW = dl.reduce((a, d) => a + d.w, 0) + gap * (dl.length - 1);
@@ -852,7 +888,36 @@
         if (spec.object) placeDanglers('object', spec.object.mods, 'om');
         if (spec.subjComp) placeDanglers('comp', spec.subjComp.mods, 'cm');
 
-        return { lines, slots, labels, w: Math.ceil(maxX), h: Math.ceil(maxY + D.PAD) };
+        return { lines, slots, labels, heads, w: Math.ceil(maxX), h: Math.ceil(maxY + D.PAD) };
+    }
+
+    // Compose a main clause with an optional subordinate clause (adverb or relative),
+    // joined by a dashed connector. Verbal phrases (gerund/infinitive/participle) are
+    // handled inside the clause layout via their spec nodes.
+    function laDiagLayoutFull(spec, tokens) {
+        const main = laDiagLayout(spec, tokens, D.PAD, D.LINE_Y, '');
+        let lines = main.lines.slice(), slots = main.slots.slice(), labels = main.labels.slice();
+        let w = main.w, h = main.h;
+        if (spec.subordinate) {
+            const so = spec.subordinate;
+            const subOY = h + 16;
+            const attachCx = (main.heads[so.attach] != null) ? main.heads[so.attach] : main.heads['verb'];
+            const subOX = Math.max(D.PAD, attachCx - 50);
+            const sub = laDiagLayout(so.spec, tokens, subOX, subOY, 'sub_');
+            lines = lines.concat(sub.lines); slots = slots.concat(sub.slots); labels = labels.concat(sub.labels);
+            w = Math.max(w, sub.w); h = Math.max(h, sub.h);
+            const r = (n) => Math.round(n * 10) / 10;
+            const fromX = attachCx, fromY = D.LINE_Y + D.SLOT_H / 2 + 2;
+            const toRole = so.kind === 'relative' ? (so.relRole === 'subject' ? 'subject' : 'object') : 'verb';
+            const toX = (sub.heads[toRole] != null) ? sub.heads[toRole] : sub.heads['verb'];
+            const toY = subOY - D.SLOT_H / 2 - 3;
+            lines.push(`<line x1="${r(fromX)}" y1="${r(fromY)}" x2="${r(toX)}" y2="${r(toY)}" class="la-diag-line la-diag-dash"/>`);
+            if (so.conjTok >= 0) {   // subordinating conjunction rides the dashed line
+                const mx = (fromX + toX) / 2, my = (fromY + toY) / 2;
+                slots.push({ id: 'subconj', role: 'conj', expect: so.conjTok, cx: mx, cy: my, w: Math.max(D.WMIN, laMeasure(tokens[so.conjTok]) + 12) });
+            }
+        }
+        return { lines, slots, labels, w: Math.ceil(w), h: Math.ceil(h) };
     }
 
     // Debug audit (used by tests): every diag item must map all tokens bijectively to slots.
@@ -861,7 +926,7 @@
         ['easy', 'hard'].forEach((tier) => (LA.diag[tier] || []).forEach((item, idx) => {
             try {
                 const n = laDiagNormalize(item);
-                const lay = laDiagLayout(n.spec, n.tokens);
+                const lay = laDiagLayoutFull(n.spec, n.tokens);
                 const expects = lay.slots.map((s) => s.expect).sort((a, b) => a - b);
                 const ok = expects.length === n.tokens.length && expects.every((v, i) => v === i);
                 if (!ok) problems.push({ tier, idx, s: item.s, tokens: n.tokens.length, slots: lay.slots.length, expects });
@@ -885,7 +950,7 @@
         diag.item = forceItem || pick(poolFor(LA.diag, diag.diff));
         const norm = laDiagNormalize(diag.item);
         diag.tokens = norm.tokens;
-        const lay = laDiagLayout(norm.spec, norm.tokens);
+        const lay = laDiagLayoutFull(norm.spec, norm.tokens);
         diag.layout = lay;
         diag.slots = lay.slots;
         diag.chips = norm.tokens.map((w, i) => ({ id: 'c' + i, word: w, tok: i }));
@@ -1108,7 +1173,7 @@
         if (document.querySelector('link[data-la-css]')) return;
         const link = document.createElement('link');
         link.rel = 'stylesheet';
-        link.href = 'language-arts.css?v=2';
+        link.href = 'language-arts.css?v=3';
         link.dataset.laCss = '1';
         document.head.appendChild(link);
     }

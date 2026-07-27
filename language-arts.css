@@ -154,6 +154,8 @@
 }
 .la-diag-line { stroke: #000; stroke-width: 2.5; }
 .la-diag-slant { stroke-width: 2; }
+.la-diag-dash { stroke-width: 1.6; stroke-dasharray: 5 4; }
+.la-diag-pedestal { stroke-width: 2; }
 .la-diag-slotlabel {
     fill: #bbb;
     font-size: 11px;
