@@ -335,22 +335,33 @@
             ],
         },
 
-        // Diagramming: simple Reed-Kellogg patterns. subjMod / objMod are optional
-        // single modifiers (article or adjective) that hang under their word.
+        // Diagramming: author the full sentence in `s` plus the grammatical roles by
+        // word. laDiagNormalize() resolves each role word to a token index (repeats
+        // resolved left-to-right) so EVERY word maps to exactly one diagram slot.
+        // Fields: subject/subjMods, verb/verbMods, object/objMods, iobject{word,mods},
+        // subjComp{kind:'PN'|'PA',word,mods}, preps[{prep,object,mods,attach}].
         diag: {
             easy: [
-                { subject: 'Dogs', verb: 'bark' },
-                { subject: 'Birds', verb: 'sing' },
-                { subject: 'dog', verb: 'chased', object: 'cat', subjMod: 'The', objMod: 'the' },
-                { subject: 'cat', verb: 'drinks', object: 'milk', subjMod: 'The' },
-                { subject: 'boy', verb: 'kicked', object: 'ball', subjMod: 'A', objMod: 'the' },
+                { s: 'Dogs bark.', subject: 'Dogs', verb: 'bark' },
+                { s: 'Birds sing.', subject: 'Birds', verb: 'sing' },
+                { s: 'The baby slept.', subject: 'baby', subjMods: ['The'], verb: 'slept' },
+                { s: 'The dog chased the cat.', subject: 'dog', subjMods: ['The'], verb: 'chased', object: 'cat', objMods: ['the'] },
+                { s: 'The cat drinks milk.', subject: 'cat', subjMods: ['The'], verb: 'drinks', object: 'milk' },
+                { s: 'A boy kicked the ball.', subject: 'boy', subjMods: ['A'], verb: 'kicked', object: 'ball', objMods: ['the'] },
+                { s: 'Small children build sandcastles.', subject: 'children', subjMods: ['Small'], verb: 'build', object: 'sandcastles' },
+                { s: 'The happy dog chased the red ball.', subject: 'dog', subjMods: ['The', 'happy'], verb: 'chased', object: 'ball', objMods: ['the', 'red'] },
             ],
             hard: [
-                { subject: 'farmer', verb: 'grows', object: 'corn', subjMod: 'The', objMod: 'sweet' },
-                { subject: 'children', verb: 'built', object: 'castle', subjMod: 'The', objMod: 'sandy' },
-                { subject: 'wind', verb: 'shook', object: 'trees', subjMod: 'cold', objMod: 'tall' },
-                { subject: 'artist', verb: 'painted', object: 'mural', subjMod: 'young', objMod: 'bright' },
-                { subject: 'engine', verb: 'pulled', object: 'cars', subjMod: 'red', objMod: 'heavy' },
+                { s: 'The farmer grows sweet corn.', subject: 'farmer', subjMods: ['The'], verb: 'grows', object: 'corn', objMods: ['sweet'] },
+                { s: 'The wind shook the tall trees.', subject: 'wind', subjMods: ['The'], verb: 'shook', object: 'trees', objMods: ['the', 'tall'] },
+                { s: 'The old man walked slowly.', subject: 'man', subjMods: ['The', 'old'], verb: 'walked', verbMods: ['slowly'] },
+                { s: 'My mother is a teacher.', subject: 'mother', subjMods: ['My'], verb: 'is', subjComp: { kind: 'PN', word: 'teacher', mods: ['a'] } },
+                { s: 'The soup smells delicious.', subject: 'soup', subjMods: ['The'], verb: 'smells', subjComp: { kind: 'PA', word: 'delicious' } },
+                { s: 'The pitcher threw me the ball.', subject: 'pitcher', subjMods: ['The'], verb: 'threw', iobject: { word: 'me' }, object: 'ball', objMods: ['the'] },
+                { s: 'The cat sat on the mat.', subject: 'cat', subjMods: ['The'], verb: 'sat', preps: [{ prep: 'on', object: 'mat', mods: ['the'], attach: 'verb' }] },
+                { s: 'The children built a castle in the sand.', subject: 'children', subjMods: ['The'], verb: 'built', object: 'castle', objMods: ['a'], preps: [{ prep: 'in', object: 'sand', mods: ['the'], attach: 'verb' }] },
+                { s: 'A girl with red hair sang.', subject: 'girl', subjMods: ['A'], verb: 'sang', preps: [{ prep: 'with', object: 'hair', mods: ['red'], attach: 'subject' }] },
+                { s: 'Birds fly to the south.', subject: 'Birds', verb: 'fly', preps: [{ prep: 'to', object: 'south', mods: ['the'], attach: 'verb' }] },
             ],
         },
     };
@@ -685,8 +696,13 @@
      * Pointer-drag word chips onto a Reed-Kellogg skeleton. Touch-safe (no HTML5
      * drag-and-drop, which doesn't fire on touch devices).
      * ======================================================================*/
-    const STAGE_W = 560, STAGE_H = 230, BASE_Y = 95;
-    const diag = { diff: 'easy', score: 0, item: null, slots: [], assign: {}, locked: false, drag: null };
+    const diag = { diff: 'easy', score: 0, item: null, tokens: [], slots: [], assign: {}, chips: null, layout: null, locked: false };
+    // Approximate text measurement for sizing slots/lines (font may not be loaded yet).
+    let _diagCtx = null;
+    function laMeasure(t) {
+        if (!_diagCtx) { _diagCtx = document.createElement('canvas').getContext('2d'); _diagCtx.font = "700 18px Fredoka, sans-serif"; }
+        return _diagCtx.measureText(t).width;
+    }
 
     function diagInit() {
         diag.score = 0;
@@ -694,116 +710,271 @@
         document.getElementById('la-diag-score').textContent = 'Score: 0';
         diagRound();
     }
-    function diagLayout(item) {
-        // Returns {slots, lines} in stage coordinates.
-        const hasObj = !!item.object;
-        const slots = [];
-        slots.push({ id: 'subject', cx: 100, cy: BASE_Y - 18, expect: item.subject, label: 'subject' });
-        slots.push({ id: 'verb', cx: 290, cy: BASE_Y - 18, expect: item.verb, label: 'verb' });
-        if (hasObj) slots.push({ id: 'object', cx: 470, cy: BASE_Y - 18, expect: item.object, label: 'object' });
-        if (item.subjMod) slots.push({ id: 'subjMod', cx: 95, cy: BASE_Y + 55, expect: item.subjMod, label: 'modifier' });
-        if (item.objMod) slots.push({ id: 'objMod', cx: 465, cy: BASE_Y + 55, expect: item.objMod, label: 'modifier' });
-        const lines = [];
-        const rightEnd = hasObj ? 545 : 385;
-        lines.push(`<line x1="20" y1="${BASE_Y}" x2="${rightEnd}" y2="${BASE_Y}" class="la-diag-line"/>`);        // baseline
-        lines.push(`<line x1="195" y1="${BASE_Y - 32}" x2="195" y2="${BASE_Y + 22}" class="la-diag-line"/>`);      // subj|verb divider (crosses)
-        if (hasObj) lines.push(`<line x1="385" y1="${BASE_Y - 26}" x2="385" y2="${BASE_Y}" class="la-diag-line"/>`); // verb|obj divider (sits on line)
-        if (item.subjMod) lines.push(`<line x1="70" y1="${BASE_Y + 2}" x2="120" y2="${BASE_Y + 80}" class="la-diag-line la-diag-slant"/>`);
-        if (item.objMod) lines.push(`<line x1="440" y1="${BASE_Y + 2}" x2="490" y2="${BASE_Y + 80}" class="la-diag-line la-diag-slant"/>`);
-        return { slots, lines };
+    /* Normalize an authored item into { tokens, spec }. Every role word is resolved
+     * to a token index (repeats consumed left-to-right in canonical sentence order),
+     * so in a complete diagram every token maps to exactly one slot. */
+    function laDiagNormalize(item) {
+        const tokens = item.s.replace(/[.?!]+$/, '').split(/\s+/);
+        const used = new Array(tokens.length).fill(false);
+        const norm = (w) => w.replace(/[.,?!;:]+$/, '').toLowerCase();
+        function resolve(word) {
+            const target = norm(word);
+            for (let i = 0; i < tokens.length; i++) {
+                if (!used[i] && norm(tokens[i]) === target) { used[i] = true; return i; }
+            }
+            return -1;
+        }
+        const spec = {};
+        spec.subject = { tok: resolve(item.subject), mods: (item.subjMods || []).map(resolve) };
+        spec.verb = { tok: resolve(item.verb), mods: (item.verbMods || []).map(resolve) };
+        if (item.iobject) spec.iobject = { tok: resolve(item.iobject.word), mods: (item.iobject.mods || []).map(resolve) };
+        if (item.object) spec.object = { tok: resolve(item.object), mods: (item.objMods || []).map(resolve) };
+        if (item.subjComp) spec.subjComp = { kind: item.subjComp.kind, tok: resolve(item.subjComp.word), mods: (item.subjComp.mods || []).map(resolve) };
+        spec.preps = (item.preps || []).map((p) => ({
+            tok: resolve(p.prep), attach: p.attach || 'verb',
+            object: { tok: resolve(p.object), mods: (p.mods || []).map(resolve) },
+        }));
+        return { tokens, spec };
     }
-    function diagRound() {
+
+    /* Two-pass Reed-Kellogg layout. Returns SVG primitives, drop slots (each with an
+     * `expect` token index), text labels, and the diagram's intrinsic {w,h}. */
+    const D = { PAD: 26, LINE_Y: 64, SLOT_H: 30, WMIN: 46, GAPD: 13, MOD_DY: 42, MOD_DX: 26, PREP_DY: 46, PREP_DX: 24 };
+    const LBL = { subject: 'subject', verb: 'verb', object: 'object', comp: 'complement', iobject: 'indirect' };
+    function laDiagLayout(spec, tokens) {
+        const lines = [], slots = [], labels = [];
+        let maxX = 0, maxY = D.LINE_Y + D.SLOT_H;
+        const bump = (x, y) => { if (x > maxX) maxX = x; if (y > maxY) maxY = y; };
+        const r = (n) => Math.round(n * 10) / 10;
+        const L = (x1, y1, x2, y2, cls) => `<line x1="${r(x1)}" y1="${r(y1)}" x2="${r(x2)}" y2="${r(y2)}" class="la-diag-line${cls ? ' ' + cls : ''}"/>`;
+        const wslot = (tok) => Math.max(D.WMIN, laMeasure(tokens[tok]) + 16);
+        const heads = {};
+
+        // ---- Phase 1: baseline (subject | verb | object/complement) ----
+        let x = D.PAD;
+        function baseWord(node, role, id) {
+            const w = wslot(node.tok);
+            const cx = x + w / 2;
+            slots.push({ id, role, expect: node.tok, cx, cy: D.LINE_Y - D.SLOT_H / 2 - 3, w });
+            if (LBL[role]) labels.push({ x: cx, y: D.LINE_Y - D.SLOT_H - 8, text: LBL[role] });
+            heads[id] = cx;
+            x += w; bump(x + D.PAD, D.LINE_Y + D.SLOT_H);
+        }
+        baseWord(spec.subject, 'subject', 'subject');
+        x += D.GAPD; const dv1 = x; x += D.GAPD;
+        lines.push(L(dv1, D.LINE_Y - 26, dv1, D.LINE_Y + 14));                 // subject|verb crosses the line
+        baseWord(spec.verb, 'verb', 'verb');
+        if (spec.object) {
+            x += D.GAPD; const dv2 = x; x += D.GAPD;
+            lines.push(L(dv2, D.LINE_Y - 26, dv2, D.LINE_Y));                  // verb|object sits on the line
+            baseWord(spec.object, 'object', 'object');
+        } else if (spec.subjComp) {
+            x += D.GAPD; const dv2 = x; x += D.GAPD;
+            lines.push(L(dv2, D.LINE_Y, dv2 - 16, D.LINE_Y - 22, 'la-diag-slant')); // complement line leans toward subject
+            baseWord(spec.subjComp, 'comp', 'comp');
+        }
+        const baseRight = x;
+        lines.unshift(L(D.PAD - 8, D.LINE_Y, baseRight + 8, D.LINE_Y));        // baseline (behind everything)
+        bump(baseRight + D.PAD, D.LINE_Y + D.SLOT_H);
+
+        // ---- Phase 2: hang danglers (modifiers, prep phrases, indirect object) ----
+        // A head can carry several danglers at once (e.g. an article AND a prep phrase),
+        // so they are spread left-to-right under the head instead of stacked on one point.
+        function widthOf(tok) { return D.MOD_DX + wslot(tok) + 8; }
+        function prepWidth(p) {
+            const objMods = p.object.mods || [];
+            return Math.max(D.PREP_DX + wslot(p.object.tok) + 24, (objMods.length ? (objMods.length - 1) * 30 + D.MOD_DX + wslot(objMods[0]) : 0)) + 8;
+        }
+        function ioWidth(node) { return D.PREP_DX + wslot(node.tok) + 24 + 8; }
+
+        function addModAt(topX, tok, id) {
+            const botX = topX + D.MOD_DX, botY = D.LINE_Y + D.MOD_DY;
+            lines.push(L(topX, D.LINE_Y + 1, botX, botY, 'la-diag-slant'));
+            const w = wslot(tok);
+            slots.push({ id, role: 'modifier', expect: tok, cx: (topX + botX) / 2 + w / 2, cy: (D.LINE_Y + 1 + botY) / 2 + 4, w });
+            bump(botX + w, botY + D.SLOT_H);
+        }
+        // slant down from topX to a horizontal carrying `node` (+ its own modifiers)
+        function addHorizObject(kx, ky, node, idBase) {
+            const ow = wslot(node.tok), horizW = ow + 24;
+            lines.push(L(kx, ky, kx + horizW, ky));
+            slots.push({ id: idBase, role: 'object', expect: node.tok, cx: kx + horizW / 2, cy: ky - D.SLOT_H / 2 - 2, w: ow });
+            bump(kx + horizW + D.PAD, ky + 4);
+            (node.mods || []).forEach((tok, i) => {
+                const sp = 30, total = ((node.mods.length) - 1) * sp;
+                const topX = (kx + horizW / 2) - total / 2 + i * sp, botX = topX + D.MOD_DX, botY = ky + D.MOD_DY;
+                lines.push(L(topX, ky + 1, botX, botY, 'la-diag-slant'));
+                const w = wslot(tok);
+                slots.push({ id: idBase + 'm' + i, role: 'modifier', expect: tok, cx: (topX + botX) / 2 + w / 2, cy: (ky + 1 + botY) / 2 + 4, w });
+                bump(botX + w, botY + D.SLOT_H);
+            });
+        }
+        function addPrepAt(topX, p, id) {
+            const kx = topX + D.PREP_DX, ky = D.LINE_Y + D.PREP_DY;
+            lines.push(L(topX, D.LINE_Y + 1, kx, ky, 'la-diag-slant'));
+            const pw = wslot(p.tok);
+            slots.push({ id, role: 'prep', expect: p.tok, cx: (topX + kx) / 2 + pw / 2 - 2, cy: (D.LINE_Y + ky) / 2, w: pw });
+            addHorizObject(kx, ky, p.object, id + 'o');
+        }
+        function addIOAt(topX, node, id) {
+            const kx = topX + D.PREP_DX, ky = D.LINE_Y + D.PREP_DY;
+            lines.push(L(topX, D.LINE_Y + 1, kx, ky, 'la-diag-slant'));
+            labels.push({ x: kx + (wslot(node.tok) + 24) / 2, y: ky + 16, text: 'indirect' });
+            addHorizObject(kx, ky, node, id);
+        }
+
+        // Gather every dangler for a head, then lay them out side by side.
+        function placeDanglers(headId, modList, idPfx) {
+            const hx = heads[headId];
+            if (hx === undefined) return;
+            const dl = [];
+            (modList || []).forEach((tok, i) => dl.push({ type: 'mod', tok, id: idPfx + i, w: widthOf(tok) }));
+            (spec.preps || []).forEach((p, pi) => {
+                let at = p.attach || 'verb';
+                if (at === 'object' && heads['object'] === undefined) at = 'verb';
+                if (at === headId) dl.push({ type: 'prep', prep: p, id: 'prep' + pi, w: prepWidth(p) });
+            });
+            if (headId === 'verb' && spec.iobject) dl.push({ type: 'io', node: spec.iobject, id: 'iobject', w: ioWidth(spec.iobject) });
+            if (!dl.length) return;
+            const gap = 8;
+            const totalW = dl.reduce((a, d) => a + d.w, 0) + gap * (dl.length - 1);
+            let cx = hx - totalW / 2;
+            dl.forEach((d) => {
+                const aX = cx + 4;
+                if (d.type === 'mod') addModAt(aX, d.tok, d.id);
+                else if (d.type === 'prep') addPrepAt(aX, d.prep, d.id);
+                else addIOAt(aX, d.node, d.id);
+                cx += d.w + gap;
+            });
+        }
+        placeDanglers('subject', spec.subject.mods, 'sm');
+        placeDanglers('verb', spec.verb.mods, 'vm');
+        if (spec.object) placeDanglers('object', spec.object.mods, 'om');
+        if (spec.subjComp) placeDanglers('comp', spec.subjComp.mods, 'cm');
+
+        return { lines, slots, labels, w: Math.ceil(maxX), h: Math.ceil(maxY + D.PAD) };
+    }
+
+    // Debug audit (used by tests): every diag item must map all tokens bijectively to slots.
+    window.__laDiagAudit = function () {
+        const problems = [];
+        ['easy', 'hard'].forEach((tier) => (LA.diag[tier] || []).forEach((item, idx) => {
+            try {
+                const n = laDiagNormalize(item);
+                const lay = laDiagLayout(n.spec, n.tokens);
+                const expects = lay.slots.map((s) => s.expect).sort((a, b) => a - b);
+                const ok = expects.length === n.tokens.length && expects.every((v, i) => v === i);
+                if (!ok) problems.push({ tier, idx, s: item.s, tokens: n.tokens.length, slots: lay.slots.length, expects });
+            } catch (err) { problems.push({ tier, idx, s: item.s, error: String(err) }); }
+        }));
+        return problems;
+    };
+    // Debug: correct slotId -> tokenIndex for the diagram currently on screen.
+    window.__laDiagAnswer = function () {
+        const a = {};
+        diag.slots.forEach((s) => { a[s.id] = s.expect; });
+        return a;
+    };
+    // Debug: force a specific item (deterministic tests).
+    window.__laDiagForce = function (tier, idx) { diag.locked = false; diagRound(LA.diag[tier][idx]); };
+    window.__laDiagCounts = function () { return { easy: LA.diag.easy.length, hard: LA.diag.hard.length }; };
+    function diagRound(forceItem) {
+        if (diag.advanceTimer) { clearTimeout(diag.advanceTimer); diag.advanceTimer = null; }
         diag.locked = false;
         diag.assign = {};
-        diag.item = pick(poolFor(LA.diag, diag.diff));
-        const layout = diagLayout(diag.item);
-        diag.slots = layout.slots;
+        diag.item = forceItem || pick(poolFor(LA.diag, diag.diff));
+        const norm = laDiagNormalize(diag.item);
+        diag.tokens = norm.tokens;
+        const lay = laDiagLayout(norm.spec, norm.tokens);
+        diag.layout = lay;
+        diag.slots = lay.slots;
+        diag.chips = norm.tokens.map((w, i) => ({ id: 'c' + i, word: w, tok: i }));
         setFeedback(document.getElementById('la-diag-feedback'), '', '');
 
         const stage = document.getElementById('la-diag-stage');
+        // Match the stage box aspect to the viewBox so the HTML slot overlay (positioned
+        // by %) lines up exactly with the scaled SVG (xMidYMid meet, no letterboxing).
+        stage.style.aspectRatio = lay.w + ' / ' + lay.h;
         stage.innerHTML =
-            `<svg viewBox="0 0 ${STAGE_W} ${STAGE_H}" class="la-diag-svg" preserveAspectRatio="xMidYMid meet">${layout.lines.join('')}` +
-            layout.slots.map((s) =>
-                `<text x="${s.cx}" y="${s.cy + 34}" class="la-diag-slotlabel">${s.label}</text>`).join('') +
+            `<svg viewBox="0 0 ${lay.w} ${lay.h}" class="la-diag-svg" preserveAspectRatio="xMidYMid meet">` +
+            lay.lines.join('') +
+            lay.labels.map((l) => `<text x="${l.x}" y="${l.y}" class="la-diag-slotlabel">${l.text}</text>`).join('') +
             `</svg>`;
-        // Overlay HTML drop-slots positioned as % of the stage box.
-        layout.slots.forEach((s) => {
+        lay.slots.forEach((s) => {
             const el = document.createElement('div');
             el.className = 'la-diag-slot';
             el.dataset.slot = s.id;
-            el.style.left = (s.cx / STAGE_W * 100) + '%';
-            el.style.top = (s.cy / STAGE_H * 100) + '%';
+            el.style.left = (s.cx / lay.w * 100) + '%';
+            el.style.top = (s.cy / lay.h * 100) + '%';
+            el.style.width = (s.w / lay.w * 100) + '%';
             stage.appendChild(el);
         });
-        diagRenderChips();
+        diagRender();
     }
-    function diagRenderChips() {
+    // Render tray (full sentence, in order; placed words shown greyed but still visible)
+    // and the chips sitting in their diagram slots.
+    function diagRender() {
         const stage = document.getElementById('la-diag-stage');
-        // Remove existing chips.
         stage.querySelectorAll('.la-diag-chip').forEach((c) => c.remove());
-        // Clear slot fills.
         stage.querySelectorAll('.la-diag-slot').forEach((s) => s.classList.remove('la-slot-filled'));
         const tray = document.getElementById('la-diag-tray');
         tray.innerHTML = '';
+        const placedTok = {}; // tokenIndex -> slotId
+        Object.keys(diag.assign).forEach((sid) => { placedTok[diag.assign[sid]] = sid; });
 
-        // Build the full word list once (stable order per round) with unique ids.
-        if (!diag.chips) {
-            const words = diag.slots.map((s) => s.expect);
-            diag.chips = shuffle(words).map((w, i) => ({ id: 'c' + i, word: w }));
-        }
+        // Tray: every sentence word, in order. Placed ones stay visible but greyed.
         diag.chips.forEach((chip) => {
+            const used = placedTok[chip.tok] !== undefined;
+            const b = document.createElement('div');
+            b.className = 'la-diag-chip la-diag-bubble' + (used ? ' la-bubble-used' : '');
+            b.textContent = chip.word;
+            if (!used) diagAttachDrag(b, chip.tok);
+            tray.appendChild(b);
+        });
+        // Placed chips over their slots.
+        Object.keys(diag.assign).forEach((sid) => {
+            const tok = diag.assign[sid];
+            const slotEl = stage.querySelector('.la-diag-slot[data-slot="' + sid + '"]');
+            if (!slotEl) return;
+            slotEl.classList.add('la-slot-filled');
             const el = document.createElement('div');
-            el.className = 'la-diag-chip';
-            el.textContent = chip.word;
-            el.dataset.chip = chip.id;
-            attachDrag(el, chip);
-            const slotId = Object.keys(diag.assign).find((k) => diag.assign[k] === chip.id);
-            if (slotId) {
-                const slotEl = stage.querySelector('.la-diag-slot[data-slot="' + slotId + '"]');
-                slotEl.classList.add('la-slot-filled');
-                el.classList.add('la-diag-chip-placed');
-                // Position the chip over its slot (absolute within the stage).
-                el.style.left = slotEl.style.left;
-                el.style.top = slotEl.style.top;
-                stage.appendChild(el);
-            } else {
-                tray.appendChild(el);
-            }
+            el.className = 'la-diag-chip la-diag-chip-placed';
+            el.textContent = diag.tokens[tok];
+            el.style.left = slotEl.style.left;
+            el.style.top = slotEl.style.top;
+            diagAttachDrag(el, tok);
+            stage.appendChild(el);
         });
     }
-    function attachDrag(el, chip) {
+    // Drag a token (from tray or a slot). Drop on a slot to place; drop elsewhere to return it.
+    function diagAttachDrag(el, tok) {
         el.addEventListener('pointerdown', (e) => {
             if (diag.locked) return;
             e.preventDefault();
             const stage = document.getElementById('la-diag-stage');
             const ghost = el.cloneNode(true);
             ghost.classList.add('la-diag-ghost');
+            ghost.classList.remove('la-bubble-used');
             document.body.appendChild(ghost);
             el.classList.add('la-diag-dragging');
-            const move = (ev) => {
-                ghost.style.left = ev.clientX + 'px';
-                ghost.style.top = ev.clientY + 'px';
-            };
+            const move = (ev) => { ghost.style.left = ev.clientX + 'px'; ghost.style.top = ev.clientY + 'px'; };
             const up = (ev) => {
                 document.removeEventListener('pointermove', move);
                 document.removeEventListener('pointerup', up);
                 ghost.remove();
                 el.classList.remove('la-diag-dragging');
-                // Hit-test slots.
                 let target = null;
                 stage.querySelectorAll('.la-diag-slot').forEach((slotEl) => {
                     const r = slotEl.getBoundingClientRect();
                     if (ev.clientX >= r.left && ev.clientX <= r.right &&
                         ev.clientY >= r.top && ev.clientY <= r.bottom) target = slotEl.dataset.slot;
                 });
-                // Remove this chip from any slot it currently occupies.
-                Object.keys(diag.assign).forEach((k) => { if (diag.assign[k] === chip.id) delete diag.assign[k]; });
+                Object.keys(diag.assign).forEach((k) => { if (diag.assign[k] === tok) delete diag.assign[k]; });
                 if (target) {
-                    // If the target slot already holds a different chip, bump it back to tray.
-                    if (diag.assign[target]) delete diag.assign[target];
-                    diag.assign[target] = chip.id;
+                    if (diag.assign[target] !== undefined) delete diag.assign[target]; // bump the previous word back
+                    diag.assign[target] = tok;
                 }
-                diagRenderChips();
+                diagRender();
             };
             document.addEventListener('pointermove', move);
             document.addEventListener('pointerup', up);
@@ -813,22 +984,19 @@
     function diagCheck() {
         if (diag.locked) return;
         const fb = document.getElementById('la-diag-feedback');
-        // Every slot must hold a chip whose word matches the slot's expected word.
-        const allFilled = diag.slots.every((s) => diag.assign[s.id]);
+        const allFilled = diag.slots.every((s) => diag.assign[s.id] !== undefined);
         if (!allFilled) {
-            setFeedback(fb, 'wrong', 'Fill every slot first.');
+            setFeedback(fb, 'wrong', 'Place every word first.');
             return;
         }
-        const ok = diag.slots.every((s) => {
-            const chip = diag.chips.find((c) => c.id === diag.assign[s.id]);
-            return chip && chip.word === s.expect;
-        });
+        // Grade by word (duplicate identical words are interchangeable between their slots).
+        const lc = (t) => (diag.tokens[t] || '').toLowerCase();
+        const ok = diag.slots.every((s) => lc(diag.assign[s.id]) === lc(s.expect));
         if (ok) {
             diag.locked = true;
             setFeedback(fb, 'correct', '✓ Correct!');
             bumpScore(diag, document.getElementById('la-diag-score'));
-            diag.chips = null;
-            setTimeout(diagRound, 1100);
+            diag.advanceTimer = setTimeout(diagRound, 1200);
         } else {
             setFeedback(fb, 'wrong', '✗ Some words are in the wrong place.');
         }
@@ -836,7 +1004,7 @@
     function diagReset() {
         if (diag.locked) return;
         diag.assign = {};
-        diagRenderChips();
+        diagRender();
         setFeedback(document.getElementById('la-diag-feedback'), '', '');
     }
 
@@ -940,7 +1108,7 @@
         if (document.querySelector('link[data-la-css]')) return;
         const link = document.createElement('link');
         link.rel = 'stylesheet';
-        link.href = 'language-arts.css?v=1';
+        link.href = 'language-arts.css?v=2';
         link.dataset.laCss = '1';
         document.head.appendChild(link);
     }

@@ -142,7 +142,8 @@
     position: relative;
     width: 100%;
     max-width: 560px;
-    aspect-ratio: 560 / 230;
+    min-height: 120px;
+    /* aspect-ratio is set inline per diagram so the % slot overlay aligns with the SVG */
     margin: 0 auto;
 }
 .la-diag-svg {
@@ -162,8 +163,8 @@
 .la-diag-slot {
     position: absolute;
     transform: translate(-50%, -50%);
-    width: 84px;
-    height: 34px;
+    min-width: 40px;
+    height: 30px;
     border: 2px dashed #bbb;
     border-radius: 6px;
     box-sizing: border-box;
@@ -210,12 +211,21 @@
     flex-wrap: wrap;
     gap: 0.5rem;
     justify-content: center;
+    align-items: center;
     min-height: 40px;
-    padding: 0.4rem;
+    padding: 0.5rem;
     width: 100%;
     border: 2px dashed #ddd;
     border-radius: 8px;
     box-sizing: border-box;
+}
+/* Tray shows the FULL sentence in order; a word that's been placed on the diagram
+   stays visible here (greyed) so the sentence remains readable. */
+.la-diag-bubble.la-bubble-used {
+    background: #f4f4f4;
+    color: #bbb;
+    border-color: #ddd;
+    cursor: default;
 }
 .la-diag-buttons {
     display: flex;
