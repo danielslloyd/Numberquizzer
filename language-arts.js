@@ -706,7 +706,7 @@
      * Pointer-drag word chips onto a Reed-Kellogg skeleton. Touch-safe (no HTML5
      * drag-and-drop, which doesn't fire on touch devices).
      * ======================================================================*/
-    const diag = { diff: 'easy', score: 0, item: null, tokens: [], slots: [], assign: {}, chips: null, layout: null, locked: false };
+    const diag = { diff: 'easy', mode: 'fill', score: 0, item: null, tokens: [], slots: [], assign: {}, chips: null, layout: null, locked: false, advanceTimer: null };
     // Approximate text measurement for sizing slots/lines (font may not be loaded yet).
     let _diagCtx = null;
     function laMeasure(t) {
@@ -718,8 +718,16 @@
         diag.score = 0;
         diag.chips = null; // fresh chip set on (re)entry
         document.getElementById('la-diag-score').textContent = 'Score: 0';
-        diagRound();
+        if (diag.mode === 'build') buildRound(); else diagRound();
     }
+    function diagSetMode(m) {
+        diag.mode = m;
+        document.querySelectorAll('.la-diag-mode-btn').forEach((b) => b.classList.toggle('active', b.dataset.mode === m));
+        document.getElementById('la-build-tools').classList.toggle('hidden', m !== 'build');
+        if (m === 'build') buildRound();
+        else { diag.chips = null; diagRound(); }
+    }
+    function diagRefresh() { if (diag.mode === 'build') buildRound(); else { diag.chips = null; diagRound(); } }
     /* Normalize an authored item into { tokens, spec }. Every role word is resolved
      * to a token index (repeats consumed left-to-right in canonical sentence order),
      * so in a complete diagram every token maps to exactly one slot. */
@@ -955,6 +963,7 @@
         diag.slots = lay.slots;
         diag.chips = norm.tokens.map((w, i) => ({ id: 'c' + i, word: w, tok: i }));
         setFeedback(document.getElementById('la-diag-feedback'), '', '');
+        document.getElementById('la-diag-prompt').textContent = 'Drag each word onto the diagram.';
 
         const stage = document.getElementById('la-diag-stage');
         // Match the stage box aspect to the viewBox so the HTML slot overlay (positioned
@@ -1074,6 +1083,224 @@
     }
 
     /* ========================================================================
+     * BUILD MODE — construct the diagram with guided gestures:
+     *   1. Tap the baseline to split it into subject | verb.
+     *   2. Drag the subject to the left region, the verb to the right.
+     *   3. Drag a word after the verb (object/complement; pick the connector type).
+     *   4. Drag a word ONTO a placed word to subordinate it (a modifier).
+     * Graded structurally against the answer (by word + role + head role), so the
+     * gestures are free-form-feeling but auto-checkable. Build uses simple sentences
+     * only (no prepositional phrases, clauses, or verbals).
+     * ======================================================================*/
+    const BW = 600, BH = 210, BY = 95;
+    const build = { item: null, tokens: [], answer: null, split: false, assign: {}, compType: 'object', locked: false };
+    const inRect = (ev, r) => ev.clientX >= r.left && ev.clientX <= r.right && ev.clientY >= r.top && ev.clientY <= r.bottom;
+
+    function buildPool() {
+        const simple = (it) => !it.preps && !it.iobject && !it.subordinate;
+        const easy = LA.diag.easy.filter(simple), hard = LA.diag.hard.filter(simple);
+        const pool = diag.diff === 'hard' ? (hard.length ? hard : easy) : diag.diff === 'mixed' ? easy.concat(hard) : easy;
+        return pool.length ? pool : LA.diag.easy;
+    }
+    function buildAnswerRoles(spec) {
+        const roles = {};
+        roles[spec.subject.tok] = { role: 'subject' };
+        (spec.subject.mods || []).forEach((t) => roles[t] = { role: 'mod', head: 'subject' });
+        roles[spec.verb.tok] = { role: 'verb' };
+        (spec.verb.mods || []).forEach((t) => roles[t] = { role: 'mod', head: 'verb' });
+        if (spec.object) {
+            roles[spec.object.tok] = { role: 'object' };
+            (spec.object.mods || []).forEach((t) => roles[t] = { role: 'mod', head: 'object' });
+        } else if (spec.subjComp) {
+            roles[spec.subjComp.tok] = { role: 'comp' };
+            (spec.subjComp.mods || []).forEach((t) => roles[t] = { role: 'mod', head: 'comp' });
+        }
+        return roles;
+    }
+    function buildRound(forceItem) {
+        if (diag.advanceTimer) { clearTimeout(diag.advanceTimer); diag.advanceTimer = null; }
+        build.locked = false; build.split = false; build.assign = {}; build.compType = 'object';
+        build.item = forceItem || pick(buildPool());
+        const norm = laDiagNormalize(build.item);
+        build.tokens = norm.tokens;
+        build.answer = buildAnswerRoles(norm.spec);
+        document.querySelectorAll('.la-ctype-btn').forEach((b) => b.classList.toggle('active', b.dataset.ctype === 'object'));
+        setFeedback(document.getElementById('la-diag-feedback'), '', '');
+        buildRender();
+    }
+    function buildPrompt() {
+        const p = document.getElementById('la-diag-prompt');
+        const hasSubj = Object.values(build.assign).some((a) => a.role === 'subject');
+        const hasVerb = Object.values(build.assign).some((a) => a.role === 'verb');
+        if (!build.split) p.innerHTML = '<b>1.</b> Tap the line to split the <b>subject</b> and <b>verb</b>.';
+        else if (!hasSubj || !hasVerb) p.innerHTML = '<b>2.</b> Drag the <b>subject</b> to the left, the <b>verb</b> to the right.';
+        else p.innerHTML = 'Drag a word <b>onto another word</b> to make it a modifier. Drop objects after the verb.';
+    }
+    function buildRender() {
+        const stage = document.getElementById('la-diag-stage');
+        stage.style.aspectRatio = BW + ' / ' + BH;
+        const line = (x1, y1, x2, y2, cls) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="la-diag-line${cls ? ' ' + cls : ''}"/>`;
+        const parts = [line(20, BY, 580, BY)];
+        const zones = [];
+        const heads = {};
+        const tail = Object.entries(build.assign).find((e) => e[1].role === 'object' || e[1].role === 'comp');
+        const tailRole = tail ? tail[1].role : null;
+        let labelsSVG = '';
+        if (build.split) {
+            parts.push(line(250, BY - 26, 250, BY + 14));      // subject|verb divider (crosses)
+            heads.subject = 150; heads.verb = 350;
+            zones.push({ zone: 'subject', cx: 150 }, { zone: 'verb', cx: 350 }, { zone: 'tail', cx: 520 });
+            if (build.compType === 'comp') parts.push(line(440, BY, 424, BY - 20, 'la-diag-slant'));
+            else parts.push(line(440, BY - 26, 440, BY));
+            heads[tailRole || 'object'] = 520;
+            labelsSVG = `<text x="150" y="${BY - 40}" class="la-diag-slotlabel">subject</text>` +
+                `<text x="350" y="${BY - 40}" class="la-diag-slotlabel">verb</text>` +
+                `<text x="520" y="${BY - 40}" class="la-diag-slotlabel">${build.compType === 'comp' ? 'complement' : 'object'}</text>`;
+        }
+        // modifiers under their heads
+        const modsByHead = {};
+        Object.entries(build.assign).forEach((e) => { if (e[1].role === 'mod') (modsByHead[e[1].head] = modsByHead[e[1].head] || []).push(+e[0]); });
+        const modSlot = {};
+        Object.keys(modsByHead).forEach((hr) => {
+            const hx = heads[hr] != null ? heads[hr] : (hr === 'verb' ? 350 : (hr === 'object' || hr === 'comp') ? 520 : 150);
+            const list = modsByHead[hr], sp = 44, total = (list.length - 1) * sp;
+            list.forEach((tok, i) => {
+                const topX = hx - total / 2 + i * sp, botX = topX + 24, botY = BY + 42;
+                parts.push(line(topX, BY + 1, botX, botY, 'la-diag-slant'));
+                modSlot[tok] = { cx: (topX + botX) / 2 + 14, cy: (BY + botY) / 2 + 6 };
+            });
+        });
+        stage.innerHTML = `<svg viewBox="0 0 ${BW} ${BH}" class="la-diag-svg" preserveAspectRatio="xMidYMid meet">${parts.join('')}${labelsSVG}</svg>`;
+        // tap-to-split bar
+        if (!build.split) {
+            const bar = document.createElement('div');
+            bar.className = 'la-build-splitbar';
+            bar.title = 'Tap to split the line';
+            bar.addEventListener('click', () => { if (!build.locked) { build.split = true; buildRender(); buildPrompt(); } });
+            stage.appendChild(bar);
+        }
+        // drop zones
+        zones.forEach((z) => {
+            const el = document.createElement('div');
+            el.className = 'la-build-zone';
+            el.dataset.zone = z.zone;
+            el.style.left = (z.cx / BW * 100) + '%';
+            el.style.top = ((BY - 18) / BH * 100) + '%';
+            stage.appendChild(el);
+        });
+        // placed chips
+        Object.entries(build.assign).forEach((e) => {
+            const tok = +e[0], a = e[1];
+            let cx, cy, headRole = null;
+            if (a.role === 'subject') { cx = 150; cy = BY - 18; headRole = 'subject'; }
+            else if (a.role === 'verb') { cx = 350; cy = BY - 18; headRole = 'verb'; }
+            else if (a.role === 'object' || a.role === 'comp') { cx = 520; cy = BY - 18; headRole = a.role; }
+            else if (a.role === 'mod' && modSlot[tok]) { cx = modSlot[tok].cx; cy = modSlot[tok].cy; }
+            if (cx == null) return;
+            const el = document.createElement('div');
+            el.className = 'la-diag-chip la-diag-chip-placed';
+            el.textContent = build.tokens[tok];
+            el.style.left = (cx / BW * 100) + '%';
+            el.style.top = (cy / BH * 100) + '%';
+            if (headRole) el.dataset.headRole = headRole;
+            buildDrag(el, tok);
+            stage.appendChild(el);
+        });
+        // tray (full sentence, placed words greyed)
+        const tray = document.getElementById('la-diag-tray');
+        tray.innerHTML = '';
+        build.tokens.forEach((w, tok) => {
+            const used = build.assign[tok] !== undefined;
+            const b = document.createElement('div');
+            b.className = 'la-diag-chip la-diag-bubble' + (used ? ' la-bubble-used' : '');
+            b.textContent = w;
+            if (!used) buildDrag(b, tok);
+            tray.appendChild(b);
+        });
+        buildPrompt();
+    }
+    function buildDrag(el, tok) {
+        el.addEventListener('pointerdown', (e) => {
+            if (build.locked) return;
+            e.preventDefault();
+            const stage = document.getElementById('la-diag-stage');
+            const ghost = el.cloneNode(true);
+            ghost.classList.add('la-diag-ghost');
+            ghost.classList.remove('la-bubble-used');
+            document.body.appendChild(ghost);
+            el.classList.add('la-diag-dragging');
+            const move = (ev) => { ghost.style.left = ev.clientX + 'px'; ghost.style.top = ev.clientY + 'px'; };
+            const up = (ev) => {
+                document.removeEventListener('pointermove', move);
+                document.removeEventListener('pointerup', up);
+                ghost.remove();
+                el.classList.remove('la-diag-dragging');
+                let headRole = null, zone = null;
+                // Prefer dropping ONTO a placed head word (the "subordinate" gesture).
+                stage.querySelectorAll('.la-diag-chip-placed[data-head-role]').forEach((ch) => {
+                    if (ch === el) return;
+                    if (inRect(ev, ch.getBoundingClientRect())) headRole = ch.dataset.headRole;
+                });
+                if (!headRole) stage.querySelectorAll('.la-build-zone').forEach((z) => {
+                    if (inRect(ev, z.getBoundingClientRect())) zone = z.dataset.zone;
+                });
+                delete build.assign[tok];
+                if (headRole) build.assign[tok] = { role: 'mod', head: headRole };
+                else if (zone === 'subject') build.assign[tok] = { role: 'subject' };
+                else if (zone === 'verb') build.assign[tok] = { role: 'verb' };
+                else if (zone === 'tail') build.assign[tok] = { role: build.compType };
+                buildRender();
+            };
+            document.addEventListener('pointermove', move);
+            document.addEventListener('pointerup', up);
+            move(e);
+        });
+    }
+    function buildSetCompType(t) {
+        build.compType = t;
+        Object.keys(build.assign).forEach((tok) => { const a = build.assign[tok]; if (a.role === 'object' || a.role === 'comp') build.assign[tok] = { role: t }; });
+        buildRender();
+    }
+    function buildSig(roles) {
+        return Object.keys(roles).map((tok) => {
+            const r = roles[tok], w = (build.tokens[tok] || '').toLowerCase();
+            return r.role === 'mod' ? ('mod:' + w + '@' + r.head) : (r.role + ':' + w);
+        }).sort();
+    }
+    function buildCheck() {
+        if (build.locked) return;
+        const fb = document.getElementById('la-diag-feedback');
+        if (Object.keys(build.assign).length !== build.tokens.length) {
+            setFeedback(fb, 'wrong', 'Place every word first.');
+            return;
+        }
+        const a = buildSig(build.assign), b = buildSig(build.answer);
+        const ok = a.length === b.length && a.every((v, i) => v === b[i]);
+        if (ok) {
+            build.locked = true;
+            setFeedback(fb, 'correct', '✓ Correct!');
+            bumpScore(diag, document.getElementById('la-diag-score'));
+            diag.advanceTimer = setTimeout(() => { if (diag.mode === 'build') buildRound(); }, 1200);
+        } else {
+            setFeedback(fb, 'wrong', '✗ Not quite — check the structure.');
+        }
+    }
+    function buildReset() {
+        if (build.locked) return;
+        build.assign = {};
+        buildRender();
+        setFeedback(document.getElementById('la-diag-feedback'), '', '');
+    }
+    // Debug hooks (tests).
+    window.__laBuildForce = function (tier, idx) {
+        const pool = buildPool();
+        buildRound(pool[idx % pool.length]);
+        return { s: build.item.s, poolSize: pool.length };
+    };
+    window.__laBuildAnswer = function () { return build.answer; };
+    window.__laBuildState = function () { return { split: build.split, assign: build.assign, compType: build.compType }; };
+
+    /* ========================================================================
      * SCREEN HTML (injected — keeps index.html untouched beyond one <script>)
      * ======================================================================*/
     function diffGroup(mode) {
@@ -1145,9 +1372,22 @@
             </div>`,
         'la-diag': `
             <div class="container la-container la-diag-wide">
-                <div class="la-config">${diffGroup('diag')}</div>
+                <div class="la-config">
+                    <div class="tt-btn-group la-sub-group" id="la-diag-mode">
+                        <button class="btn btn-secondary la-diag-mode-btn active" data-mode="fill">Fill In</button>
+                        <button class="btn btn-secondary la-diag-mode-btn" data-mode="build">Build It</button>
+                    </div>
+                    ${diffGroup('diag')}
+                </div>
                 ${scoreBar('diag')}
-                <div class="la-prompt">Drag each word onto the diagram.</div>
+                <div id="la-diag-prompt" class="la-prompt">Drag each word onto the diagram.</div>
+                <div id="la-build-tools" class="la-build-tools hidden">
+                    <span class="la-hint">Word after the verb is a:</span>
+                    <div class="tt-btn-group">
+                        <button class="btn btn-secondary la-ctype-btn active" data-ctype="object">Object&nbsp;|</button>
+                        <button class="btn btn-secondary la-ctype-btn" data-ctype="comp">Predicate&nbsp;\\</button>
+                    </div>
+                </div>
                 <div id="la-diag-stage" class="la-diag-stage"></div>
                 <div id="la-diag-tray" class="la-diag-tray"></div>
                 <div class="la-diag-buttons">
@@ -1173,7 +1413,7 @@
         if (document.querySelector('link[data-la-css]')) return;
         const link = document.createElement('link');
         link.rel = 'stylesheet';
-        link.href = 'language-arts.css?v=3';
+        link.href = 'language-arts.css?v=4';
         link.dataset.laCss = '1';
         document.head.appendChild(link);
     }
@@ -1222,10 +1462,20 @@
         document.getElementById('la-punct-check').addEventListener('click', punctCommaCheck);
         // Subject / verb
         wireDiff('la-subj-diff', subj, subjRound);
-        // Diagramming
-        wireDiff('la-diag-diff', diag, () => { diag.chips = null; diagRound(); });
-        document.getElementById('la-diag-check').addEventListener('click', diagCheck);
-        document.getElementById('la-diag-reset').addEventListener('click', diagReset);
+        // Diagramming (Fill + Build sub-modes)
+        wireDiff('la-diag-diff', diag, diagRefresh);
+        document.getElementById('la-diag-mode').addEventListener('click', (e) => {
+            const b = e.target.closest('.la-diag-mode-btn');
+            if (b) diagSetMode(b.dataset.mode);
+        });
+        document.getElementById('la-build-tools').addEventListener('click', (e) => {
+            const b = e.target.closest('.la-ctype-btn');
+            if (!b) return;
+            document.querySelectorAll('.la-ctype-btn').forEach((x) => x.classList.toggle('active', x === b));
+            buildSetCompType(b.dataset.ctype);
+        });
+        document.getElementById('la-diag-check').addEventListener('click', () => diag.mode === 'build' ? buildCheck() : diagCheck());
+        document.getElementById('la-diag-reset').addEventListener('click', () => diag.mode === 'build' ? buildReset() : diagReset());
     }
 
     function boot() {

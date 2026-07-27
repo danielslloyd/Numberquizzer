@@ -236,6 +236,48 @@
     justify-content: center;
 }
 
+/* ---- build mode ---- */
+.la-diag-mode-btn,
+.la-ctype-btn {
+    font-size: 0.85rem;
+    padding: 0.5rem 1rem;
+}
+.la-diag-mode-btn.active,
+.la-ctype-btn.active {
+    background: #000;
+    color: #fff;
+}
+.la-build-tools {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+/* Drop regions and the tap-to-split bar (faint; guide the gestures). */
+.la-build-zone {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    width: 15%;
+    height: 34px;
+    border: 2px dashed #ccc;
+    border-radius: 6px;
+    box-sizing: border-box;
+    pointer-events: none; /* hit-tested manually on drop */
+}
+.la-build-splitbar {
+    position: absolute;
+    left: 3%;
+    top: 40%;
+    width: 94%;
+    height: 22px;
+    transform: translateY(-50%);
+    cursor: pointer;
+    border-radius: 6px;
+    background: rgba(255, 224, 138, 0.28);
+}
+.la-build-splitbar:hover { background: rgba(255, 224, 138, 0.55); }
+
 /* ---- phone sizing ---------------------------------------------------------*/
 @media (max-width: 480px) {
     .la-container { padding-left: 0.75rem; padding-right: 0.75rem; }
