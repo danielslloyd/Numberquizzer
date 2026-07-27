@@ -1,0 +1,296 @@
+/* ============================================================================
+ * geometry-proofs.css — Byrne's Euclid look: flat primary inks on cream paper,
+ * serif type, double rules. All classes are gp-* (injected by geometry-proofs.js).
+ * ==========================================================================*/
+
+.gp-wrap {
+    display: flex;
+    justify-content: center;
+    padding: 1.2rem 0.8rem 3rem;
+}
+
+.gp-container {
+    width: 100%;
+    max-width: 780px;
+    background: #f8f1df;
+    color: #2b2926;
+    border: 3px solid #2b2926;
+    box-shadow: 7px 7px 0 rgba(43, 41, 38, 0.18);
+    padding: 1.6rem 1.5rem 2rem;
+    font-family: Georgia, 'Palatino Linotype', 'Times New Roman', serif;
+    line-height: 1.5;
+}
+
+/* ---- header ------------------------------------------------------------ */
+.gp-head {
+    text-align: center;
+    border-bottom: 4px double #2b2926;
+    padding-bottom: 0.8rem;
+}
+.gp-head h1 {
+    font-size: 1.65rem;
+    font-weight: 400;
+    letter-spacing: 0.08em;
+    margin: 0;
+}
+.gp-sub {
+    font-style: italic;
+    font-size: 0.85rem;
+    margin: 0.35rem 0 0;
+    color: #6f6754;
+}
+
+/* ---- proposition menu --------------------------------------------------- */
+.gp-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 1rem;
+    margin-top: 1.3rem;
+}
+.gp-card {
+    display: block;
+    background: #fdf8ea;
+    border: 2px solid #2b2926;
+    padding: 0.9rem 0.9rem 1rem;
+    cursor: pointer;
+    text-align: center;
+    font-family: inherit;
+    color: inherit;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.gp-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 4px 4px 0 rgba(43, 41, 38, 0.25);
+}
+.gp-card svg {
+    width: 100%;
+    height: 130px;
+    display: block;
+    margin-bottom: 0.6rem;
+}
+.gp-card-ref {
+    display: block;
+    font-size: 0.7rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #a03b2a;
+}
+.gp-card-title {
+    display: block;
+    font-size: 1.02rem;
+    font-style: italic;
+    margin: 0.25rem 0;
+}
+.gp-card-meta {
+    display: block;
+    font-size: 0.78rem;
+    color: #6f6754;
+}
+.gp-card-done {
+    color: #d33723;
+    font-style: normal;
+    letter-spacing: 0.08em;
+}
+
+/* ---- proof view --------------------------------------------------------- */
+.gp-propbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-top: 1rem;
+    gap: 0.6rem;
+}
+.gp-btn-plain {
+    background: none;
+    border: none;
+    font-family: inherit;
+    font-size: 0.85rem;
+    color: inherit;
+    text-decoration: underline;
+    cursor: pointer;
+    padding: 0.2rem 0;
+}
+.gp-btn-plain:hover { color: #d33723; }
+.gp-ref {
+    font-size: 0.72rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #a03b2a;
+    white-space: nowrap;
+}
+.gp-prop-title {
+    font-size: 1.35rem;
+    font-weight: 400;
+    font-style: italic;
+    text-align: center;
+    margin: 0.6rem 0 0.3rem;
+}
+.gp-enun {
+    text-align: center;
+    font-style: italic;
+    font-size: 0.95rem;
+    color: #55503f;
+    max-width: 56ch;
+    margin: 0 auto 1rem;
+}
+
+.gp-board {
+    background: #fdf8ea;
+    border: 2px solid #2b2926;
+    padding: 0.9rem;
+    margin-bottom: 1rem;
+}
+.gp-board svg {
+    display: block;
+    width: 100%;
+    height: auto;
+    max-height: 420px;
+    margin: 0 auto;
+}
+
+/* ---- proof ledger -------------------------------------------------------- */
+.gp-ledger {
+    list-style: none;
+    margin: 0 0 1.1rem;
+    padding: 0;
+}
+.gp-ledger li {
+    position: relative;
+    padding: 0.4rem 0 0.4rem 2.6rem;
+    border-bottom: 1px dotted #c4b896;
+    font-size: 0.95rem;
+    line-height: 1.55;
+}
+.gp-ln {
+    position: absolute;
+    left: 0;
+    width: 2rem;
+    text-align: right;
+    color: #d33723;
+}
+
+/* ---- question & choices --------------------------------------------------*/
+.gp-askbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    border-top: 4px double #2b2926;
+    padding-top: 0.7rem;
+    gap: 0.6rem;
+}
+.gp-asklabel {
+    font-size: 0.72rem;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+}
+.gp-stepnum {
+    font-size: 0.78rem;
+    font-style: italic;
+    color: #6f6754;
+    white-space: nowrap;
+}
+.gp-prompt {
+    font-size: 1.05rem;
+    line-height: 1.6;
+    margin: 0.55rem 0 0.8rem;
+}
+.gp-choice {
+    display: block;
+    width: 100%;
+    text-align: left;
+    font-family: inherit;
+    font-size: 0.97rem;
+    line-height: 1.55;
+    color: inherit;
+    background: #fdf8ea;
+    border: 2px solid #2b2926;
+    padding: 0.65rem 0.85rem;
+    margin: 0.5rem 0;
+    cursor: pointer;
+    transition: background 0.12s ease;
+}
+.gp-choice:hover:not(:disabled) { background: #f1e6c8; }
+.gp-choice.gp-wrong {
+    opacity: 0.5;
+    border-style: dashed;
+    border-color: #a03b2a;
+    cursor: default;
+}
+.gp-note {
+    color: #a03b2a;
+    font-style: italic;
+    font-size: 0.92rem;
+    min-height: 1.3em;
+    margin: 0.3rem 0 0;
+}
+
+/* ---- Q.E.D. ---------------------------------------------------------------*/
+.gp-qed {
+    text-align: center;
+    border-top: 4px double #2b2926;
+    padding: 1.2rem 0 0.3rem;
+}
+.gp-qed-mark {
+    font-size: 2.5rem;
+    letter-spacing: 0.35em;
+    color: #d33723;
+    margin-left: 0.35em; /* optically recentre the letterspacing */
+}
+.gp-qed-sub {
+    font-style: italic;
+    font-size: 0.9rem;
+    color: #6f6754;
+    margin: 0.3rem 0 0.6rem;
+}
+.gp-qed-score { font-size: 0.98rem; margin: 0 0 1rem; }
+.gp-qed-btns { display: flex; justify-content: center; flex-wrap: wrap; gap: 0.6rem; }
+.gp-btn {
+    font-family: inherit;
+    font-size: 0.9rem;
+    letter-spacing: 0.05em;
+    background: #2b2926;
+    color: #f8f1df;
+    border: none;
+    padding: 0.6rem 1.2rem;
+    cursor: pointer;
+}
+.gp-btn:hover { background: #d33723; }
+
+/* ---- inline glyphs ---------------------------------------------------------*/
+.gp-glyph {
+    height: 0.95em;
+    width: auto;
+    vertical-align: -0.1em;
+    display: inline-block;
+}
+
+/* ---- animation --------------------------------------------------------------*/
+.gp-hidden { opacity: 0; pointer-events: none; }
+@keyframes gp-fade {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: none; }
+}
+.gp-fadein { animation: gp-fade 0.6s ease both; }
+#gp-board svg .gp-fadein { animation: gp-fade 0.7s ease both; }
+@keyframes gp-flash {
+    0%, 100% { opacity: 1; }
+    20%, 60% { opacity: 0.2; }
+    40%, 80% { opacity: 1; }
+}
+.gp-flash { animation: gp-flash 1.5s ease; }
+@keyframes gp-shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    50% { transform: translateX(5px); }
+    75% { transform: translateX(-3px); }
+}
+.gp-shake { animation: gp-shake 0.3s ease; }
+
+/* ---- small screens ---------------------------------------------------------*/
+@media (max-width: 480px) {
+    .gp-wrap { padding: 0.7rem 0.4rem 2rem; }
+    .gp-container { padding: 1.1rem 0.8rem 1.4rem; }
+    .gp-head h1 { font-size: 1.3rem; }
+    .gp-prompt { font-size: 0.98rem; }
+    .gp-choice { font-size: 0.92rem; }
+}
