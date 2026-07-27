@@ -1,0 +1,290 @@
+/* ============================================================================
+ * language-arts.css — styles for the five language-arts puzzle modes.
+ * Self-contained; injected by language-arts.js. Reuses the app's stark
+ * black/white look and existing classes (.btn, .tt-btn-group, .feedback-display).
+ * ==========================================================================*/
+
+/* ---- shared layout --------------------------------------------------------*/
+.la-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    width: 100%;
+    max-width: 560px;
+}
+.la-diag-wide { max-width: 660px; }
+
+.la-config {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+}
+
+.la-score-bar { text-align: center; }
+.la-score { font-size: 1.1rem; font-weight: 700; }
+
+.la-prompt {
+    font-size: 1.3rem;
+    font-weight: 700;
+    text-align: center;
+    line-height: 1.45;
+}
+.la-cue {
+    display: inline-block;
+    font-size: 1.6rem;
+    font-weight: 800;
+    margin-top: 0.35rem;
+}
+.la-hint { font-size: 0.95rem; font-weight: 600; color: #777; }
+
+/* ---- difficulty / sub-mode toggle buttons ---------------------------------*/
+.la-diff-btn,
+.la-vocab-sub-btn,
+.la-punct-sub-btn {
+    font-size: 0.85rem;
+    padding: 0.5rem 1rem;
+    letter-spacing: 0.02em;
+}
+.la-diff-btn.active,
+.la-vocab-sub-btn.active,
+.la-punct-sub-btn.active {
+    background: #000;
+    color: #fff;
+}
+
+/* ---- 4-choice engine ------------------------------------------------------*/
+.la-choices {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    justify-content: center;
+}
+.la-choice {
+    font-size: 1.15rem;
+    padding: 0.7rem 1.4rem;
+    min-width: 3rem;
+}
+.la-choice.la-correct {
+    background: #1a7f37;
+    color: #fff;
+    border-color: #1a7f37;
+}
+.la-choice.la-wrong {
+    background: #cc0000;
+    color: #fff;
+    border-color: #cc0000;
+}
+
+.feedback-display.la-fb-correct { color: #1a7f37; }
+.feedback-display.la-fb-wrong { color: #cc0000; }
+
+/* ---- tap-in-sentence engine ----------------------------------------------*/
+.la-sentence {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.35rem 0.5rem;
+    justify-content: center;
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1.8;
+}
+.la-sentence-lg { font-size: 1.7rem; }
+
+.la-token {
+    padding: 0.1rem 0.35rem;
+    border-radius: 6px;
+    border: 2px solid transparent;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.1s;
+}
+.la-token-word:hover { background: #f0f0f0; }
+.la-token-on { background: #000; color: #fff; }
+.la-token-static { cursor: default; }
+
+/* Subject = one underline, verb = two (double border renders two lines). */
+.la-underline-once {
+    border-bottom: 3px solid #000;
+    border-radius: 0;
+}
+.la-underline-twice {
+    border-bottom: 5px double #000;
+    border-radius: 0;
+}
+
+/* Comma gaps */
+.la-gap {
+    display: inline-block;
+    min-width: 1.1rem;
+    text-align: center;
+    color: #bbb;
+    font-weight: 800;
+    cursor: pointer;
+    user-select: none;
+}
+.la-gap-on {
+    color: #000;
+    background: #ffe08a;
+    border-radius: 4px;
+}
+
+.la-check-btn {
+    font-size: 1.1rem;
+    padding: 0.7rem 2rem;
+}
+
+/* ---- sentence diagramming -------------------------------------------------*/
+.la-diag-stage {
+    position: relative;
+    width: 100%;
+    max-width: 560px;
+    min-height: 120px;
+    /* aspect-ratio is set inline per diagram so the % slot overlay aligns with the SVG */
+    margin: 0 auto;
+}
+.la-diag-svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+}
+.la-diag-line { stroke: #000; stroke-width: 2.5; }
+.la-diag-slant { stroke-width: 2; }
+.la-diag-dash { stroke-width: 1.6; stroke-dasharray: 5 4; }
+.la-diag-pedestal { stroke-width: 2; }
+.la-diag-slotlabel {
+    fill: #bbb;
+    font-size: 11px;
+    text-anchor: middle;
+    font-family: inherit;
+}
+.la-diag-slot {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    min-width: 40px;
+    height: 30px;
+    border: 2px dashed #bbb;
+    border-radius: 6px;
+    box-sizing: border-box;
+}
+.la-diag-slot.la-slot-filled { border-color: transparent; }
+
+.la-diag-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 60px;
+    height: 34px;
+    padding: 0 0.6rem;
+    background: #fff;
+    border: 2px solid #000;
+    border-radius: 6px;
+    font-weight: 700;
+    font-size: 1rem;
+    cursor: grab;
+    user-select: none;
+    touch-action: none; /* let pointer-drag work on touch without scrolling */
+    box-sizing: border-box;
+}
+.la-diag-chip-placed {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    background: #000;
+    color: #fff;
+    margin: 0;
+}
+.la-diag-dragging { opacity: 0.3; }
+.la-diag-ghost {
+    position: fixed;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    z-index: 1000;
+    background: #000;
+    color: #fff;
+    opacity: 0.92;
+}
+
+.la-diag-tray {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    justify-content: center;
+    align-items: center;
+    min-height: 40px;
+    padding: 0.5rem;
+    width: 100%;
+    border: 2px dashed #ddd;
+    border-radius: 8px;
+    box-sizing: border-box;
+}
+/* Tray shows the FULL sentence in order; a word that's been placed on the diagram
+   stays visible here (greyed) so the sentence remains readable. */
+.la-diag-bubble.la-bubble-used {
+    background: #f4f4f4;
+    color: #bbb;
+    border-color: #ddd;
+    cursor: default;
+}
+.la-diag-buttons {
+    display: flex;
+    gap: 0.6rem;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+/* ---- build mode ---- */
+.la-diag-mode-btn,
+.la-ctype-btn {
+    font-size: 0.85rem;
+    padding: 0.5rem 1rem;
+}
+.la-diag-mode-btn.active,
+.la-ctype-btn.active {
+    background: #000;
+    color: #fff;
+}
+.la-build-tools {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+/* Drop regions and the tap-to-split bar (faint; guide the gestures). */
+.la-build-zone {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    width: 15%;
+    height: 34px;
+    border: 2px dashed #ccc;
+    border-radius: 6px;
+    box-sizing: border-box;
+    pointer-events: none; /* hit-tested manually on drop */
+}
+.la-build-splitbar {
+    position: absolute;
+    left: 3%;
+    top: 40%;
+    width: 94%;
+    height: 22px;
+    transform: translateY(-50%);
+    cursor: pointer;
+    border-radius: 6px;
+    background: rgba(255, 224, 138, 0.28);
+}
+.la-build-splitbar:hover { background: rgba(255, 224, 138, 0.55); }
+
+/* ---- phone sizing ---------------------------------------------------------*/
+@media (max-width: 480px) {
+    .la-container { padding-left: 0.75rem; padding-right: 0.75rem; }
+    .la-prompt { font-size: 1.15rem; }
+    .la-cue { font-size: 1.35rem; }
+    .la-sentence { font-size: 1.25rem; }
+    .la-sentence-lg { font-size: 1.4rem; }
+    .la-diag-slot { width: 68px; height: 30px; }
+    .la-diag-chip { min-width: 48px; height: 30px; font-size: 0.9rem; }
+}
