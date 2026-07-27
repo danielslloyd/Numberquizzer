@@ -619,6 +619,366 @@
     }
 
     /* ========================================================================
+     * SANDBOX — free-form straightedge & compass with key-point snapping.
+     *
+     * Model: points are the atoms ({id,x,y,kind}); segments reference two
+     * point ids, circles a centre point id + radius, so constructions stay
+     * exact. Every commit recomputes intersections of the new object against
+     * all existing ones and registers them as key points ('x'). Snapping:
+     *  - segment ends and circle centres snap to the nearest key point,
+     *  - a segment dragged out of an existing endpoint snaps to the collinear
+     *    extension of a segment through that endpoint (Euclid's "produce"),
+     *  - a growing circle rim sticks when its radius passes within tolerance
+     *    of a key point's distance from the centre (the Euclidean compass:
+     *    centre + a point it passes through).
+     * ======================================================================*/
+    const SB_SNAP = 14;   // px (viewBox units): point snapping radius
+    const SB_RIM  = 11;   // rim stick tolerance
+    const sbState = {
+        inited: false,
+        pts: [], objs: [], undo: [], nextId: 1,
+        tool: 'seg', ink: 'red',
+        drag: null,
+    };
+    let gpMode = 'props';
+
+    /* ---- pure geometry ---- */
+    function segSegX(a, b) {
+        const d1x = a.x2 - a.x1, d1y = a.y2 - a.y1;
+        const d2x = b.x2 - b.x1, d2y = b.y2 - b.y1;
+        const den = d1x * d2y - d1y * d2x;
+        if (Math.abs(den) < 1e-9) return [];
+        const t = ((b.x1 - a.x1) * d2y - (b.y1 - a.y1) * d2x) / den;
+        const u = ((b.x1 - a.x1) * d1y - (b.y1 - a.y1) * d1x) / den;
+        if (t < -1e-6 || t > 1 + 1e-6 || u < -1e-6 || u > 1 + 1e-6) return [];
+        return [{ x: a.x1 + t * d1x, y: a.y1 + t * d1y }];
+    }
+    function segCircleX(s, c) {
+        const dx = s.x2 - s.x1, dy = s.y2 - s.y1;
+        const fx = s.x1 - c.cx, fy = s.y1 - c.cy;
+        const A = dx * dx + dy * dy;
+        const B = 2 * (fx * dx + fy * dy);
+        const C = fx * fx + fy * fy - c.r * c.r;
+        let disc = B * B - 4 * A * C;
+        if (disc < 0 || A < 1e-12) return [];
+        disc = Math.sqrt(disc);
+        const out = [];
+        for (const t of [(-B - disc) / (2 * A), (-B + disc) / (2 * A)]) {
+            if (t >= -1e-6 && t <= 1 + 1e-6) out.push({ x: s.x1 + t * dx, y: s.y1 + t * dy });
+        }
+        if (out.length === 2 && Math.hypot(out[0].x - out[1].x, out[0].y - out[1].y) < 1e-6) out.pop();
+        return out;
+    }
+    function circleCircleX(a, b) {
+        const dx = b.cx - a.cx, dy = b.cy - a.cy;
+        const d = Math.hypot(dx, dy);
+        if (d < 1e-9 || d > a.r + b.r + 1e-9 || d < Math.abs(a.r - b.r) - 1e-9) return [];
+        const al = (a.r * a.r - b.r * b.r + d * d) / (2 * d);
+        const h2 = a.r * a.r - al * al;
+        const h = h2 > 0 ? Math.sqrt(h2) : 0;
+        const mx = a.cx + al * dx / d, my = a.cy + al * dy / d;
+        if (h < 1e-9) return [{ x: mx, y: my }];
+        return [
+            { x: mx + h * dy / d, y: my - h * dx / d },
+            { x: mx - h * dy / d, y: my + h * dx / d },
+        ];
+    }
+
+    /* ---- model ---- */
+    function sbPt(id) { return sbState.pts.find((p) => p.id === id); }
+    function sbAddPt(x, y, kind) {
+        for (const p of sbState.pts) {
+            if (Math.hypot(p.x - x, p.y - y) < 0.75) return p.id;
+        }
+        const id = sbState.nextId++;
+        sbState.pts.push({ id, x, y, kind });
+        return id;
+    }
+    function sbGeom(o) {
+        if (o.t === 'seg') {
+            const a = sbPt(o.a), b = sbPt(o.b);
+            return { x1: a.x, y1: a.y, x2: b.x, y2: b.y };
+        }
+        const c = sbPt(o.c);
+        return { cx: c.x, cy: c.y, r: o.r };
+    }
+    // Register intersections with everything already drawn, then add the object.
+    function sbCommitObj(o) {
+        const A = sbGeom(o);
+        for (const other of sbState.objs) {
+            const B = sbGeom(other);
+            let hits;
+            if (o.t === 'seg' && other.t === 'seg') hits = segSegX(A, B);
+            else if (o.t === 'seg') hits = segCircleX(A, B);
+            else if (other.t === 'seg') hits = segCircleX(B, A);
+            else hits = circleCircleX(A, B);
+            hits.forEach((h) => sbAddPt(h.x, h.y, 'x'));
+        }
+        sbState.objs.push(o);
+    }
+    function sbSnapshot() {
+        sbState.undo.push(JSON.stringify({ pts: sbState.pts, objs: sbState.objs, nextId: sbState.nextId }));
+        if (sbState.undo.length > 60) sbState.undo.shift();
+    }
+    function sbUndo() {
+        const s = sbState.undo.pop();
+        if (!s) return;
+        const d = JSON.parse(s);
+        sbState.pts = d.pts; sbState.objs = d.objs; sbState.nextId = d.nextId;
+        sbRender();
+    }
+
+    const SB_SEEDS = {
+        blank:    [],
+        segment:  [[[140, 230], [340, 230]]],
+        cross:    [[[100, 110], [380, 270]], [[100, 270], [380, 110]]],
+        triangle: [[[110, 290], [240, 90]], [[240, 90], [380, 290]], [[380, 290], [110, 290]]],
+        right:    [[[140, 280], [212, 184]], [[212, 184], [340, 280]], [[340, 280], [140, 280]]],
+    };
+    function sbSeed(name) {
+        sbState.pts = []; sbState.objs = []; sbState.undo = []; sbState.nextId = 1;
+        sbState.drag = null;
+        (SB_SEEDS[name] || []).forEach(([p1, p2]) => {
+            const a = sbAddPt(p1[0], p1[1], 'end');
+            const b = sbAddPt(p2[0], p2[1], 'end');
+            sbCommitObj({ t: 'seg', a, b, ink: 'black' });
+        });
+        sbRender();
+    }
+
+    /* ---- snapping ---- */
+    function sbSnapAt(x, y, excludeId) {
+        let best = null, bd = SB_SNAP;
+        for (const p of sbState.pts) {
+            if (p.id === excludeId) continue;
+            const d = Math.hypot(p.x - x, p.y - y);
+            if (d < bd) { bd = d; best = p; }
+        }
+        return best;
+    }
+    function sbRimSnap(cx, cy, r, centerId) {
+        let best = null, bd = SB_RIM;
+        for (const p of sbState.pts) {
+            if (p.id === centerId) continue;
+            const rp = Math.hypot(p.x - cx, p.y - cy);
+            if (rp < 6) continue;
+            const d = Math.abs(rp - r);
+            if (d < bd) { bd = d; best = p; }
+        }
+        return best;
+    }
+    // "Produce the line": if the drag leaves an existing endpoint nearly
+    // collinear with a segment through it, project onto that direction.
+    function sbDirSnap(p0id, x0, y0, x, y) {
+        if (p0id == null) return null;
+        const vx = x - x0, vy = y - y0;
+        const len = Math.hypot(vx, vy);
+        if (len < 1e-6) return null;
+        for (const o of sbState.objs) {
+            if (o.t !== 'seg') continue;
+            let other = null;
+            if (o.a === p0id) other = sbPt(o.b);
+            else if (o.b === p0id) other = sbPt(o.a);
+            if (!other) continue;
+            const d = Math.hypot(x0 - other.x, y0 - other.y);
+            if (d < 1e-6) continue;
+            const ux = (x0 - other.x) / d, uy = (y0 - other.y) / d; // away from the far end
+            const dot = vx * ux + vy * uy;
+            if (dot <= 0) continue;
+            const off = Math.hypot(vx - dot * ux, vy - dot * uy);
+            if (off < Math.max(8, len * 0.1)) return { x: x0 + dot * ux, y: y0 + dot * uy };
+        }
+        return null;
+    }
+
+    /* ---- rendering ---- */
+    function sbMk(tag, attrs) {
+        const el = document.createElementNS(SVGNS, tag);
+        for (const k in attrs) el.setAttribute(k, attrs[k]);
+        return el;
+    }
+    function sbLayer(id) { return document.getElementById(id); }
+    function sbRender() {
+        const g = sbLayer('gp-sb-content');
+        if (!g) return;
+        g.innerHTML = '';
+        for (const o of sbState.objs) {
+            const col = GP_C[o.ink];
+            if (o.t === 'seg') {
+                const s = sbGeom(o);
+                g.appendChild(sbMk('line', { x1: s.x1, y1: s.y1, x2: s.x2, y2: s.y2,
+                    stroke: col, 'stroke-width': 4, 'stroke-linecap': 'round' }));
+            } else {
+                const c = sbGeom(o);
+                g.appendChild(sbMk('circle', { cx: c.cx, cy: c.cy, r: c.r,
+                    fill: 'none', stroke: col, 'stroke-width': 3 }));
+            }
+        }
+        for (const p of sbState.pts) {
+            g.appendChild(p.kind === 'x'
+                ? sbMk('circle', { cx: p.x, cy: p.y, r: 2.8, fill: GP_C.black, opacity: 0.55 })
+                : sbMk('circle', { cx: p.x, cy: p.y, r: 4, fill: GP_C.black }));
+        }
+    }
+    function sbSetPreview(children) {
+        const g = sbLayer('gp-sb-preview');
+        if (!g) return;
+        g.innerHTML = '';
+        children.forEach((c) => g.appendChild(c));
+    }
+    function sbRing(x, y, col) {
+        return sbMk('circle', { cx: x, cy: y, r: 8.5, fill: 'none',
+            stroke: col, 'stroke-width': 2.5, class: 'gp-sb-ring' });
+    }
+
+    /* ---- interaction ---- */
+    function sbCoords(e) {
+        const svg = document.getElementById('gp-sb-svg');
+        const m = svg.getScreenCTM();
+        if (!m) return { x: 0, y: 0 };
+        const pt = svg.createSVGPoint();
+        pt.x = e.clientX; pt.y = e.clientY;
+        return pt.matrixTransform(m.inverse());
+    }
+    function sbDown(e) {
+        e.preventDefault();
+        const svg = document.getElementById('gp-sb-svg');
+        try { svg.setPointerCapture(e.pointerId); } catch (err) { /* ok */ }
+        const m = sbCoords(e);
+        const snap = sbSnapAt(m.x, m.y, null);
+        sbState.drag = {
+            x0: snap ? snap.x : m.x,
+            y0: snap ? snap.y : m.y,
+            p0: snap ? snap.id : null,
+        };
+        sbMove(e);
+    }
+    function sbMove(e) {
+        const ink = GP_C[sbState.ink];
+        const d = sbState.drag;
+        if (!d) {
+            // Hover: show the tool cue at the (snapped) cursor
+            const m = sbCoords(e);
+            const snap = sbSnapAt(m.x, m.y, null);
+            const x = snap ? snap.x : m.x, y = snap ? snap.y : m.y;
+            const cue = [];
+            if (sbState.tool === 'circle') {
+                cue.push(sbMk('circle', { cx: x, cy: y, r: 13, fill: 'none', stroke: ink,
+                    'stroke-width': 1.5, 'stroke-dasharray': '4 4', opacity: 0.8 }));
+                cue.push(sbMk('circle', { cx: x, cy: y, r: 2.5, fill: ink }));
+            } else {
+                cue.push(sbMk('circle', { cx: x, cy: y, r: 3, fill: ink }));
+            }
+            if (snap) cue.push(sbRing(x, y, ink));
+            sbSetPreview(cue);
+            return;
+        }
+        const m = sbCoords(e);
+        const prev = [];
+        if (sbState.tool === 'seg') {
+            let end = { x: m.x, y: m.y, pid: null };
+            const ks = sbSnapAt(m.x, m.y, d.p0);
+            if (ks) end = { x: ks.x, y: ks.y, pid: ks.id };
+            else {
+                const ds = sbDirSnap(d.p0, d.x0, d.y0, m.x, m.y);
+                if (ds) end = { x: ds.x, y: ds.y, pid: null };
+            }
+            d.end = end;
+            prev.push(sbMk('line', { x1: d.x0, y1: d.y0, x2: end.x, y2: end.y,
+                stroke: ink, 'stroke-width': 4, 'stroke-linecap': 'round',
+                'stroke-dasharray': '2 7', opacity: 0.9 }));
+            if (d.p0 != null) prev.push(sbRing(d.x0, d.y0, ink));
+            if (end.pid != null) prev.push(sbRing(end.x, end.y, ink));
+        } else {
+            let r = Math.hypot(m.x - d.x0, m.y - d.y0);
+            const rim = sbRimSnap(d.x0, d.y0, r, d.p0);
+            if (rim) r = Math.hypot(rim.x - d.x0, rim.y - d.y0);
+            d.r = r;
+            d.rim = rim;
+            prev.push(sbMk('line', { x1: d.x0, y1: d.y0, x2: m.x, y2: m.y,
+                stroke: ink, 'stroke-width': 1.5, 'stroke-dasharray': '4 4', opacity: 0.55 }));
+            if (r > 1) prev.push(sbMk('circle', { cx: d.x0, cy: d.y0, r,
+                fill: 'none', stroke: ink, 'stroke-width': 3,
+                'stroke-dasharray': rim ? 'none' : '3 6', opacity: rim ? 1 : 0.85 }));
+            prev.push(sbMk('circle', { cx: d.x0, cy: d.y0, r: 2.5, fill: ink }));
+            if (rim) prev.push(sbRing(rim.x, rim.y, ink));
+        }
+        sbSetPreview(prev);
+    }
+    function sbUp() {
+        const d = sbState.drag;
+        sbState.drag = null;
+        sbSetPreview([]);
+        if (!d) return;
+        if (sbState.tool === 'seg') {
+            const end = d.end;
+            if (!end || Math.hypot(end.x - d.x0, end.y - d.y0) < 7) return;
+            sbSnapshot();
+            const a = d.p0 != null ? d.p0 : sbAddPt(d.x0, d.y0, 'end');
+            const b = end.pid != null ? end.pid : sbAddPt(end.x, end.y, 'end');
+            if (a === b) { sbState.undo.pop(); return; }
+            sbCommitObj({ t: 'seg', a, b, ink: sbState.ink });
+        } else {
+            if (!d.r || d.r < 7) return;
+            sbSnapshot();
+            const c = d.p0 != null ? d.p0 : sbAddPt(d.x0, d.y0, 'center');
+            sbCommitObj({ t: 'circle', c, r: d.r, ink: sbState.ink });
+        }
+        sbRender();
+    }
+
+    const SB_HINTS = {
+        seg: 'Drag from point to point — ends stick to key points, and a line drawn out of an end stays straight with it.',
+        circle: 'Press where the centre should be and drag outward — the rim sticks when it reaches a key point.',
+    };
+    function sbSetTool(tool) {
+        sbState.tool = tool;
+        document.querySelectorAll('.gp-sb-tool').forEach((b) =>
+            b.classList.toggle('active', b.dataset.tool === tool));
+        $('gp-sb-hint').textContent = SB_HINTS[tool];
+    }
+    function sbSetInk(ink) {
+        sbState.ink = ink;
+        document.querySelectorAll('.gp-sb-ink').forEach((b) =>
+            b.classList.toggle('active', b.dataset.ink === ink));
+    }
+    function sbInit() {
+        if (sbState.inited) return;
+        sbState.inited = true;
+        // ink swatches
+        const inks = $('gp-sb-inks');
+        Object.keys(GP_C).forEach((ink) => {
+            const b = document.createElement('button');
+            b.className = 'gp-sb-ink';
+            b.dataset.ink = ink;
+            b.style.background = GP_C[ink];
+            b.title = ink;
+            inks.appendChild(b);
+        });
+        // svg layers: committed content, then live preview on top
+        $('gp-sb-svg').innerHTML = '<g id="gp-sb-content"></g><g id="gp-sb-preview"></g>';
+        sbSetTool('seg');
+        sbSetInk('red');
+        sbSeed($('gp-sb-given').value);
+    }
+
+    /* ---- mode toggle (Propositions | Sandbox) ---- */
+    function gpSetMode(mode) {
+        gpMode = mode;
+        $('gp-mode-props').classList.toggle('active', mode === 'props');
+        $('gp-mode-sandbox').classList.toggle('active', mode === 'sandbox');
+        if (mode === 'sandbox') {
+            $('gp-menu').classList.add('hidden');
+            $('gp-proof').classList.add('hidden');
+            $('gp-sandbox').classList.remove('hidden');
+            sbInit();
+        } else {
+            $('gp-sandbox').classList.add('hidden');
+            gpShowMenu();
+        }
+    }
+
+    /* ========================================================================
      * SCREEN MARKUP
      * ======================================================================*/
     const GP_SCREEN_HTML = `
@@ -628,6 +988,10 @@
           <h1>The Elements of Euclid</h1>
           <p class="gp-sub">in which coloured diagrams are used instead of letters · after Oliver Byrne, 1847</p>
         </header>
+        <div class="gp-modebar">
+          <button id="gp-mode-props" class="gp-modebtn active">Propositions</button>
+          <button id="gp-mode-sandbox" class="gp-modebtn">Sandbox</button>
+        </div>
         <div id="gp-menu" class="gp-cards"></div>
         <div id="gp-proof" class="hidden">
           <div class="gp-propbar">
@@ -657,6 +1021,36 @@
             </div>
           </div>
         </div>
+        <div id="gp-sandbox" class="hidden">
+          <p class="gp-enun">The instruments of Euclid: a straightedge for lines, a compass for circles.
+            Ends, centres and crossings become key points — and new work sticks to them.</p>
+          <div class="gp-sb-bar">
+            <div class="gp-sb-tools">
+              <button class="gp-sb-tool active" data-tool="seg">Straightedge</button>
+              <button class="gp-sb-tool" data-tool="circle">Compass</button>
+            </div>
+            <div id="gp-sb-inks" class="gp-sb-inks"></div>
+            <div class="gp-sb-actions">
+              <button id="gp-sb-undo" class="gp-btn-plain">Undo</button>
+              <button id="gp-sb-clear" class="gp-btn-plain">Clear</button>
+            </div>
+          </div>
+          <div class="gp-board gp-sb-board">
+            <svg id="gp-sb-svg" viewBox="0 0 480 360"></svg>
+          </div>
+          <div class="gp-sb-foot">
+            <label class="gp-sb-givenlbl">Begin with
+              <select id="gp-sb-given" class="gp-sb-given">
+                <option value="segment" selected>a straight line</option>
+                <option value="cross">two crossing lines</option>
+                <option value="triangle">a triangle</option>
+                <option value="right">a right-angled triangle</option>
+                <option value="blank">a blank page</option>
+              </select>
+            </label>
+            <span id="gp-sb-hint" class="gp-sb-hint"></span>
+          </div>
+        </div>
       </div>
     </div>`;
 
@@ -667,7 +1061,7 @@
         if (document.querySelector('link[data-gp-css]')) return;
         const link = document.createElement('link');
         link.rel = 'stylesheet';
-        link.href = 'geometry-proofs.css?v=1';
+        link.href = 'geometry-proofs.css?v=2';
         link.dataset.gpCss = '1';
         document.head.appendChild(link);
     }
@@ -690,7 +1084,7 @@
         bar.appendChild(btn);
     }
     function register() {
-        TAB_ENTRY['geo-proofs'] = () => { showScreen('geo-proofs'); gpShowMenu(); };
+        TAB_ENTRY['geo-proofs'] = () => { showScreen('geo-proofs'); gpSetMode(gpMode); };
         SCREEN_TAB['geo-proofs'] = 'geo-proofs';
     }
     function wireEvents() {
@@ -707,6 +1101,26 @@
         $('gp-back').addEventListener('click', gpShowMenu);
         $('gp-tomenu').addEventListener('click', gpShowMenu);
         $('gp-again').addEventListener('click', () => gpStart(gp.prop));
+        // ---- sandbox ----
+        $('gp-mode-props').addEventListener('click', () => gpSetMode('props'));
+        $('gp-mode-sandbox').addEventListener('click', () => gpSetMode('sandbox'));
+        document.querySelector('.gp-sb-tools').addEventListener('click', (e) => {
+            const btn = e.target.closest('.gp-sb-tool');
+            if (btn) sbSetTool(btn.dataset.tool);
+        });
+        $('gp-sb-inks').addEventListener('click', (e) => {
+            const btn = e.target.closest('.gp-sb-ink');
+            if (btn) sbSetInk(btn.dataset.ink);
+        });
+        $('gp-sb-undo').addEventListener('click', sbUndo);
+        $('gp-sb-clear').addEventListener('click', () => { sbSnapshot(); sbState.pts = []; sbState.objs = []; sbRender(); });
+        $('gp-sb-given').addEventListener('change', (e) => sbSeed(e.target.value));
+        const sbSvg = $('gp-sb-svg');
+        sbSvg.addEventListener('pointerdown', sbDown);
+        sbSvg.addEventListener('pointermove', sbMove);
+        sbSvg.addEventListener('pointerup', sbUp);
+        sbSvg.addEventListener('pointercancel', () => { sbState.drag = null; sbSetPreview([]); });
+        sbSvg.addEventListener('pointerleave', () => { if (!sbState.drag) sbSetPreview([]); });
     }
 
     function boot() {
