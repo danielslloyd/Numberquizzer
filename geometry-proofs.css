@@ -91,6 +91,22 @@
     font-style: normal;
     letter-spacing: 0.08em;
 }
+.gp-card-built {
+    color: #1e64b4;
+    font-style: normal;
+    letter-spacing: 0.08em;
+}
+.gp-card-acts {
+    display: flex;
+    justify-content: center;
+    gap: 0.45rem;
+    margin-top: 0.55rem;
+}
+.gp-card-act {
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    padding: 0.4rem 0.8rem;
+}
 
 /* ---- proof view --------------------------------------------------------- */
 .gp-propbar {
@@ -371,6 +387,43 @@
     max-width: 34ch;
     text-align: right;
 }
+/* ---- build-this-proof challenge ---------------------------------------------*/
+.gp-sb-chal {
+    border: 2px solid #2b2926;
+    background: #fdf8ea;
+    padding: 0.7rem 0.9rem 0.8rem;
+    margin-bottom: 0.85rem;
+}
+.gp-sb-chal-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.6rem;
+}
+.gp-sb-chal-instr {
+    font-size: 1rem;
+    line-height: 1.55;
+    margin: 0.45rem 0 0.15rem;
+}
+#gp-sb-chal-note { margin: 0.15rem 0 0; }
+#gp-sb-chal-note.gp-sb-chal-good { color: #3d7a3a; }
+.gp-sb-chal-foot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.8rem;
+    margin-top: 0.45rem;
+}
+.gp-sb-pips { display: flex; gap: 0.35rem; }
+.gp-sb-pip {
+    width: 12px;
+    height: 12px;
+    border: 2px solid #2b2926;
+    background: #fdf8ea;
+    display: inline-block;
+}
+.gp-sb-pip.done { background: #d33723; }
+
 .gp-sb-ring { animation: gp-sb-pulse 1s ease infinite; }
 @keyframes gp-sb-pulse {
     0%, 100% { opacity: 0.95; }

@@ -187,6 +187,342 @@
                 ],
             },
         ],
+        build: {
+            seed: [[[140, 230], [340, 230]]],
+            targets: [
+                { t: 'circle', cx: 140, cy: 230, r: 200, ink: 'red',
+                  instr: 'Sweep a [red-circle] about the left end of the [black-line], passing through its right end.',
+                  miss: 'We need a circle about the left end whose rim reaches exactly to the right end — press on the left end and drag to the right.' },
+                { t: 'circle', cx: 340, cy: 230, r: 200, ink: 'blue',
+                  instr: 'Now sweep an equal [blue-circle] about the right end, passing through the left end.',
+                  miss: 'The second circle sits on the right end and reaches exactly to the left end.' },
+                { t: 'seg', x1: 140, y1: 230, x2: 240, y2: 56.79, ink: 'red',
+                  instr: 'The circles cross above the line. Join that crossing to the left end of the [black-line].',
+                  miss: 'Draw from the point where the two circles cross, above the line, down to the left end.' },
+                { t: 'seg', x1: 340, y1: 230, x2: 240, y2: 56.79, ink: 'blue',
+                  instr: 'And join the crossing to the right end.',
+                  miss: 'Draw from the circles’ crossing down to the right end of the line.' },
+            ],
+            qed: 'An equilateral triangle stands upon the line — every side a radius.',
+        },
+    },
+    {
+        id: 'i5', ref: 'Book I. Proposition V.',
+        title: 'The isosceles triangle',
+        enun: 'In a triangle with two equal sides, the two angles at the base are also equal.',
+        view: '92 54 256 224',
+        shapes: [
+            { id: 'wA', t: 'wedge', cx: 220, cy: 80, r: 44, a0: 60.95, a1: 119.05, c: 'yellow', s: 0, z: 0 },
+            { id: 'wB', t: 'wedge', cx: 120, cy: 260, r: 44, a0: -60.95, a1: 0, c: 'red', s: 4, z: 0 },
+            { id: 'wC', t: 'wedge', cx: 320, cy: 260, r: 44, a0: 180, a1: 240.95, c: 'blue', s: 4, z: 0 },
+            { id: 'sBC', t: 'line', x1: 120, y1: 260, x2: 320, y2: 260, c: 'black', w: 4.5, s: 0 },
+            { id: 'sAB', t: 'line', x1: 220, y1: 80, x2: 120, y2: 260, c: 'red', w: 5, s: 0 },
+            { id: 'sAC', t: 'line', x1: 220, y1: 80, x2: 320, y2: 260, c: 'blue', w: 5, s: 0 },
+        ],
+        steps: [
+            {
+                ask: 'This triangle has two equal sides — the [red-line] and the [blue-line] — and we must show its two bottom corners match. The old trick: compare the triangle with… what?',
+                ok: { t: 'With itself, turned over — lift it, flip it like a pancake, and set it back down with its sides exchanged.',
+                      done: 'The triangle is compared with its own reflection, the two equal sides exchanging places.' },
+                no: [
+                    { t: 'With a larger triangle of the same shape.',
+                      why: 'No other triangle is needed — the only perfect twin of this triangle is the triangle itself, turned over.' },
+                    { t: 'With a square built upon its base.',
+                      why: 'Squares belong to another proposition. Here the triangle itself is the only tool we need.' },
+                ],
+            },
+            {
+                ask: 'Flipped over, the [blue-line] now lies where the [red-line] stood, and the [red-line] where the [blue-line] was. Do they fit?',
+                ok: { t: 'Perfectly — flipping moves a shape without stretching it, and the two sides were given equal.',
+                      done: 'The [blue-line] falls upon the [red-line], and the [red-line] upon the [blue-line]: equal upon equal.' },
+                flash: ['sAB', 'sAC'],
+                no: [
+                    { t: 'Only if the triangle is also right-angled.',
+                      why: 'No right angle is needed — only the two equal sides, and those were given.' },
+                    { t: 'No — turning a shape over changes its lengths.',
+                      why: 'Turning never stretches: a shape keeps every length and every angle when it is flipped.' },
+                ],
+            },
+            {
+                ask: 'And the [yellow-angle] at the top, held between the two equal sides?',
+                ok: { t: 'It lands exactly upon itself — the same opening, only with its two arms exchanged.',
+                      done: 'The [yellow-angle] coincides with itself, its arms exchanged.' },
+                flash: ['wA'],
+                no: [
+                    { t: 'It lands upside-down, so it cannot match.',
+                      why: 'An angle is only an opening between two arms — exchange the arms and the opening is unchanged.' },
+                    { t: 'It grows wider when the triangle is flipped.',
+                      why: 'Flipping changes no angle. The opening at the top is carried over exactly.' },
+                ],
+            },
+            {
+                ask: 'So the flipped triangle covers the original exactly — side upon side, angle upon angle. What follows for the two bottom corners?',
+                ok: { t: 'Each lands upon the other: the [red-angle] at one end of the base equals the [blue-angle] at the other.',
+                      done: 'Therefore the [red-angle] equals the [blue-angle]: the base angles of an isosceles triangle are equal. Q.E.D.' },
+                flash: ['wB', 'wC'],
+                no: [
+                    { t: 'They trade places, so nothing can be said of them.',
+                      why: 'Trading places is the whole point: each corner fits exactly into the other, so the two must be equal.' },
+                    { t: 'Only the top corner is unchanged.',
+                      why: 'Every part of the flipped triangle lies on the original — the bottom corners included, each upon the other.' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'i9', ref: 'Book I. Proposition IX.',
+        title: 'To bisect an angle',
+        enun: 'To cut a given angle exactly in half, using only compass and straightedge.',
+        view: '-26 62 460 356',
+        shapes: [
+            { id: 'w1', t: 'wedge', cx: 150, cy: 240, r: 55, a0: -30, a1: -15, c: 'red', s: 4, z: 0 },
+            { id: 'w2', t: 'wedge', cx: 150, cy: 240, r: 55, a0: -15, a1: 0, c: 'blue', s: 4, z: 0 },
+            { id: 'arm1', t: 'line', x1: 150, y1: 240, x2: 314.5, y2: 145, c: 'black', w: 4.5, s: 0 },
+            { id: 'arm2', t: 'line', x1: 150, y1: 240, x2: 320, y2: 240, c: 'black', w: 4.5, s: 0 },
+            { id: 'cV', t: 'circle', cx: 150, cy: 240, r: 170, c: 'red', w: 3.5, s: 1 },
+            { id: 'cD', t: 'circle', cx: 297.2, cy: 155, r: 88, c: 'blue', w: 3.5, s: 2 },
+            { id: 'cE', t: 'circle', cx: 320, cy: 240, r: 88, c: 'blue', w: 3.5, s: 2 },
+            { id: 'bis', t: 'line', x1: 150, y1: 240, x2: 382.2, y2: 177.8, c: 'yellow', w: 5, s: 3 },
+            { id: 'dV', t: 'dot', cx: 150, cy: 240, r: 5, c: 'black', s: 0 },
+            { id: 'dD', t: 'dot', cx: 297.2, cy: 155, r: 5, c: 'black', s: 1 },
+            { id: 'dE', t: 'dot', cx: 320, cy: 240, r: 5, c: 'black', s: 1 },
+            { id: 'dF', t: 'dot', cx: 382.2, cy: 177.8, r: 5, c: 'black', s: 2 },
+        ],
+        steps: [
+            {
+                ask: 'An angle sits at its corner. To cut it in half we first need one point on each arm, both equally far from the corner. How?',
+                ok: { t: 'Sweep a [red-circle] about the corner — wherever it cuts the two arms, the distances are equal radii.',
+                      done: 'A [red-circle] about the corner cuts both arms at equal distances from it.' },
+                no: [
+                    { t: 'Mark a point on each arm where they look evenly placed.',
+                      why: 'Looks prove nothing. A circle makes the two distances equal by its very nature — every radius is the same.' },
+                    { t: 'Draw a straight line across the angle.',
+                      why: 'A crossbar drawn anywhere may lean toward one arm. First we need equal footholds, and only the compass gives them.' },
+                ],
+            },
+            {
+                ask: 'Two equal footholds stand on the arms. Now we need a point out in the middle of the angle that favours neither side. How?',
+                ok: { t: 'Sweep equal [blue-circle]s about each foothold, each through the other — where they cross favours neither arm.',
+                      done: 'Equal [blue-circle]s about the footholds cross at a point evenly placed between the arms.' },
+                no: [
+                    { t: 'Join the two footholds — that line is the bisector.',
+                      why: 'That crossbar joins the arms but never passes through the corner — and a bisector must begin there.' },
+                    { t: 'Pick the middle by eye and mark it.',
+                      why: 'The eye flatters and lies. The two equal circles find the true middle without any guessing.' },
+                ],
+            },
+            {
+                ask: 'The [yellow-line] joins the corner to the crossing. It looks like it halves the angle — but why must it? Consider the two triangles it makes.',
+                ok: { t: 'Their sides match pair for pair: equal red radii, equal blue radii, and the [yellow-line] itself shared by both.',
+                      done: 'The two triangles have all three sides equal, pair for pair — red with red, blue with blue, yellow shared.' },
+                flash: ['cV', 'cD', 'cE', 'bis'],
+                no: [
+                    { t: 'They look the same size.',
+                      why: 'Byrne would blush — looks are not proof. Count the sides: it is the three equal pairs that force the match.' },
+                    { t: 'They stand on the same corner, and that is enough.',
+                      why: 'Two very different triangles can share a corner. It is the three matching sides that leave no room for difference.' },
+                ],
+            },
+            {
+                ask: 'Triangles that agree in all three sides agree in everything. So the two angles at the corner…',
+                ok: { t: '…are equal: the [red-angle] and the [blue-angle] are the two matching halves of the whole.',
+                      done: 'Therefore the [red-angle] equals the [blue-angle], and the angle is bisected. Q.E.D.' },
+                flash: ['w1', 'w2'],
+                no: [
+                    { t: '…are each a right angle.',
+                      why: 'Only if the whole angle were 180°! The halves are equal to each other — whatever the whole may be.' },
+                    { t: '…differ by the width of the [yellow-line].',
+                      why: 'A line has no width in geometry — the halves are exactly, not nearly, equal.' },
+                ],
+            },
+        ],
+        build: {
+            seed: [[[150, 240], [314.5, 145]], [[150, 240], [320, 240]]],
+            targets: [
+                { t: 'circle', cx: 150, cy: 240, r: 170, ink: 'red',
+                  instr: 'Sweep a [red-circle] about the corner of the angle, through the end of its lower arm — so that it cuts both arms.',
+                  miss: 'Press on the corner and drag to the end of the lower arm, so one circle cuts both arms at equal distances.' },
+                { t: 'circle', cx: 297.2, cy: 155, r: 88, ink: 'blue',
+                  instr: 'Sweep a [blue-circle] about the point where the [red-circle] cuts the upper arm, through the point where it meets the lower arm.',
+                  miss: 'The circle should sit on the upper crossing and pass exactly through the lower one.' },
+                { t: 'circle', cx: 320, cy: 240, r: 88, ink: 'blue',
+                  instr: 'Now its twin: an equal [blue-circle] about the lower point, back through the upper one.',
+                  miss: 'The twin circle sits on the lower point and passes exactly through the upper one.' },
+                { t: 'seg', ink: 'yellow',
+                  any: [
+                      { t: 'seg', x1: 150, y1: 240, x2: 382.2, y2: 177.8 },
+                      { t: 'seg', x1: 150, y1: 240, x2: 235, y2: 217.2 },
+                  ],
+                  instr: 'Join the corner to a point where the two [blue-circle]s cross: the [yellow-line] cuts the angle exactly in half.',
+                  miss: 'Draw from the corner of the angle to one of the points where the two blue circles cross.' },
+            ],
+            qed: 'The angle is bisected — two equal halves, found by circles alone.',
+        },
+    },
+    {
+        id: 'i10', ref: 'Book I. Proposition X.',
+        title: 'To bisect a line',
+        enun: 'To find the exact middle of a given straight line, using only compass and straightedge.',
+        view: '24 42 432 300',
+        shapes: [
+            { id: 'base', t: 'line', x1: 170, y1: 190, x2: 310, y2: 190, c: 'black', w: 5, s: 0 },
+            { id: 'cA', t: 'circle', cx: 170, cy: 190, r: 140, c: 'red', w: 3.5, s: 1 },
+            { id: 'cB', t: 'circle', cx: 310, cy: 190, r: 140, c: 'blue', w: 3.5, s: 2 },
+            { id: 'cut', t: 'line', x1: 240, y1: 68.76, x2: 240, y2: 311.24, c: 'yellow', w: 5, s: 3 },
+            { id: 'dA', t: 'dot', cx: 170, cy: 190, r: 5, c: 'black', s: 0 },
+            { id: 'dB', t: 'dot', cx: 310, cy: 190, r: 5, c: 'black', s: 0 },
+            { id: 'dT', t: 'dot', cx: 240, cy: 68.76, r: 5, c: 'black', s: 3 },
+            { id: 'dU', t: 'dot', cx: 240, cy: 311.24, r: 5, c: 'black', s: 3 },
+            { id: 'dM', t: 'dot', cx: 240, cy: 190, r: 6, c: 'red', s: 4 },
+        ],
+        steps: [
+            {
+                ask: 'We must find the exact middle of the [black-line] — no ruler, no numbers. Where do we begin?',
+                ok: { t: 'Sweep a [red-circle] about the left end, with the whole [black-line] for its radius.',
+                      done: 'A [red-circle] is described about the left end, through the right.' },
+                no: [
+                    { t: 'Fold the line in half.',
+                      why: 'No folding in Greek geometry — and a drawn line will not bend. The compass must do the finding.' },
+                    { t: 'Guess the middle and check by eye.',
+                      why: 'A guess can always be a hair off. Euclid wants the middle exactly, and circles never guess.' },
+                ],
+            },
+            {
+                ask: 'One circle alone tells us nothing about the middle. What next?',
+                ok: { t: 'Sweep an equal [blue-circle] about the right end, through the left.',
+                      done: 'An equal [blue-circle] is described about the right end, through the left.' },
+                no: [
+                    { t: 'A smaller circle about the same end.',
+                      why: 'A different radius carries a different distance. The two circles must be equal for the balance to come.' },
+                    { t: 'Mark where the [red-circle] is highest.',
+                      why: 'The top of the red circle sits above its own centre — the left end — not above the middle of the line.' },
+                ],
+            },
+            {
+                ask: 'The circles cross twice — once above the line, once below. What now?',
+                ok: { t: 'Join the two crossings with the [yellow-line].',
+                      done: 'The two crossings are joined by the [yellow-line], which cuts the [black-line].' },
+                no: [
+                    { t: 'Join each crossing to the two ends.',
+                      why: 'Fine work — but that builds the equilateral triangle of Proposition I. Today we only join the crossings to each other.' },
+                    { t: 'Rub out the circles; the crossings are enough by themselves.',
+                      why: 'The crossings alone are just two points. It is the line through them that will cut the [black-line].' },
+                ],
+            },
+            {
+                ask: 'Why must the [yellow-line] cut the [black-line] at its exact middle?',
+                ok: { t: 'Each crossing is equally far from the two ends — both circles say so — thus the whole [yellow-line] leans toward neither end.',
+                      done: 'The [yellow-line] favours neither end; where it meets the [black-line] is the exact middle. Q.E.D.' },
+                flash: ['cut', 'base', 'dM'],
+                no: [
+                    { t: 'Because it stands upright on the page.',
+                      why: '“Upright” is about the page, not the geometry. Turn the drawing and the reason must still hold — equal distances are what count.' },
+                    { t: 'Because the circles are roughly the same size.',
+                      why: 'Not roughly — exactly: each has the whole [black-line] for its radius. On that exactness the whole proof stands.' },
+                ],
+            },
+        ],
+        build: {
+            seed: [[[170, 190], [310, 190]]],
+            targets: [
+                { t: 'circle', cx: 170, cy: 190, r: 140, ink: 'red',
+                  instr: 'Sweep a [red-circle] about the left end of the [black-line], through its right end.',
+                  miss: 'Press on the left end and drag to the right end — the whole line becomes the radius.' },
+                { t: 'circle', cx: 310, cy: 190, r: 140, ink: 'blue',
+                  instr: 'Sweep an equal [blue-circle] about the right end, through the left.',
+                  miss: 'The second circle sits on the right end and passes exactly through the left end.' },
+                { t: 'seg', x1: 240, y1: 68.76, x2: 240, y2: 311.24, ink: 'yellow',
+                  instr: 'Join the two points where the circles cross — above and below — with the [yellow-line].',
+                  miss: 'Draw from the upper crossing of the two circles straight to the lower crossing.' },
+            ],
+            qed: 'Where the yellow line cuts the black is the exact middle — and no ruler was harmed.',
+        },
+    },
+    {
+        id: 'i11', ref: 'Book I. Proposition XI.',
+        title: 'To raise a perpendicular',
+        enun: 'From a given point on a straight line, to raise a line at right angles to it.',
+        view: '-46 84 498 338',
+        shapes: [
+            { id: 'wL', t: 'wedge', cx: 200, cy: 250, r: 40, a0: 180, a1: 270, c: 'red', s: 4, z: 0 },
+            { id: 'wR', t: 'wedge', cx: 200, cy: 250, r: 40, a0: 270, a1: 360, c: 'blue', s: 4, z: 0 },
+            { id: 'segL', t: 'line', x1: 120, y1: 250, x2: 200, y2: 250, c: 'black', w: 4.5, s: 0 },
+            { id: 'segR', t: 'line', x1: 200, y1: 250, x2: 400, y2: 250, c: 'black', w: 4.5, s: 0 },
+            { id: 'cO', t: 'circle', cx: 200, cy: 250, r: 80, c: 'red', w: 3.5, s: 1 },
+            { id: 'cD', t: 'circle', cx: 120, cy: 250, r: 160, c: 'blue', w: 3.5, s: 2 },
+            { id: 'cE', t: 'circle', cx: 280, cy: 250, r: 160, c: 'blue', w: 3.5, s: 2 },
+            { id: 'perp', t: 'line', x1: 200, y1: 250, x2: 200, y2: 111.44, c: 'yellow', w: 5, s: 3 },
+            { id: 'dO', t: 'dot', cx: 200, cy: 250, r: 5.5, c: 'black', s: 0 },
+            { id: 'dD', t: 'dot', cx: 120, cy: 250, r: 5, c: 'black', s: 1 },
+            { id: 'dE', t: 'dot', cx: 280, cy: 250, r: 5, c: 'black', s: 1 },
+            { id: 'dF', t: 'dot', cx: 200, cy: 111.44, r: 5, c: 'black', s: 2 },
+        ],
+        steps: [
+            {
+                ask: 'From the marked point we must raise a line square to the [black-line]. Euclid first gives the point two equal companions. Why circles?',
+                ok: { t: 'A [red-circle] about the point cuts the line on both sides at the same distance — perfectly even companions.',
+                      done: 'A [red-circle] about the marked point cuts the line at two equal distances.' },
+                no: [
+                    { t: 'Skip the companions — just draw a line straight up.',
+                      why: 'For Euclid the page has no “up” — only relations between lines. The right angle must be built, not eyeballed.' },
+                    { t: 'One companion on one side would be enough.',
+                      why: 'One point alone cannot say what “square” means. Balance between the two sides is the whole idea of a right angle.' },
+                ],
+            },
+            {
+                ask: 'Two equal companions flank the point — just like the two ends of a line to be bisected. What next?',
+                ok: { t: 'Equal [blue-circle]s about each companion, each through the other — they cross above the line.',
+                      done: 'Equal [blue-circle]s about the companions cross above the line.' },
+                no: [
+                    { t: 'Join the companions to each other.',
+                      why: 'They already lie on the [black-line] — joining them adds nothing new. The new point must stand off the line.' },
+                    { t: 'Two more circles about the marked point.',
+                      why: 'Circles about the same centre never cross each other. The crossing must come from two different centres.' },
+                ],
+            },
+            {
+                ask: 'The [yellow-line] joins the marked point to the crossing. Why does it lean to neither side?',
+                ok: { t: 'The crossing is equally far from both companions — and so is the marked point. Two such points fix a line of perfect balance.',
+                      done: 'The [yellow-line] joins two points, each of which favours neither companion.' },
+                flash: ['cD', 'cE', 'perp'],
+                no: [
+                    { t: 'Because the drawing looks symmetrical.',
+                      why: 'It is symmetrical — but “looks” is not the reason. The equal circles are what force the balance.' },
+                    { t: 'Because it is the shortest line on the page.',
+                      why: 'Length is beside the point. Equal distances to the two companions are what hold it upright.' },
+                ],
+            },
+            {
+                ask: 'Look at the two angles at the foot of the [yellow-line], left and right. What are they?',
+                ok: { t: 'Equal — and two equal angles that together fill a straight line are each half of 180°: right angles.',
+                      done: 'The [red-angle] equals the [blue-angle]; each is therefore a right angle, and the perpendicular stands. Q.E.D.' },
+                flash: ['wL', 'wR'],
+                no: [
+                    { t: 'The left one is larger, for the line leans a little.',
+                      why: 'It cannot lean: the perfect balance between the companions forbids it. The two angles are exactly equal.' },
+                    { t: 'Together they make one right angle.',
+                      why: 'Together they fill one side of a straight line — two right angles. Being equal, each takes exactly one.' },
+                ],
+            },
+        ],
+        build: {
+            seed: [[[120, 250], [200, 250]], [[200, 250], [400, 250]]],
+            targets: [
+                { t: 'circle', cx: 200, cy: 250, r: 80, ink: 'red',
+                  instr: 'Sweep a [red-circle] about the marked point, through the near end of the line — it marks two equal companions, one on each side.',
+                  miss: 'Press on the marked middle point and drag to the nearer end, so the circle cuts the line on both sides.' },
+                { t: 'circle', cx: 120, cy: 250, r: 160, ink: 'blue',
+                  instr: 'Sweep a [blue-circle] about the left companion, through the right one.',
+                  miss: 'The circle sits on the left companion and passes exactly through the right one.' },
+                { t: 'circle', cx: 280, cy: 250, r: 160, ink: 'blue',
+                  instr: 'And its twin: an equal [blue-circle] about the right companion, through the left.',
+                  miss: 'The twin circle sits on the right companion and passes exactly through the left one.' },
+                { t: 'seg', x1: 200, y1: 250, x2: 200, y2: 111.44, ink: 'yellow',
+                  instr: 'Join the marked point to the crossing above the line: the [yellow-line] stands square upon the [black-line].',
+                  miss: 'Draw from the marked point up to where the two blue circles cross.' },
+            ],
+            qed: 'A true right angle, raised with circles alone.',
+        },
     },
     {
         id: 'i15', ref: 'Book I. Proposition XV.',
@@ -414,6 +750,86 @@
             },
         ],
     },
+    {
+        id: 'iii31', ref: 'Book III. Proposition XXXI.',
+        title: 'The angle in a semicircle',
+        enun: 'Any angle drawn from the two ends of a diameter to a point on the circle is a right angle.',
+        view: '78 48 324 324',
+        shapes: [
+            { id: 'wA', t: 'wedge', cx: 90, cy: 210, r: 42, a0: -60, a1: 0, c: 'red', s: 2, z: 0 },
+            { id: 'wCa', t: 'wedge', cx: 165, cy: 80.1, r: 36, a0: 60, a1: 120, c: 'red', s: 2, z: 0 },
+            { id: 'wB', t: 'wedge', cx: 390, cy: 210, r: 42, a0: 180, a1: 210, c: 'blue', s: 3, z: 0 },
+            { id: 'wCb', t: 'wedge', cx: 165, cy: 80.1, r: 36, a0: 30, a1: 60, c: 'blue', s: 3, z: 0 },
+            { id: 'circ', t: 'circle', cx: 240, cy: 210, r: 150, c: 'black', w: 3, s: 0 },
+            { id: 'diam', t: 'line', x1: 90, y1: 210, x2: 390, y2: 210, c: 'black', w: 4.5, s: 0 },
+            { id: 'sCA', t: 'line', x1: 165, y1: 80.1, x2: 90, y2: 210, c: 'red', w: 5, s: 0 },
+            { id: 'sCB', t: 'line', x1: 165, y1: 80.1, x2: 390, y2: 210, c: 'blue', w: 5, s: 0 },
+            { id: 'rOC', t: 'line', x1: 240, y1: 210, x2: 165, y2: 80.1, c: 'yellow', w: 5, s: 1 },
+            { id: 'dO', t: 'dot', cx: 240, cy: 210, r: 5, c: 'black', s: 0 },
+            { id: 'dA', t: 'dot', cx: 90, cy: 210, r: 5, c: 'black', s: 0 },
+            { id: 'dB', t: 'dot', cx: 390, cy: 210, r: 5, c: 'black', s: 0 },
+            { id: 'dC', t: 'dot', cx: 165, cy: 80.1, r: 5, c: 'black', s: 0 },
+        ],
+        steps: [
+            {
+                ask: 'A corner stands on the rim, its arms reaching to the two ends of a diameter. To find its size, Euclid reaches for the circle’s one great gift. Which?',
+                ok: { t: 'The [yellow-line] from the centre to the corner — a radius, equal to the two radii lying in the diameter.',
+                      done: 'A [yellow-line] is drawn from centre to corner: three equal radii now spread from the centre.' },
+                no: [
+                    { t: 'The tangent touching the circle at the corner.',
+                      why: 'Tangents have their own beautiful uses — but the circle’s first gift is simpler: all its radii are equal.' },
+                    { t: 'A ruler, to measure the corner directly.',
+                      why: 'Measuring shows one circle only, and roughly. The radii will prove it for every circle, exactly.' },
+                ],
+            },
+            {
+                ask: 'The [yellow-line] splits the big triangle in two. Look at the left one: two of its sides are radii. What kind of triangle is it?',
+                ok: { t: 'Isosceles — so its base angles match: the [red-angle] at the diameter’s end appears again at the rim corner.',
+                      done: 'The left triangle is isosceles; its [red-angle] stands at both of its base corners.' },
+                no: [
+                    { t: 'Equilateral — surely all three sides are radii.',
+                      why: 'Only two: the third side is a chord, free to be any length. Two equal sides are enough for equal base angles.' },
+                    { t: 'Right-angled — every triangle drawn in a circle is.',
+                      why: 'That is the very theorem we are proving! It may not be assumed — and it belongs to the whole triangle, not this half.' },
+                ],
+            },
+            {
+                ask: 'Now the right-hand triangle — again two of its sides are radii. What follows?',
+                ok: { t: 'Isosceles again: the [blue-angle] at the far end of the diameter reappears beside the red one at the rim.',
+                      done: 'The right triangle is isosceles too; its [blue-angle] stands at both of its base corners.' },
+                no: [
+                    { t: 'It is the same triangle as the left one.',
+                      why: 'They share the yellow radius but nothing else need match — each is isosceles on its own account.' },
+                    { t: 'Its angles are half of the left triangle’s.',
+                      why: 'Nothing halves between the triangles. Each simply repeats its own base angle, blue with blue.' },
+                ],
+            },
+            {
+                ask: 'So the rim corner is a [red-angle] and a [blue-angle] laid side by side. Now count the angles of the whole big triangle.',
+                ok: { t: 'A [red-angle], a [blue-angle], and the pair together at the rim — and every triangle’s three angles make 180°.',
+                      done: 'The great triangle holds [red-angle] + [blue-angle] + ([red-angle] + [blue-angle]) = 180°.' },
+                flash: ['wA', 'wB', 'wCa', 'wCb'],
+                no: [
+                    { t: 'They make 360°, a full circle.',
+                      why: 'That is the count for a square’s corners. A triangle’s three angles always make 180° — Proposition XXXII.' },
+                    { t: 'They cannot be counted without their measures.',
+                      why: 'No measures needed: Proposition XXXII counts them for every triangle at once — two right angles in all.' },
+                ],
+            },
+            {
+                ask: 'Twice the [red-angle] and twice the [blue-angle] make 180°. Then the corner at the rim — one [red-angle] with one [blue-angle] — is…',
+                ok: { t: 'Exactly half: 90°, a right angle — wherever on the rim the corner may stand.',
+                      done: 'Therefore the angle in the semicircle is a right angle. Q.E.D.' },
+                flash: ['wCa', 'wCb'],
+                no: [
+                    { t: 'A little more than 90°, for it sits high on the rim.',
+                      why: 'Height has no vote. Halve the equation and 90° is forced — exactly.' },
+                    { t: 'It depends on where the corner sits on the rim.',
+                      why: 'That is the wonder: move the corner anywhere on the rim, and the same three radii repeat the same proof. Always right.' },
+                ],
+            },
+        ],
+    },
     ];
 
     /* ========================================================================
@@ -529,14 +945,21 @@
         menu.classList.remove('hidden');
         menu.innerHTML = '';
         PROPS.forEach((prop) => {
-            const card = document.createElement('button');
+            const card = document.createElement('div');
             card.className = 'gp-card';
             card.dataset.prop = prop.id;
-            const done = localStorage.getItem(doneKey(prop)) === '1';
+            const seals = [
+                localStorage.getItem(doneKey(prop)) === '1' ? '<em class="gp-card-done">∎ proved</em>' : '',
+                prop.build && localStorage.getItem(builtKey(prop)) === '1' ? '<em class="gp-card-built">△ built</em>' : '',
+            ].filter(Boolean).join(' ');
             card.innerHTML =
                 `<span class="gp-card-ref">${prop.ref}</span>` +
                 `<span class="gp-card-title">${prop.title}</span>` +
-                `<span class="gp-card-meta">${prop.steps.length} steps${done ? ' · <em class="gp-card-done">∎ proved</em>' : ''}</span>`;
+                `<span class="gp-card-meta">${prop.steps.length} steps${seals ? ' · ' + seals : ''}</span>` +
+                '<span class="gp-card-acts">' +
+                '<button class="gp-btn gp-card-act" data-act="prove">Prove it</button>' +
+                (prop.build ? '<button class="gp-btn gp-card-act" data-act="build">Build it</button>' : '') +
+                '</span>';
             card.insertBefore(gpBuildSVG(prop, true), card.firstChild);
             menu.appendChild(card);
         });
@@ -735,16 +1158,17 @@
         triangle: [[[110, 290], [240, 90]], [[240, 90], [380, 290]], [[380, 290], [110, 290]]],
         right:    [[[140, 280], [212, 184]], [[212, 184], [340, 280]], [[340, 280], [140, 280]]],
     };
-    function sbSeed(name) {
+    function sbSeedList(segs) {
         sbState.pts = []; sbState.objs = []; sbState.undo = []; sbState.nextId = 1;
         sbState.drag = null;
-        (SB_SEEDS[name] || []).forEach(([p1, p2]) => {
+        (segs || []).forEach(([p1, p2]) => {
             const a = sbAddPt(p1[0], p1[1], 'end');
             const b = sbAddPt(p2[0], p2[1], 'end');
             sbCommitObj({ t: 'seg', a, b, ink: 'black' });
         });
         sbRender();
     }
+    function sbSeed(name) { sbSeedList(SB_SEEDS[name]); }
 
     /* ---- snapping ---- */
     function sbSnapAt(x, y, excludeId) {
@@ -910,6 +1334,7 @@
         sbState.drag = null;
         sbSetPreview([]);
         if (!d) return;
+        let committed = null;
         if (sbState.tool === 'seg') {
             const end = d.end;
             if (!end || Math.hypot(end.x - d.x0, end.y - d.y0) < 7) return;
@@ -917,14 +1342,108 @@
             const a = d.p0 != null ? d.p0 : sbAddPt(d.x0, d.y0, 'end');
             const b = end.pid != null ? end.pid : sbAddPt(end.x, end.y, 'end');
             if (a === b) { sbState.undo.pop(); return; }
-            sbCommitObj({ t: 'seg', a, b, ink: sbState.ink });
+            committed = { t: 'seg', a, b, ink: sbState.ink };
+            sbCommitObj(committed);
         } else {
             if (!d.r || d.r < 7) return;
             sbSnapshot();
             const c = d.p0 != null ? d.p0 : sbAddPt(d.x0, d.y0, 'center');
-            sbCommitObj({ t: 'circle', c, r: d.r, ink: sbState.ink });
+            committed = { t: 'circle', c, r: d.r, ink: sbState.ink };
+            sbCommitObj(committed);
         }
         sbRender();
+        if (committed && sbChal.prop && !sbChal.complete) sbChalCheck(committed);
+    }
+
+    /* ========================================================================
+     * BUILD-THIS-PROOF CHALLENGE
+     * A proposition's `build` gives a seed plus ordered targets — expected
+     * circles (centre + radius) or segments (both endpoints), with tolerance.
+     * Snapping makes correct constructions land exactly, so targets are plain
+     * coordinates. A committed object matching any unfinished target is
+     * accepted (and re-inked to the plate's canonical colour); anything else
+     * is auto-undone with a nudge. Progress is recomputed from the canvas, so
+     * Undo just works.
+     * ======================================================================*/
+    const sbChal = { prop: null, done: [], complete: false };
+    const builtKey = (p) => `gpBuilt_${p.id}`;
+
+    function sbMatchTarget(o, tg) {
+        if (tg.any) return tg.any.some((t2) => sbMatchTarget(o, t2));
+        if (o.t !== tg.t) return false;
+        const T = 3;
+        const g = sbGeom(o);
+        if (tg.t === 'circle') {
+            return Math.hypot(g.cx - tg.cx, g.cy - tg.cy) < T && Math.abs(g.r - tg.r) < T;
+        }
+        const near = (x, y, tx, ty) => Math.hypot(x - tx, y - ty) < T;
+        return (near(g.x1, g.y1, tg.x1, tg.y1) && near(g.x2, g.y2, tg.x2, tg.y2))
+            || (near(g.x1, g.y1, tg.x2, tg.y2) && near(g.x2, g.y2, tg.x1, tg.y1));
+    }
+
+    function sbChalNote(html, bad) {
+        const el = $('gp-sb-chal-note');
+        el.innerHTML = gpGlyphs(html);
+        el.classList.toggle('gp-sb-chal-good', !bad && !!html);
+    }
+    function sbChalUpdate() {
+        const b = sbChal.prop.build;
+        const first = sbChal.done.indexOf(false);
+        $('gp-sb-pips').innerHTML = b.targets
+            .map((_, i) => `<span class="gp-sb-pip${sbChal.done[i] ? ' done' : ''}"></span>`)
+            .join('');
+        if (first < 0) {
+            sbChal.complete = true;
+            localStorage.setItem(builtKey(sbChal.prop), '1');
+            $('gp-sb-chal-instr').innerHTML = gpGlyphs(`<strong>∎ Constructed.</strong> ${b.qed || ''}`);
+            $('gp-sb-chal-done').classList.remove('hidden');
+        } else {
+            sbChal.complete = false;
+            $('gp-sb-chal-instr').innerHTML = gpGlyphs(b.targets[first].instr);
+            $('gp-sb-chal-done').classList.add('hidden');
+        }
+    }
+    function sbChalCheck(obj) {
+        const b = sbChal.prop.build;
+        let hit = -1;
+        for (let i = 0; i < b.targets.length; i++) {
+            if (!sbChal.done[i] && sbMatchTarget(obj, b.targets[i])) { hit = i; break; }
+        }
+        if (hit < 0) {
+            sbUndo();
+            const first = sbChal.done.indexOf(false);
+            sbChalNote(b.targets[first]?.miss || 'Not quite what the construction needs — look again at the instruction.', true);
+            return;
+        }
+        sbChal.done[hit] = true;
+        if (b.targets[hit].ink) { obj.ink = b.targets[hit].ink; sbRender(); }
+        sbChalNote(sbChal.done.every(Boolean) ? '' : 'Just so.', false);
+        sbChalUpdate();
+    }
+    function sbChalRecalc() {
+        if (!sbChal.prop) return;
+        sbChal.done = sbChal.prop.build.targets
+            .map((tg) => sbState.objs.some((o) => sbMatchTarget(o, tg)));
+        sbChalNote('', false);
+        sbChalUpdate();
+    }
+    function sbStartBuild(prop) {
+        gpSetMode('sandbox');
+        sbChal.prop = prop;
+        sbChal.done = prop.build.targets.map(() => false);
+        sbChal.complete = false;
+        sbSeedList(prop.build.seed);
+        $('gp-sb-given').disabled = true;
+        $('gp-sb-chal').classList.remove('hidden');
+        $('gp-sb-chal-ref').textContent = `${prop.ref} — ${prop.title}`;
+        sbChalNote('', false);
+        sbChalUpdate();
+    }
+    function sbChalExit() {
+        sbChal.prop = null;
+        sbChal.complete = false;
+        $('gp-sb-chal').classList.add('hidden');
+        $('gp-sb-given').disabled = false;
     }
 
     const SB_HINTS = {
@@ -1024,6 +1543,20 @@
         <div id="gp-sandbox" class="hidden">
           <p class="gp-enun">The instruments of Euclid: a straightedge for lines, a compass for circles.
             Ends, centres and crossings become key points — and new work sticks to them.</p>
+          <div id="gp-sb-chal" class="hidden gp-sb-chal">
+            <div class="gp-sb-chal-head">
+              <span id="gp-sb-chal-ref" class="gp-ref"></span>
+              <button id="gp-sb-chal-exit" class="gp-btn-plain">Exit challenge</button>
+            </div>
+            <p id="gp-sb-chal-instr" class="gp-sb-chal-instr"></p>
+            <p id="gp-sb-chal-note" class="gp-note"></p>
+            <div class="gp-sb-chal-foot">
+              <span id="gp-sb-pips" class="gp-sb-pips"></span>
+              <span id="gp-sb-chal-done" class="hidden">
+                <button id="gp-sb-chal-prove" class="gp-btn">Now prove it</button>
+              </span>
+            </div>
+          </div>
           <div class="gp-sb-bar">
             <div class="gp-sb-tools">
               <button class="gp-sb-tool active" data-tool="seg">Straightedge</button>
@@ -1061,7 +1594,7 @@
         if (document.querySelector('link[data-gp-css]')) return;
         const link = document.createElement('link');
         link.rel = 'stylesheet';
-        link.href = 'geometry-proofs.css?v=2';
+        link.href = 'geometry-proofs.css?v=3';
         link.dataset.gpCss = '1';
         document.head.appendChild(link);
     }
@@ -1092,7 +1625,10 @@
             const card = e.target.closest('.gp-card');
             if (!card) return;
             const prop = PROPS.find((p) => p.id === card.dataset.prop);
-            if (prop) gpStart(prop);
+            if (!prop) return;
+            const act = e.target.closest('[data-act]');
+            if (act && act.dataset.act === 'build') sbStartBuild(prop);
+            else gpStart(prop);
         });
         $('gp-choices').addEventListener('click', (e) => {
             const btn = e.target.closest('.gp-choice');
@@ -1112,9 +1648,19 @@
             const btn = e.target.closest('.gp-sb-ink');
             if (btn) sbSetInk(btn.dataset.ink);
         });
-        $('gp-sb-undo').addEventListener('click', sbUndo);
-        $('gp-sb-clear').addEventListener('click', () => { sbSnapshot(); sbState.pts = []; sbState.objs = []; sbRender(); });
+        $('gp-sb-undo').addEventListener('click', () => { sbUndo(); if (sbChal.prop) sbChalRecalc(); });
+        $('gp-sb-clear').addEventListener('click', () => {
+            if (sbChal.prop) { sbStartBuild(sbChal.prop); return; } // restart the challenge
+            sbSnapshot(); sbState.pts = []; sbState.objs = []; sbRender();
+        });
         $('gp-sb-given').addEventListener('change', (e) => sbSeed(e.target.value));
+        $('gp-sb-chal-exit').addEventListener('click', sbChalExit);
+        $('gp-sb-chal-prove').addEventListener('click', () => {
+            const prop = sbChal.prop;
+            sbChalExit();
+            gpSetMode('props');
+            gpStart(prop);
+        });
         const sbSvg = $('gp-sb-svg');
         sbSvg.addEventListener('pointerdown', sbDown);
         sbSvg.addEventListener('pointermove', sbMove);
