@@ -34,7 +34,7 @@
         return a;
     }
     function gpRoman(n) {
-        const R = [[10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']];
+        const R = [[50, 'L'], [40, 'XL'], [10, 'X'], [9, 'IX'], [5, 'V'], [4, 'IV'], [1, 'I']];
         let out = '';
         for (const [v, s] of R) while (n >= v) { out += s; n -= v; }
         return out;
@@ -832,6 +832,2082 @@
     },
     ];
 
+    // The rest of Book I. These use the named-point format (P + p/q/at/thru/
+    // from/to references) so all wedge angles and radii are computed.
+    const MORE_PROPS = [
+    {
+        id: 'i2', ref: 'Book I. Proposition II.',
+        title: 'To carry a length to a point',
+        enun: 'From a given point, to draw a straight line equal to a given straight line.',
+        view: '8 -110 456 452',
+        P: { A: [150, 120], B: [200, 190], C: [320, 240], D: [235.6, 111.7], G: [146.2, 308.3], L: [20.6, 132.5] },
+        shapes: [
+            { id: 'bc', t: 'line', p: 'B', q: 'C', c: 'black', w: 5, s: 0 },
+            { id: 'dA', t: 'dot', at: 'A', r: 5.5, c: 'black', s: 0 },
+            { id: 'dB', t: 'dot', at: 'B', r: 5, c: 'black', s: 0 },
+            { id: 'dC', t: 'dot', at: 'C', r: 5, c: 'black', s: 0 },
+            { id: 'ab', t: 'line', p: 'A', q: 'B', c: 'yellow', w: 4.5, s: 1 },
+            { id: 'da', t: 'line', p: 'D', q: 'A', c: 'black', w: 3, s: 2 },
+            { id: 'db', t: 'line', p: 'D', q: 'B', c: 'black', w: 3, s: 2 },
+            { id: 'dD', t: 'dot', at: 'D', r: 5, c: 'black', s: 2 },
+            { id: 'cB', t: 'circle', at: 'B', thru: 'C', c: 'red', w: 3.5, s: 3 },
+            { id: 'bg', t: 'line', p: 'B', q: 'G', c: 'black', w: 3, dash: 1, s: 3 },
+            { id: 'dG', t: 'dot', at: 'G', r: 5, c: 'black', s: 3 },
+            { id: 'cD', t: 'circle', at: 'D', thru: 'G', c: 'blue', w: 3.5, s: 4 },
+            { id: 'al', t: 'line', p: 'A', q: 'L', c: 'red', w: 5, s: 4 },
+            { id: 'dL', t: 'dot', at: 'L', r: 5, c: 'black', s: 4 },
+        ],
+        steps: [
+            {
+                ask: 'We must give the lonely point its own copy of the [black-line]. Why not just span the line with the compass and walk it over?',
+                ok: { t: 'Euclid’s compass collapses when it leaves the page — it carries nothing. The carrying must be built. First, join the point to one end of the line.',
+                      done: 'The point is joined to one end of the [black-line] by the [yellow-line].' },
+                no: [
+                    { t: 'Do exactly that — lift the compass and swing it at the point.',
+                      why: 'Not with Euclid’s instrument: his compass keeps its span only while its foot is planted. Lifted, it forgets. Proposition II exists to earn that power honestly.' },
+                    { t: 'Measure the line with a ruler and copy the number.',
+                      why: 'There are no numbers in Euclid — only lengths compared with lengths. The copy must be built by construction.' },
+                ],
+            },
+            {
+                ask: 'Now the borrowed trick — Proposition I. What do we build on the [yellow-line]?',
+                ok: { t: 'An equilateral triangle: its peak now holds two perfectly equal ledges, one reaching to the point, one to the line’s end.',
+                      done: 'An equilateral triangle stands on the [yellow-line]; its peak holds two equal ledges.' },
+                no: [
+                    { t: 'A square — four equal sides are better than three.',
+                      why: 'We cannot build a square yet (that waits for Proposition XLVI). The triangle of Proposition I is the only earned tool.' },
+                    { t: 'A second point, on the other side.',
+                      why: 'Another lonely point helps no one. We need equal ledges from a single peak — the equilateral triangle provides them.' },
+                ],
+            },
+            {
+                ask: 'From the peak, one ledge runs down to the line’s end. Stretch that ledge onward and sweep a [red-circle] about the line’s end, through the line’s far end. What has the circle done?',
+                ok: { t: 'It has laid the [black-line]’s length onto the stretched ledge: from the peak to the circle’s rim now measures ledge + line.',
+                      done: 'A [red-circle] about the near end adds the [black-line]’s length to the stretched ledge.' },
+                no: [
+                    { t: 'It has moved the line to the point already.',
+                      why: 'Not yet — the length now hangs from the wrong ledge. One more circle will swing it across to the other.' },
+                    { t: 'Nothing — the circle only decorates the line.',
+                      why: 'Look at where the stretched ledge meets the rim: that meeting point is the line’s length, banked onto the ledge.' },
+                ],
+            },
+            {
+                ask: 'Now the [blue-circle], swept about the peak through that banked point, cutting the other stretched ledge. Why does this finish it?',
+                ok: { t: 'Both ledges are equal, and both reaches from the peak are equal radii — take the ledges away, and what remains at the point equals the [black-line] exactly.',
+                      done: 'Equal radii minus equal ledges: the [red-line] at the point equals the [black-line]. Q.E.D.' },
+                flash: ['al', 'bc'],
+                no: [
+                    { t: 'Because the blue circle is bigger than the red one.',
+                      why: 'Bigger is not the reason — the reason is subtraction: equal wholes minus equal parts leave equal remainders.' },
+                    { t: 'Because the two circles touch each other.',
+                      why: 'Whether they touch is an accident of the picture. The proof lives in the two equal ledges and the two equal radii.' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'i3', ref: 'Book I. Proposition III.',
+        title: 'To cut off a lesser from a greater',
+        enun: 'Given two unequal straight lines, to cut off from the greater a part equal to the lesser.',
+        view: '-30 60 470 250',
+        P: { A: [60, 200], B: [400, 200], M: [280, 80], N: [348, 128], D: [101.6, 128], E: [143.2, 200] },
+        shapes: [
+            { id: 'ab', t: 'line', p: 'A', q: 'B', c: 'black', w: 5, s: 0 },
+            { id: 'mn', t: 'line', p: 'M', q: 'N', c: 'blue', w: 5, s: 0 },
+            { id: 'dA', t: 'dot', at: 'A', r: 5, c: 'black', s: 0 },
+            { id: 'dB', t: 'dot', at: 'B', r: 5, c: 'black', s: 0 },
+            { id: 'ad', t: 'line', p: 'A', q: 'D', c: 'blue', w: 5, s: 1 },
+            { id: 'dD', t: 'dot', at: 'D', r: 5, c: 'black', s: 1 },
+            { id: 'cA', t: 'circle', at: 'A', thru: 'D', c: 'yellow', w: 3.5, s: 2 },
+            { id: 'dE', t: 'dot', at: 'E', r: 5, c: 'black', s: 2 },
+            { id: 'ae', t: 'line', p: 'A', q: 'E', c: 'red', w: 6, s: 3 },
+        ],
+        steps: [
+            {
+                ask: 'The [black-line] is long, the [blue-line] short. We must trim a piece of the long one exactly as long as the short one. First?',
+                ok: { t: 'Plant a copy of the [blue-line] at the long line’s end — Proposition II just taught us to carry lengths.',
+                      done: 'By Proposition II, a copy of the [blue-line] is planted at the end of the [black-line].' },
+                no: [
+                    { t: 'Slide the short line down until it lies along the long one.',
+                      why: 'Sliding is not a construction — Proposition II is how a length travels honestly, and we use it.' },
+                    { t: 'Mark off the short line’s length by eye.',
+                      why: 'The eye is generous by a hair or stingy by a hair. Circles are neither.' },
+                ],
+            },
+            {
+                ask: 'The copy hangs at the end, but points the wrong way. How do we swing it onto the [black-line]?',
+                ok: { t: 'A [yellow-circle] about the shared end, through the copy’s tip — every radius is the same, so where it cuts the [black-line] is that same length along it.',
+                      done: 'A [yellow-circle] swings the copied length down onto the [black-line].' },
+                no: [
+                    { t: 'Bend the copy until it lies along the line.',
+                      why: 'Straight lines do not bend. But a circle swings a length in any direction without changing it a whit.' },
+                    { t: 'Draw a line between the two tips.',
+                      why: 'That would make a triangle, not a cut. The circle is what carries length around a corner.' },
+                ],
+            },
+            {
+                ask: 'The circle cuts the [black-line]. What have we proved about the piece from the end to the cut?',
+                ok: { t: 'It is a radius, the copy is a radius, and the copy equals the [blue-line] — so the [red-line] piece equals the [blue-line]: things equal to the same thing.',
+                      done: 'The [red-line] cut from the greater equals the [blue-line], being equal to the same radius. Q.E.D.' },
+                flash: ['ae', 'mn'],
+                no: [
+                    { t: 'That it is roughly the right length.',
+                      why: 'Exactly, not roughly: two radii of one circle cannot differ by any amount at all.' },
+                    { t: 'That the long line is now shorter.',
+                      why: 'The long line is untouched — we have only marked where the lesser length ends upon it.' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'i4', ref: 'Book I. Proposition IV.',
+        title: 'Side, angle, side',
+        enun: 'If two triangles have two sides equal to two sides, and the angles between those sides equal, the triangles are equal in every way.',
+        view: '30 55 440 205',
+        P: { A: [120, 90], B: [60, 220], C: [230, 220], D: [330, 90], E: [270, 220], F: [440, 220] },
+        shapes: [
+            { id: 'wA', t: 'wedge', at: 'A', from: 'B', to: 'C', r: 34, c: 'yellow', s: 0, z: 0 },
+            { id: 'wD', t: 'wedge', at: 'D', from: 'E', to: 'F', r: 34, c: 'yellow', s: 0, z: 0 },
+            { id: 'wB', t: 'wedge', at: 'B', from: 'A', to: 'C', r: 26, c: 'red', s: 4, z: 0 },
+            { id: 'wE', t: 'wedge', at: 'E', from: 'D', to: 'F', r: 26, c: 'red', s: 4, z: 0 },
+            { id: 'wC', t: 'wedge', at: 'C', from: 'B', to: 'A', r: 26, c: 'blue', s: 4, z: 0 },
+            { id: 'wF', t: 'wedge', at: 'F', from: 'E', to: 'D', r: 26, c: 'blue', s: 4, z: 0 },
+            { id: 'ab', t: 'line', p: 'A', q: 'B', c: 'red', w: 5, s: 0 },
+            { id: 'ac', t: 'line', p: 'A', q: 'C', c: 'blue', w: 5, s: 0 },
+            { id: 'bc', t: 'line', p: 'B', q: 'C', c: 'black', w: 4.5, s: 0 },
+            { id: 'de', t: 'line', p: 'D', q: 'E', c: 'red', w: 5, s: 0 },
+            { id: 'df', t: 'line', p: 'D', q: 'F', c: 'blue', w: 5, s: 0 },
+            { id: 'ef', t: 'line', p: 'E', q: 'F', c: 'black', w: 4.5, s: 0 },
+        ],
+        steps: [
+            {
+                ask: 'Two triangles: [red-line] equals [red-line], [blue-line] equals [blue-line], and the [yellow-angle] between them equals its twin. Euclid’s boldest move — what is it?',
+                ok: { t: 'Pick the first triangle up and lay it upon the second: point upon point, the [yellow-angle] fitted onto its twin.',
+                      done: 'The first triangle is applied to the second, [yellow-angle] upon [yellow-angle].' },
+                no: [
+                    { t: 'Measure all six sides and compare the numbers.',
+                      why: 'No numbers, and no need: three matched pieces will drag everything else into place.' },
+                    { t: 'Slide it across the page without turning it.',
+                      why: 'Turning is allowed! Any rigid carrying — slide, turn, or flip — keeps every length and angle. What matters is where it lands.' },
+                ],
+            },
+            {
+                ask: 'The [yellow-angle]s coincide, so the [red-line] lies along its twin. Where does its far end land?',
+                ok: { t: 'Exactly on the twin’s far end — equal lengths laid along the same ray must end together.',
+                      done: 'The [red-line] falls upon its equal: their far ends coincide.' },
+                flash: ['ab', 'de'],
+                no: [
+                    { t: 'A little short — copies always lose something.',
+                      why: 'Rigid placement loses nothing. Equal lines on the same ray end at the same point, exactly.' },
+                    { t: 'Somewhere on the twin, but where cannot be said.',
+                      why: 'It can: the lines are equal and share a starting point and direction. There is only one place to end.' },
+                ],
+            },
+            {
+                ask: 'By the same token the [blue-line] falls upon its twin. Two corners of the laid triangle now sit upon two corners of the other. What of the bases between them?',
+                ok: { t: 'They must coincide too — between two points there is only one straight line.',
+                      done: 'The [blue-line] falls upon its equal; the bases, joining the same two points, coincide.' },
+                flash: ['ac', 'df'],
+                no: [
+                    { t: 'The bases could bow apart and meet again.',
+                      why: 'Then two straight lines would enclose a space — which straight lines can never do.' },
+                    { t: 'The bases are equal only if the triangles were right-angled.',
+                      why: 'No right angle needed: the bases join the same two points, and one straight line joins two points.' },
+                ],
+            },
+            {
+                ask: 'The triangles coincide completely. What may we now harvest?',
+                ok: { t: 'Everything: base equals base, the [red-angle]s match, the [blue-angle]s match, and the areas are the same. Side-angle-side seals a triangle whole.',
+                      done: 'Bases equal, remaining angles equal, areas equal: the triangles are equal in every respect. Q.E.D.' },
+                flash: ['bc', 'ef'],
+                no: [
+                    { t: 'Only the sides — the angles might still differ.',
+                      why: 'Coinciding triangles share every part. Nothing is left over to differ.' },
+                    { t: 'Only what we were given at the start.',
+                      why: 'The whole point is the harvest: three given equalities have bought us all six, and the area besides.' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'i6', ref: 'Book I. Proposition VI.',
+        title: 'Equal angles, equal sides',
+        enun: 'If two angles of a triangle are equal, the sides which face them are also equal.',
+        view: '100 40 240 240',
+        P: { A: [220, 70], B: [140, 250], C: [300, 250], D: [170.4, 181.6] },
+        shapes: [
+            { id: 'wB', t: 'wedge', at: 'B', from: 'A', to: 'C', r: 34, c: 'red', s: 0, z: 0 },
+            { id: 'wC', t: 'wedge', at: 'C', from: 'B', to: 'A', r: 34, c: 'red', s: 0, z: 0 },
+            { id: 'ab', t: 'line', p: 'A', q: 'B', c: 'black', w: 4.5, s: 0 },
+            { id: 'ac', t: 'line', p: 'A', q: 'C', c: 'black', w: 4.5, s: 0 },
+            { id: 'bc', t: 'line', p: 'B', q: 'C', c: 'black', w: 4.5, s: 0 },
+            { id: 'dD', t: 'dot', at: 'D', r: 5, c: 'black', s: 1 },
+            { id: 'dc', t: 'line', p: 'D', q: 'C', c: 'yellow', w: 4, dash: 1, s: 1 },
+        ],
+        steps: [
+            {
+                ask: 'The two base angles are equal (both marked red), and we must show the two slanting sides are equal too — Proposition V turned backwards. How does Euclid corner such a claim?',
+                ok: { t: 'Suppose it false: then one side is longer. Cut the longer down to the shorter’s length (Prop. III) and join the cut to the far corner.',
+                      done: 'Suppose one side longer: a piece equal to the shorter is cut from it, and joined across.' },
+                no: [
+                    { t: 'Flip the triangle over, as in Proposition V.',
+                      why: 'A fine instinct — but this time the flip needs the sides equal to get started, which is the very thing in question. Euclid works by contradiction instead.' },
+                    { t: 'Measure both sides to settle it at once.',
+                      why: 'Measuring settles one triangle, roughly. The contradiction will settle every triangle, exactly.' },
+                ],
+            },
+            {
+                ask: 'Now compare the little clipped triangle with the whole one. What do they share?',
+                ok: { t: 'Clipped side = whole’s short side (by the cut), the base is common, and the angles between them are the given equal pair — side-angle-side (Prop. IV): the triangles are equal.',
+                      done: 'By side-angle-side, the clipped triangle equals the whole triangle.' },
+                flash: ['dc', 'bc'],
+                no: [
+                    { t: 'Nothing useful — one is inside the other.',
+                      why: 'That nesting is the trap being set! First match them piece for piece: cut side, common base, equal angle — Prop. IV bites.' },
+                    { t: 'They share three equal angles.',
+                      why: 'We know of one equal angle pair, plus two matched sides. That is Prop. IV’s toll, and it is paid.' },
+                ],
+            },
+            {
+                ask: 'The clipped triangle equals the whole triangle. But the clipped one sits wholly inside the other. So?',
+                ok: { t: 'The part would equal the whole — absurd. The supposition dies: neither side is longer, and the sides are equal.',
+                      done: 'The part cannot equal the whole: therefore the sides facing the equal angles are equal. Q.E.D.' },
+                no: [
+                    { t: 'So the clipped triangle was drawn wrongly.',
+                      why: 'It was drawn perfectly — from a false assumption. When sound steps land in absurdity, it is the assumption that was rotten.' },
+                    { t: 'So parts sometimes equal wholes after all.',
+                      why: 'Never — that a whole exceeds its part is a common notion, bedrock of the whole book.' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'i7', ref: 'Book I. Proposition VII.',
+        title: 'One peak only',
+        enun: 'On the same base, on the same side, there cannot be two different points whose distances to the base’s ends are pairwise equal.',
+        view: '80 60 300 230',
+        P: { A: [120, 250], B: [340, 250], C: [210, 90], D: [280, 160] },
+        shapes: [
+            { id: 'ab', t: 'line', p: 'A', q: 'B', c: 'black', w: 4.5, s: 0 },
+            { id: 'ac', t: 'line', p: 'A', q: 'C', c: 'red', w: 5, s: 0 },
+            { id: 'ad', t: 'line', p: 'A', q: 'D', c: 'red', w: 5, s: 0 },
+            { id: 'bc', t: 'line', p: 'B', q: 'C', c: 'blue', w: 5, s: 0 },
+            { id: 'bd', t: 'line', p: 'B', q: 'D', c: 'blue', w: 5, s: 0 },
+            { id: 'cd', t: 'line', p: 'C', q: 'D', c: 'yellow', w: 4, dash: 1, s: 1 },
+            { id: 'wC', t: 'wedge', at: 'C', from: 'D', to: 'A', r: 30, c: 'yellow', s: 2, z: 0 },
+            { id: 'wD', t: 'wedge', at: 'D', from: 'C', to: 'A', r: 30, c: 'yellow', s: 2, z: 0 },
+        ],
+        steps: [
+            {
+                ask: 'Two peaks claim the same berth: each hangs from the left end by an equal [red-line] cord, and from the right end by an equal [blue-line] cord. (The picture must cheat — that is the point.) First move?',
+                ok: { t: 'Join the two pretender peaks with the [yellow-line], and let the cords argue.',
+                      done: 'The two peaks are joined; two isosceles triangles now stand on that joint.' },
+                no: [
+                    { t: 'Erase the uglier peak and be done.',
+                      why: 'Tempting — but a proof must show the second peak impossible, not merely unwanted.' },
+                    { t: 'Drop a perpendicular from each peak.',
+                      why: 'Perpendiculars tell heights, and height is not the issue. The cords themselves carry the contradiction.' },
+                ],
+            },
+            {
+                ask: 'The two red cords are equal, so the peaks and the left end make an isosceles triangle. What does Proposition V say at the joint?',
+                ok: { t: 'The two angles under the [yellow-line] are equal. But one of them tucks wholly inside the other peak’s corner — so of the pair of corners on the joint, one is both equal to and greater than a matching angle.',
+                      done: 'By Prop. V the joint angles are equal — yet one lies inside the other’s corner: equal, and lesser, at once.' },
+                flash: ['wC', 'wD'],
+                no: [
+                    { t: 'That the yellow joint is level with the base.',
+                      why: 'Its slant is irrelevant. What Prop. V grants is equal angles at its two ends — and that is what explodes.' },
+                    { t: 'That the red cords must also equal the blue cords.',
+                      why: 'Red and blue need not match each other — each colour only matches itself. The clash comes from the angles.' },
+                ],
+            },
+            {
+                ask: 'Run the same argument from the right end with the blue cords, and the same angles are squeezed the opposite way. What is the verdict?',
+                ok: { t: 'An angle cannot be both equal to and less than another. The second peak was a phantom: on one side of a base, matching cords fix a single point.',
+                      done: 'Both readings cannot stand: two such peaks are impossible. Q.E.D.' },
+                no: [
+                    { t: 'The two peaks quietly merge into one.',
+                      why: 'They never existed apart — that is the finding. Distinct peaks with matching cords contradict themselves.' },
+                    { t: 'The base was too short for two peaks.',
+                      why: 'No base is long enough: the contradiction uses no lengths at all, only Prop. V and an angle inside an angle.' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'i8', ref: 'Book I. Proposition VIII.',
+        title: 'Side, side, side',
+        enun: 'If two triangles have all three sides equal, side for side, their angles are equal too.',
+        view: '30 55 440 205',
+        P: { A: [110, 90], B: [60, 220], C: [230, 220], D: [320, 90], E: [270, 220], F: [440, 220] },
+        shapes: [
+            { id: 'wA', t: 'wedge', at: 'A', from: 'B', to: 'C', r: 30, c: 'yellow', s: 3, z: 0 },
+            { id: 'wD', t: 'wedge', at: 'D', from: 'E', to: 'F', r: 30, c: 'yellow', s: 3, z: 0 },
+            { id: 'ab', t: 'line', p: 'A', q: 'B', c: 'red', w: 5, s: 0 },
+            { id: 'ac', t: 'line', p: 'A', q: 'C', c: 'blue', w: 5, s: 0 },
+            { id: 'bc', t: 'line', p: 'B', q: 'C', c: 'black', w: 4.5, s: 0 },
+            { id: 'de', t: 'line', p: 'D', q: 'E', c: 'red', w: 5, s: 0 },
+            { id: 'df', t: 'line', p: 'D', q: 'F', c: 'blue', w: 5, s: 0 },
+            { id: 'ef', t: 'line', p: 'E', q: 'F', c: 'black', w: 4.5, s: 0 },
+        ],
+        steps: [
+            {
+                ask: 'Two triangles, all three sides matched: red with red, blue with blue, base with base. How do we begin?',
+                ok: { t: 'Lay base upon base — they are equal, so the ends coincide, and the two peaks hang over the same berth.',
+                      done: 'Base is applied to base; the two peaks now hang over one and the same base.' },
+                no: [
+                    { t: 'Lay peak upon peak first.',
+                      why: 'The peaks are single points with no length to match by. The equal bases give a firm two-point anchor.' },
+                    { t: 'Check one pair of angles before anything else.',
+                      why: 'No angle is given! Sides are all we have — which is exactly what makes this proposition worth proving.' },
+                ],
+            },
+            {
+                ask: 'The laid triangle’s peak hangs from the base’s ends by a [red-line] and a [blue-line] — the same lengths that hold the other peak. Could the two peaks sit at different spots?',
+                ok: { t: 'Never — Proposition VII forbade two different points on one side of a base with pairwise equal cords. The peaks coincide.',
+                      done: 'By Prop. VII the peaks cannot differ: they coincide, and the triangles lie point for point.' },
+                no: [
+                    { t: 'They could, if one triangle were flipped.',
+                      why: 'Flip it, then — rigid carrying allows it, and once flipped to the same side, Prop. VII closes every loophole.' },
+                    { t: 'Only if the triangles are small enough.',
+                      why: 'Prop. VII never mentioned size. One base, one side, matching cords: one point. Always.' },
+                ],
+            },
+            {
+                ask: 'The triangles coincide entirely. What was the prize we were after?',
+                ok: { t: 'The angles: every corner lands on its twin, so all three angle pairs are equal. Three sides alone lock a triangle’s shape.',
+                      done: 'The coinciding triangles have all angles equal: side-side-side is proved. Q.E.D.' },
+                flash: ['wA', 'wD'],
+                no: [
+                    { t: 'The areas — angles were never in question.',
+                      why: 'The enunciation asks for the angles! (The areas come along free, as with all coinciding figures.)' },
+                    { t: 'A fourth equal side.',
+                      why: 'Triangles are stubbornly three-sided. The harvest is the three pairs of equal angles.' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'i12', ref: 'Book I. Proposition XII.',
+        title: 'To drop a perpendicular',
+        enun: 'From a point above a straight line, to let fall a line meeting it at right angles.',
+        view: '40 -108 400 404',
+        P: { C: [240, 90], L1: [60, 260], L2: [420, 260], D: [155.15, 260], E: [324.85, 260], F: [240, 260] },
+        shapes: [
+            { id: 'wL', t: 'wedge', at: 'F', from: 'D', to: 'C', r: 36, c: 'red', s: 4, z: 0 },
+            { id: 'wR', t: 'wedge', at: 'F', from: 'C', to: 'E', r: 36, c: 'blue', s: 4, z: 0 },
+            { id: 'base', t: 'line', p: 'L1', q: 'L2', c: 'black', w: 4.5, s: 0 },
+            { id: 'dC', t: 'dot', at: 'C', r: 5.5, c: 'black', s: 0 },
+            { id: 'cC', t: 'circle', at: 'C', thru: 'D', c: 'red', w: 3.5, s: 1 },
+            { id: 'dD', t: 'dot', at: 'D', r: 5, c: 'black', s: 1 },
+            { id: 'dE', t: 'dot', at: 'E', r: 5, c: 'black', s: 1 },
+            { id: 'cd', t: 'line', p: 'C', q: 'D', c: 'blue', w: 4, s: 2 },
+            { id: 'ce', t: 'line', p: 'C', q: 'E', c: 'blue', w: 4, s: 2 },
+            { id: 'dF', t: 'dot', at: 'F', r: 5, c: 'black', s: 3 },
+            { id: 'cf', t: 'line', p: 'C', q: 'F', c: 'yellow', w: 5, s: 3 },
+        ],
+        steps: [
+            {
+                ask: 'A point hangs above the line, and we must drop a line from it that lands perfectly square. First?',
+                ok: { t: 'Sweep a [red-circle] about the point, wide enough to cut the line twice — the point now owns two equal footholds on the line.',
+                      done: 'A [red-circle] about the point cuts the line at two equally distant footholds.' },
+                no: [
+                    { t: 'Drop a line straight down from the point.',
+                      why: 'Euclid’s page knows no “down” — only relations. Square to the line must be built out of equal distances.' },
+                    { t: 'Join the point to the spot on the line that looks nearest.',
+                      why: 'The nearest spot is exactly what we are trying to find — it cannot be assumed by eye.' },
+                ],
+            },
+            {
+                ask: 'Two footholds, equally far from the point. What do we draw to see the balance?',
+                ok: { t: 'Join the point to both footholds — two equal cords, for both are radii of the [red-circle].',
+                      done: 'The point is joined to both footholds by equal [blue-line] cords.' },
+                no: [
+                    { t: 'Join the two footholds to each other.',
+                      why: 'They already lie on the given line — that joins nothing new. The cords from the point are what carry the equality.' },
+                    { t: 'Sweep a second, wider circle.',
+                      why: 'One circle has done its work. Now the cords must bring its equality down to the line.' },
+                ],
+            },
+            {
+                ask: 'Now bisect the stretch between the footholds (Prop. X) and join the point to that middle. Why is this the drop we wanted?',
+                ok: { t: 'Wait for the angles: first note the two half-triangles agree — cord equals cord, half equals half, and the [yellow-line] is common to both.',
+                      done: 'The foothold-stretch is bisected; the [yellow-line] joins the point to the middle, making two triangles with three equal sides each.' },
+                no: [
+                    { t: 'Because the middle is the closest point of the line.',
+                      why: 'True in the end — but closeness is a conclusion, not a reason. The reason is the matching of the two half-triangles.' },
+                    { t: 'Because the yellow line looks upright.',
+                      why: 'Byrne never trusts looks. Three matched sides will do what looking cannot.' },
+                ],
+            },
+            {
+                ask: 'Side, side, side (Prop. VIII): the two half-triangles are equal. What follows at the landing point?',
+                ok: { t: 'The [red-angle] equals the [blue-angle] — and equal neighbours on a straight line are right angles (Def. 10). The perpendicular has landed.',
+                      done: 'The angles at the foot are equal, therefore right: the perpendicular is let fall. Q.E.D.' },
+                flash: ['wL', 'wR'],
+                no: [
+                    { t: 'The two footholds become one.',
+                      why: 'They stay put — their work is done. It is the two angles at the middle that merge in size.' },
+                    { t: 'The point is pulled down onto the line.',
+                      why: 'The point never moves. What we have built is the one line from it that meets the line squarely.' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'i13', ref: 'Book I. Proposition XIII.',
+        title: 'Angles on a straight line',
+        enun: 'When one straight line stands upon another, the two angles it makes together equal two right angles.',
+        view: '40 60 400 220',
+        P: { L: [60, 240], R: [420, 240], O: [240, 240], T: [320, 100], Pp: [240, 100] },
+        shapes: [
+            { id: 'wRd', t: 'wedge', at: 'O', from: 'L', to: 'T', r: 46, c: 'red', s: 0, z: 0 },
+            { id: 'wBl', t: 'wedge', at: 'O', from: 'T', to: 'R', r: 46, c: 'blue', s: 0, z: 0 },
+            { id: 'base', t: 'line', p: 'L', q: 'R', c: 'black', w: 4.5, s: 0 },
+            { id: 'ray', t: 'line', p: 'O', q: 'T', c: 'black', w: 4.5, s: 0 },
+            { id: 'perp', t: 'line', p: 'O', q: 'Pp', c: 'black', w: 3, dash: 1, s: 2 },
+        ],
+        steps: [
+            {
+                ask: 'A ray stands on a straight line, making a [red-angle] and a [blue-angle]. If it happened to stand perfectly square, what would the pair be worth?',
+                ok: { t: 'Two right angles exactly — each one right, by the very definition of standing square (Def. 10).',
+                      done: 'Were the ray square, the two angles would be two right angles by definition.' },
+                no: [
+                    { t: 'It would depend on the length of the ray.',
+                      why: 'Angles never care how long their arms are — an angle is an opening, not a reach.' },
+                    { t: 'One right angle, shared between them.',
+                      why: 'Each side of a square-standing ray holds a full right angle — two in all.' },
+                ],
+            },
+            {
+                ask: 'But our ray leans. Euclid raises the true perpendicular at the same foot (Prop. XI), as a measuring rod. What does it show?',
+                ok: { t: 'It splits the [red-angle] into two parts — and regrouped against the perpendicular, red-plus-blue makes right-plus-right, just rearranged.',
+                      done: 'Against the raised perpendicular, the [red-angle] and [blue-angle] regroup into two right angles.' },
+                no: [
+                    { t: 'That the leaning ray was drawn in error.',
+                      why: 'The ray may lean as it pleases — the perpendicular is scaffolding for counting, not a correction.' },
+                    { t: 'That the blue angle equals half a right angle.',
+                      why: 'The blue angle can be anything at all; only the sum is pinned. The pieces move, the total holds.' },
+                ],
+            },
+            {
+                ask: 'The pieces moved, the total held. State the theorem.',
+                ok: { t: 'Any ray standing on a straight line makes two angles that together equal two right angles — 180°, tilt it as you will.',
+                      done: 'The [red-angle] and [blue-angle] together equal two right angles. Q.E.D.' },
+                flash: ['wRd', 'wBl'],
+                no: [
+                    { t: 'Two angles on a line are each 90°.',
+                      why: 'Only for a square-standing ray. In general they trade between themselves — the sum alone is fixed.' },
+                    { t: 'The angles total two right angles only above the line.',
+                      why: 'Below the line waits an identical pair with the identical sum — the theorem plays on both sides.' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'i14', ref: 'Book I. Proposition XIV.',
+        title: 'The straight line, certified',
+        enun: 'If two angles at a point on a line together equal two right angles, their outer arms form one straight line.',
+        view: '40 60 410 220',
+        P: { A: [60, 240], O: [240, 240], C: [320, 100], E: [420, 240], B: [430, 180] },
+        shapes: [
+            { id: 'wRd', t: 'wedge', at: 'O', from: 'A', to: 'C', r: 46, c: 'red', s: 0, z: 0 },
+            { id: 'wBl', t: 'wedge', at: 'O', from: 'C', to: 'E', r: 46, c: 'blue', s: 2, z: 0 },
+            { id: 'oa', t: 'line', p: 'O', q: 'A', c: 'black', w: 4.5, s: 0 },
+            { id: 'oc', t: 'line', p: 'O', q: 'C', c: 'black', w: 4.5, s: 0 },
+            { id: 'ob', t: 'line', p: 'O', q: 'B', c: 'black', w: 3, dash: 1, s: 1 },
+            { id: 'oe', t: 'line', p: 'O', q: 'E', c: 'black', w: 4.5, s: 2 },
+        ],
+        steps: [
+            {
+                ask: 'Two angles at the foot are promised to total two right angles, and we claim their outer arms lie in one straight line. How does the proof begin?',
+                ok: { t: 'Suppose not: some pretender ray (dashed) claims to be the true continuation instead.',
+                      done: 'Suppose the arm is not the continuation: a pretender ray claims the honour.' },
+                no: [
+                    { t: 'Hold a straightedge against the two arms.',
+                      why: 'The straightedge draws lines; it does not certify them. Certification comes from the angle-sum.' },
+                    { t: 'Accept it — it certainly looks straight.',
+                      why: 'Byrne’s inks are honest, but proofs may not lean on looks. Suppose it false and watch the collapse.' },
+                ],
+            },
+            {
+                ask: 'Draw the true continuation. Against it, Proposition XIII counts the angles. What does the count force?',
+                ok: { t: 'Red plus its true neighbour is two rights (Prop. XIII); red plus [blue-angle] was given as two rights — so the neighbour equals the [blue-angle] exactly.',
+                      done: 'Both sums are two right angles: the true neighbour equals the given [blue-angle].' },
+                flash: ['wRd', 'wBl'],
+                no: [
+                    { t: 'The pretender to bend until the sums agree.',
+                      why: 'Straight lines do not bend to oblige. It is the equations that move, and they move against the pretender.' },
+                    { t: 'The red angle to be a right angle.',
+                      why: 'Red may be any size — both sums contain it equally, so it cancels from the argument entirely.' },
+                ],
+            },
+            {
+                ask: 'The angle to the true continuation equals the angle to the given arm, on the same side. What becomes of the pretender?',
+                ok: { t: 'A lesser angle cannot equal a greater: the given arm and the true continuation must be the same ray. The line is certified straight.',
+                      done: 'The given arm coincides with the true continuation: one straight line. Q.E.D.' },
+                no: [
+                    { t: 'The pretender remains as a spare.',
+                      why: 'No spares: an angle equal to the blue one, on the same side, is the blue arm’s ray itself. The pretender never existed.' },
+                    { t: 'Both rays are continuations at once.',
+                      why: 'A straight line has one continuation only — two would make the equal-and-unequal angle absurdity we just refused.' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'i16', ref: 'Book I. Proposition XVI.',
+        title: 'The exterior angle',
+        enun: 'When a side of a triangle is stretched out, the outside angle is greater than either of the far-off inside angles.',
+        view: '60 60 380 220',
+        P: { A: [160, 90], B: [80, 250], C: [300, 250], D: [420, 250], E: [230, 170], F: [380, 90] },
+        shapes: [
+            { id: 'wExt', t: 'wedge', at: 'C', from: 'A', to: 'D', r: 50, c: 'yellow', s: 1, z: 0 },
+            { id: 'wA', t: 'wedge', at: 'A', from: 'B', to: 'C', r: 34, c: 'red', s: 3, z: 0 },
+            { id: 'wC2', t: 'wedge', at: 'C', from: 'E', to: 'F', r: 34, c: 'red', s: 3, z: 0 },
+            { id: 'ab', t: 'line', p: 'A', q: 'B', c: 'black', w: 4.5, s: 0 },
+            { id: 'bc', t: 'line', p: 'B', q: 'C', c: 'black', w: 4.5, s: 0 },
+            { id: 'ca', t: 'line', p: 'C', q: 'A', c: 'black', w: 4.5, s: 0 },
+            { id: 'ext', t: 'line', p: 'C', q: 'D', c: 'black', w: 4.5, s: 1 },
+            { id: 'dE', t: 'dot', at: 'E', r: 5, c: 'black', s: 2 },
+            { id: 'bf', t: 'line', p: 'B', q: 'F', c: 'yellow', w: 4, s: 2 },
+            { id: 'dF', t: 'dot', at: 'F', r: 5, c: 'black', s: 2 },
+        ],
+        steps: [
+            {
+                ask: 'Stretch the base out past the corner: the [yellow-angle] appears outside the triangle. The claim: it beats the far-off inside angles. How to smuggle an inside angle out for comparison?',
+                ok: { t: 'Through the midpoint of the slanting side — Euclid is about to build a secret passage.',
+                      done: 'The base is produced; the [yellow-angle] stands outside, awaiting comparison.' },
+                no: [
+                    { t: 'Measure the yellow angle and the far angles.',
+                      why: 'Measures prove one triangle. The secret passage will prove them all.' },
+                    { t: 'Slide the far angle along the side until it arrives.',
+                      why: 'Angles do not slide unescorted — they travel by congruent triangles, as you are about to see.' },
+                ],
+            },
+            {
+                ask: 'Bisect the slanting side (Prop. X), then run a line from the far corner through that midpoint, and just as far again beyond. Why the doubling?',
+                ok: { t: 'It plants a twin point inside the exterior angle — with two matched arms about the midpoint, ready for a congruence.',
+                      done: 'The side is bisected; the [yellow-line] runs to the midpoint and as far again beyond it.' },
+                no: [
+                    { t: 'To reach the stretched-out base.',
+                      why: 'It need not reach the base at all — it needs only to land inside the yellow region, with matching halves behind it.' },
+                    { t: 'Doubling makes the drawing symmetrical.',
+                      why: 'Not beauty — bookkeeping: equal halves on each side of the midpoint are the makings of Prop. IV.' },
+                ],
+            },
+            {
+                ask: 'At the midpoint: half-side equals half-side, half-line equals half-line, and the two angles between them are vertical (Prop. XV). What have we built?',
+                ok: { t: 'Side-angle-side (Prop. IV): the little triangles are equal — the far-off [red-angle] is reborn at our corner, inside the [yellow-angle].',
+                      done: 'By Props. XV and IV, the far [red-angle] reappears at the corner, wholly inside the [yellow-angle].' },
+                flash: ['wA', 'wC2'],
+                no: [
+                    { t: 'Two triangles that merely look alike.',
+                      why: 'Better: two halves and the vertical angles between them — Prop. IV certifies them equal, no looking required.' },
+                    { t: 'A parallelogram.',
+                      why: 'Parallelograms enter the Elements much later. These are twin triangles, hinged at the midpoint.' },
+                ],
+            },
+            {
+                ask: 'The reborn [red-angle] sits inside the [yellow-angle]. Finish it.',
+                ok: { t: 'The whole is greater than its part: exterior beats that remote interior. (Stretch the other side, and the same passage defeats the other one.)',
+                      done: 'The [yellow-angle] contains a copy of the [red-angle], and so exceeds it. Q.E.D.' },
+                flash: ['wExt', 'wC2'],
+                no: [
+                    { t: 'The red and yellow angles are equal.',
+                      why: 'The red copy is a strict part of the yellow — the leftover sliver is exactly its margin of victory.' },
+                    { t: 'The exterior beats the adjacent inside angle too.',
+                      why: 'Careful — the adjacent one is its partner on a straight line (Prop. XIII); they can even be equal. Only the two far-off angles are always beaten.' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'i17', ref: 'Book I. Proposition XVII.',
+        title: 'Two angles fall short',
+        enun: 'Any two angles of a triangle, taken together, are less than two right angles.',
+        view: '60 70 380 220',
+        P: { A: [160, 100], B: [80, 260], C: [300, 260], D: [420, 260] },
+        shapes: [
+            { id: 'wB', t: 'wedge', at: 'B', from: 'A', to: 'C', r: 40, c: 'red', s: 0, z: 0 },
+            { id: 'wC', t: 'wedge', at: 'C', from: 'B', to: 'A', r: 40, c: 'blue', s: 0, z: 0 },
+            { id: 'wExt', t: 'wedge', at: 'C', from: 'A', to: 'D', r: 40, c: 'yellow', s: 1, z: 0 },
+            { id: 'ab', t: 'line', p: 'A', q: 'B', c: 'black', w: 4.5, s: 0 },
+            { id: 'bc', t: 'line', p: 'B', q: 'C', c: 'black', w: 4.5, s: 0 },
+            { id: 'ca', t: 'line', p: 'C', q: 'A', c: 'black', w: 4.5, s: 0 },
+            { id: 'ext', t: 'line', p: 'C', q: 'D', c: 'black', w: 4.5, s: 1 },
+        ],
+        steps: [
+            {
+                ask: 'Take the [red-angle] and the [blue-angle]. To weigh them against two right angles, what do we build?',
+                ok: { t: 'Stretch the base: the [yellow-angle] appears, and blue-plus-yellow fill a straight line — two right angles on the nose (Prop. XIII).',
+                      done: 'The base is produced: the [blue-angle] and [yellow-angle] together make two right angles.' },
+                no: [
+                    { t: 'A perpendicular from the apex.',
+                      why: 'It would split the triangle helpfully for other errands — but the exterior angle is the readier scale.' },
+                    { t: 'Nothing — add the red and blue angles directly.',
+                      why: 'Added directly they give some amount, unnamed. The straight line gives the amount a benchmark to fall short of.' },
+                ],
+            },
+            {
+                ask: 'Blue + yellow = two rights. And Proposition XVI has an opinion about yellow and red. Conclude.',
+                ok: { t: 'Yellow beats the far-off red (Prop. XVI) — so red + blue < yellow + blue = two rights. Any pair falls short.',
+                      done: 'Since the [yellow-angle] exceeds the [red-angle], red + blue fall short of two right angles. Q.E.D.' },
+                flash: ['wB', 'wC', 'wExt'],
+                no: [
+                    { t: 'Red + blue = two rights exactly.',
+                      why: 'Then the yellow exterior would equal the remote red — precisely what Prop. XVI forbids.' },
+                    { t: 'It depends which two angles are chosen.',
+                      why: 'Stretch a different side and the same argument runs — every pair of the three falls short.' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'i18', ref: 'Book I. Proposition XVIII.',
+        title: 'Greater side, greater angle',
+        enun: 'In any triangle, the greater side is faced by the greater angle.',
+        view: '70 40 340 260',
+        P: { A: [140, 80], B: [100, 260], C: [380, 260], D: [287.5, 190.6] },
+        shapes: [
+            { id: 'wB1', t: 'wedge', at: 'B', from: 'A', to: 'D', r: 30, c: 'red', s: 2, z: 0 },
+            { id: 'wD1', t: 'wedge', at: 'D', from: 'A', to: 'B', r: 30, c: 'red', s: 2, z: 0 },
+            { id: 'wC', t: 'wedge', at: 'C', from: 'B', to: 'A', r: 30, c: 'blue', s: 3, z: 0 },
+            { id: 'ab', t: 'line', p: 'A', q: 'B', c: 'red', w: 5, s: 0 },
+            { id: 'ac', t: 'line', p: 'A', q: 'C', c: 'blue', w: 5, s: 0 },
+            { id: 'bc', t: 'line', p: 'B', q: 'C', c: 'black', w: 4.5, s: 0 },
+            { id: 'dD', t: 'dot', at: 'D', r: 5, c: 'black', s: 1 },
+            { id: 'bd', t: 'line', p: 'B', q: 'D', c: 'yellow', w: 4, dash: 1, s: 1 },
+        ],
+        steps: [
+            {
+                ask: 'The [blue-line] side is longer than the [red-line] side; we must show the angle facing blue beats the angle facing red. How is the long side tamed?',
+                ok: { t: 'Cut from it a piece equal to the [red-line] (Prop. III) and join the cut point to the opposite corner — a small isosceles triangle is born.',
+                      done: 'A piece equal to the [red-line] is cut from the [blue-line]; the cut is joined across.' },
+                no: [
+                    { t: 'Stretch the red side until the sides are equal.',
+                      why: 'Stretching changes the triangle we were asked about. Cutting a marker point changes nothing — it only annotates.' },
+                    { t: 'Compare the angles with a protractor.',
+                      why: 'For every triangle at once, cut and reason; the protractor only whispers about this one.' },
+                ],
+            },
+            {
+                ask: 'The little triangle has two equal sides. What does Proposition V hand us?',
+                ok: { t: 'Its two base [red-angle]s are equal — one of them sitting at the cut point, high on the blue side.',
+                      done: 'By Prop. V the little triangle’s base angles are equal red twins.' },
+                flash: ['wB1', 'wD1'],
+                no: [
+                    { t: 'That the little triangle is equilateral.',
+                      why: 'Only two sides were matched — the joining line came out whatever length it pleased.' },
+                    { t: 'That the cut point is the blue side’s midpoint.',
+                      why: 'It sits at the red side’s length, not halfway — those coincide only in special triangles.' },
+                ],
+            },
+            {
+                ask: 'Now the red twin at the cut point: to the leftover little triangle below it, what is it?',
+                ok: { t: 'An exterior angle — so it beats that triangle’s far-off [blue-angle] (Prop. XVI), the very angle facing our red side.',
+                      done: 'The red twin, exterior to the leftover triangle, beats the [blue-angle] (Prop. XVI).' },
+                flash: ['wD1', 'wC'],
+                no: [
+                    { t: 'A vertical angle to it.',
+                      why: 'Vertical angles need two crossing lines; here a side merely continues past the cut. It is exterior, and Prop. XVI applies.' },
+                    { t: 'Its equal, by symmetry.',
+                      why: 'No symmetry protects it: exterior beats remote interior — strictly.' },
+                ],
+            },
+            {
+                ask: 'Chain it together for the whole triangle.',
+                ok: { t: 'The whole angle at the base contains its red twin part, which beats the blue angle: whole > part’s equal > blue. The greater side faces the greater angle.',
+                      done: 'The angle facing the [blue-line] contains a part already greater than the [blue-angle]: greater side, greater angle. Q.E.D.' },
+                flash: ['wB1', 'wC'],
+                no: [
+                    { t: 'The two base angles even out in the end.',
+                      why: 'They cannot — one contains a part that already outweighs the whole of the other.' },
+                    { t: 'The proof works only if the blue side is horizontal.',
+                      why: 'Nothing leaned on direction — only cuts, Prop. V, and Prop. XVI. Turn the page freely.' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'i19', ref: 'Book I. Proposition XIX.',
+        title: 'Greater angle, greater side',
+        enun: 'In any triangle, the greater angle is faced by the greater side.',
+        view: '70 60 300 240',
+        P: { A: [180, 90], B: [100, 260], C: [340, 260] },
+        shapes: [
+            { id: 'wB', t: 'wedge', at: 'B', from: 'A', to: 'C', r: 42, c: 'red', s: 0, z: 0 },
+            { id: 'wC', t: 'wedge', at: 'C', from: 'B', to: 'A', r: 30, c: 'blue', s: 0, z: 0 },
+            { id: 'ab', t: 'line', p: 'A', q: 'B', c: 'blue', w: 5, s: 0 },
+            { id: 'ac', t: 'line', p: 'A', q: 'C', c: 'red', w: 5, s: 0 },
+            { id: 'bc', t: 'line', p: 'B', q: 'C', c: 'black', w: 4.5, s: 0 },
+        ],
+        steps: [
+            {
+                ask: 'The [red-angle] beats the [blue-angle]; we claim the side facing red beats the side facing blue. Suppose instead the two sides were equal. What breaks?',
+                ok: { t: 'Equal sides would make it isosceles, and Prop. V would force the angles equal — but red beats blue. Struck out.',
+                      done: 'Equal sides would equalise the angles (Prop. V) — contrary to what is given.' },
+                no: [
+                    { t: 'Nothing — equal sides could still carry unequal angles.',
+                      why: 'Prop. V says otherwise, without exception: equal sides, equal base angles.' },
+                    { t: 'The triangle would tip over.',
+                      why: 'Triangles are unbothered by gravity. What breaks is Prop. V’s guarantee, not the balance.' },
+                ],
+            },
+            {
+                ask: 'Suppose then the side facing red were the lesser. What breaks now?',
+                ok: { t: 'Prop. XVIII: the greater side faces the greater angle — so blue’s side being greater would make the [blue-angle] the winner. Worse than before!',
+                      done: 'A lesser side facing red would crown blue the greater angle (Prop. XVIII) — contrary again.' },
+                no: [
+                    { t: 'Nothing breaks; small sides may face big angles.',
+                      why: 'Prop. XVIII was proved precisely to forbid that: side order and angle order march together.' },
+                    { t: 'Prop. V breaks a second time.',
+                      why: 'Prop. V speaks only of equal sides. For unequal ones the sentinel is Prop. XVIII.' },
+                ],
+            },
+            {
+                ask: 'Equal is out; lesser is out. Deliver the verdict.',
+                ok: { t: 'Only greater remains: the side facing the greater angle is the greater side. Trichotomy leaves no fourth road.',
+                      done: 'Neither equal nor less, the side facing the [red-angle] is greater. Q.E.D.' },
+                flash: ['ac', 'ab'],
+                no: [
+                    { t: 'Measure, to be safe.',
+                      why: 'There is nothing left to be unsafe about — two of the three possibilities self-destructed.' },
+                    { t: 'The sides might be incomparable.',
+                      why: 'Two lengths are always comparable: less, equal, or greater. The first two just perished.' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'i20', ref: 'Book I. Proposition XX.',
+        title: 'The triangle inequality',
+        enun: 'Any two sides of a triangle, taken together, are greater than the third.',
+        view: '80 -25 320 360',
+        P: { B: [120, 300], A: [180, 180], C: [320, 300], D: [262.5, 15.1] },
+        shapes: [
+            { id: 'wD', t: 'wedge', at: 'D', from: 'A', to: 'C', r: 36, c: 'yellow', s: 2, z: 0 },
+            { id: 'wC1', t: 'wedge', at: 'C', from: 'A', to: 'D', r: 36, c: 'yellow', s: 2, z: 0 },
+            { id: 'ba', t: 'line', p: 'B', q: 'A', c: 'red', w: 5, s: 0 },
+            { id: 'ac', t: 'line', p: 'A', q: 'C', c: 'blue', w: 5, s: 0 },
+            { id: 'bc', t: 'line', p: 'B', q: 'C', c: 'black', w: 5, s: 0 },
+            { id: 'ad', t: 'line', p: 'A', q: 'D', c: 'blue', w: 5, s: 1 },
+            { id: 'dD', t: 'dot', at: 'D', r: 5, c: 'black', s: 1 },
+            { id: 'dc', t: 'line', p: 'D', q: 'C', c: 'yellow', w: 4, s: 2 },
+        ],
+        steps: [
+            {
+                ask: 'We must show the [red-line] and [blue-line] together outreach the [black-line] base. The two of them meet at a corner — how do we lay them out straight?',
+                ok: { t: 'Stretch the [red-line] onward past the corner by exactly the [blue-line]’s length (Prop. III): one straight reach now measures red plus blue.',
+                      done: 'The red side is produced by the blue side’s length: one straight line now equals red + blue.' },
+                no: [
+                    { t: 'Unfold the corner until the two sides lie flat.',
+                      why: 'Unfolding would tear the triangle we are studying. Prop. III lets us borrow the length without bending anything.' },
+                    { t: 'Walk both routes and see which tires the feet.',
+                      why: 'Every dog knows the straight path is shorter, as the proverb ran even in antiquity — but Euclid demands the dog show its working.' },
+                ],
+            },
+            {
+                ask: 'Join the stretched tip to the far corner: the tip triangle has two equal blue arms. What does Prop. V place on the joint?',
+                ok: { t: 'Equal [yellow-angle]s at its two ends — and the one at the far corner is only a part of that corner’s whole angle.',
+                      done: 'By Prop. V, equal yellow angles flank the joint — one of them a mere part of the far corner.' },
+                flash: ['wD', 'wC1'],
+                no: [
+                    { t: 'A right angle at the stretched tip.',
+                      why: 'Nothing square was built. What Prop. V grants is a matched pair, not a right angle.' },
+                    { t: 'That the joint is parallel to the base.',
+                      why: 'Parallels wait for Prop. XXVII. Only the equal pair of angles is on offer, and it suffices.' },
+                ],
+            },
+            {
+                ask: 'In the big triangle (base, joint, stretched reach): the whole angle at the far corner beats the yellow angle at the tip. Conclude.',
+                ok: { t: 'Greater angle, greater side (Prop. XIX): the stretched reach beats the base — and the reach is red + blue. Two sides beat the third, always.',
+                      done: 'By Prop. XIX the straightened red-plus-blue beats the [black-line]: the triangle inequality. Q.E.D.' },
+                flash: ['ba', 'ad', 'bc'],
+                no: [
+                    { t: 'The base beats the reach — it looks shorter.',
+                      why: 'Look again at which angle is the whole and which the part: the corner’s whole angle wins, so its facing side wins.' },
+                    { t: 'They tie when the triangle is isosceles.',
+                      why: 'Never a tie: the whole exceeds its part strictly, so the sum exceeds the third side strictly, in every triangle.' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'i21', ref: 'Book I. Proposition XXI.',
+        title: 'The inside point',
+        enun: 'Lines drawn from the base’s ends to a point inside the triangle are shorter than the sides, yet meet at a wider angle.',
+        view: '60 50 320 250',
+        P: { A: [160, 80], B: [90, 270], C: [350, 270], D: [210, 190], E: [246, 166] },
+        shapes: [
+            { id: 'wD', t: 'wedge', at: 'D', from: 'B', to: 'C', r: 34, c: 'red', s: 2, z: 0 },
+            { id: 'wA', t: 'wedge', at: 'A', from: 'B', to: 'C', r: 34, c: 'blue', s: 2, z: 0 },
+            { id: 'ab', t: 'line', p: 'A', q: 'B', c: 'black', w: 4.5, s: 0 },
+            { id: 'ac', t: 'line', p: 'A', q: 'C', c: 'black', w: 4.5, s: 0 },
+            { id: 'bc', t: 'line', p: 'B', q: 'C', c: 'black', w: 4.5, s: 0 },
+            { id: 'bd', t: 'line', p: 'B', q: 'D', c: 'yellow', w: 4.5, s: 0 },
+            { id: 'dc', t: 'line', p: 'D', q: 'C', c: 'yellow', w: 4.5, s: 0 },
+            { id: 'dD', t: 'dot', at: 'D', r: 5, c: 'black', s: 0 },
+            { id: 'de', t: 'line', p: 'D', q: 'E', c: 'black', w: 3, dash: 1, s: 1 },
+            { id: 'dE', t: 'dot', at: 'E', r: 4.5, c: 'black', s: 1 },
+        ],
+        steps: [
+            {
+                ask: 'From the base’s ends, two [yellow-line] cords meet at a point tucked inside. To compare them with the sides, Euclid extends one cord until it strikes a side. Then?',
+                ok: { t: 'Prop. XX, twice over: in the upper triangle, side-plus-side beats the strike-path; in the lower, strike-path pieces beat the far cord. Chained: the sides beat the cords.',
+                      done: 'One cord is produced to strike a side; two doses of Prop. XX chain the sides above the cords.' },
+                no: [
+                    { t: 'Compare each cord with the side nearest it.',
+                      why: 'Nearest is not a relation Euclid can chain. The strike-point makes two triangles, and Prop. XX speaks in each.' },
+                    { t: 'The cords are obviously shorter — they are inside.',
+                      why: '“Inside” alone proves nothing until the triangle inequality is applied — twice, with the strike-point as the hinge.' },
+                ],
+            },
+            {
+                ask: 'Now the angles: the cords’ [red-angle] against the summit’s [blue-angle]. Same strike-point, other weapon?',
+                ok: { t: 'Prop. XVI, twice: the red angle is exterior to the lower triangle, beating an angle which is itself exterior above — and that one beats the summit. Shorter cords, wider angle.',
+                      done: 'Twice an exterior angle (Prop. XVI): the inside [red-angle] beats the summit’s [blue-angle]. Q.E.D.' },
+                flash: ['wD', 'wA'],
+                no: [
+                    { t: 'Wider angle should mean longer cords, surely.',
+                      why: 'That intuition rules single triangles (Prop. XIX). Across nested triangles it inverts — the delight of this proposition.' },
+                    { t: 'The angles are equal, being aimed at the same base.',
+                      why: 'Aim is nothing, containment is everything: two applications of Prop. XVI leave the inner angle strictly wider.' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'i22', ref: 'Book I. Proposition XXII.',
+        title: 'A triangle from three lines',
+        enun: 'To build a triangle whose sides equal three given straight lines — provided any two of them together exceed the third.',
+        view: '-16 40 500 372',
+        P: { P1: [140, 250], P2: [340, 250], X: [254, 152.5], R1: [140, 60], R2: [340, 60], B1: [60, 100], B2: [210, 100], Y1: [270, 100], Y2: [400, 100] },
+        shapes: [
+            { id: 'lr', t: 'line', p: 'R1', q: 'R2', c: 'red', w: 5, s: 0 },
+            { id: 'lb', t: 'line', p: 'B1', q: 'B2', c: 'blue', w: 5, s: 0 },
+            { id: 'ly', t: 'line', p: 'Y1', q: 'Y2', c: 'yellow', w: 5, s: 0 },
+            { id: 'base', t: 'line', p: 'P1', q: 'P2', c: 'red', w: 5, s: 1 },
+            { id: 'cL', t: 'circle', at: 'P1', thru: 'X', c: 'blue', w: 3.5, s: 2 },
+            { id: 'cR', t: 'circle', at: 'P2', thru: 'X', c: 'yellow', w: 3.5, s: 3 },
+            { id: 'sL', t: 'line', p: 'P1', q: 'X', c: 'blue', w: 5, s: 3 },
+            { id: 'sR', t: 'line', p: 'P2', q: 'X', c: 'yellow', w: 5, s: 3 },
+            { id: 'dX', t: 'dot', at: 'X', r: 5, c: 'black', s: 3 },
+        ],
+        steps: [
+            {
+                ask: 'Three staves are given: [red-line], [blue-line], [yellow-line]. Before building, Prop. XX posts a warning at the door. What is it?',
+                ok: { t: 'Any two must together exceed the third — a triangle’s sides always do, so staves that cannot are hopeless. Ours pass; lay the [red-line] down as base.',
+                      done: 'The staves pass Prop. XX’s test; the [red-line] is laid down as the base.' },
+                no: [
+                    { t: 'The staves must all be different lengths.',
+                      why: 'Equal staves are welcome — Prop. I built from three equals. Only the two-beat-one law matters.' },
+                    { t: 'The longest stave must be the base.',
+                      why: 'Any stave may serve as base; the two-beat-one law is the only doorkeeper.' },
+                ],
+            },
+            {
+                ask: 'The [blue-line] must swing from the base’s left end. How does a loose stave’s length arrive there?',
+                ok: { t: 'Carried by Prop. II and swept as a [blue-circle]: every point of the rim sits one blue-length from the end.',
+                      done: 'A [blue-circle], with the blue stave’s length for radius, is swept about the left end.' },
+                no: [
+                    { t: 'Lean the blue stave against the base’s end.',
+                      why: 'Leaning is not building. Prop. II carries the length; the circle then offers it in every direction at once.' },
+                    { t: 'Cut the base down by the blue length.',
+                      why: 'The base is a finished side — cutting it would spoil one length to use another.' },
+                ],
+            },
+            {
+                ask: 'The [yellow-circle] swings from the right end likewise, and the two rims cross. Why must they cross at all?',
+                ok: { t: 'Because two staves together beat the third (the door-test!): each rim reaches past where the other gives out. Join the crossing to both ends — the triangle stands.',
+                      done: 'The rims cross — guaranteed by the two-beat-one law — and the crossing, joined down, completes the triangle. Q.E.D.' },
+                flash: ['sL', 'sR', 'base'],
+                no: [
+                    { t: 'Circles that share a page always cross.',
+                      why: 'Two circles can sail past each other entirely — unless the triangle inequality forces their rims to overlap, as here.' },
+                    { t: 'They cross because the radii are equal.',
+                      why: 'These radii are unequal (blue and yellow staves differ). Crossing is owed to the sum beating the base, not to sameness.' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'i23', ref: 'Book I. Proposition XXIII.',
+        title: 'To copy an angle',
+        enun: 'At a point on a given line, to build an angle equal to a given angle.',
+        view: '40 60 440 290',
+        P: { V: [90, 150], A1: [230, 90], A2: [220, 230], D: [172.7, 114.5], E: [166.7, 197.2], L1: [260, 230], L2: [440, 230], P0: [280, 230], F: [370, 230], G: [331.8, 156.4] },
+        shapes: [
+            { id: 'wV', t: 'wedge', at: 'V', from: 'A1', to: 'A2', r: 34, c: 'yellow', s: 3, z: 0 },
+            { id: 'wP', t: 'wedge', at: 'P0', from: 'F', to: 'G', r: 34, c: 'yellow', s: 3, z: 0 },
+            { id: 'arm1', t: 'line', p: 'V', q: 'A1', c: 'black', w: 4.5, s: 0 },
+            { id: 'arm2', t: 'line', p: 'V', q: 'A2', c: 'black', w: 4.5, s: 0 },
+            { id: 'nl', t: 'line', p: 'L1', q: 'L2', c: 'black', w: 4.5, s: 0 },
+            { id: 'dP0', t: 'dot', at: 'P0', r: 5.5, c: 'black', s: 0 },
+            { id: 'dD', t: 'dot', at: 'D', r: 5, c: 'black', s: 1 },
+            { id: 'dE', t: 'dot', at: 'E', r: 5, c: 'black', s: 1 },
+            { id: 'de', t: 'line', p: 'D', q: 'E', c: 'yellow', w: 3.5, dash: 1, s: 1 },
+            { id: 'cP', t: 'circle', at: 'P0', thru: 'G', c: 'red', w: 3, s: 2 },
+            { id: 'cF', t: 'circle', at: 'F', thru: 'G', c: 'blue', w: 3, s: 2 },
+            { id: 'dF', t: 'dot', at: 'F', r: 5, c: 'black', s: 2 },
+            { id: 'dG', t: 'dot', at: 'G', r: 5, c: 'black', s: 2 },
+            { id: 'pg', t: 'line', p: 'P0', q: 'G', c: 'black', w: 4.5, s: 3 },
+        ],
+        steps: [
+            {
+                ask: 'An angle lives at the left; its equal must be planted at the marked point on the right-hand line. Angles cannot be picked up — what can be?',
+                ok: { t: 'Triangles! Mark a point on each arm and join them: the angle is now caged inside a triangle of three definite sides.',
+                      done: 'A point on each arm, joined: the angle is caged in a triangle.' },
+                no: [
+                    { t: 'Trace the angle and slide the tracing across.',
+                      why: 'Tracing is drawing’s ghost, not geometry. Sides can be carried (Prop. II); so the angle must ride inside a triangle.' },
+                    { t: 'Copy the arms first and hope the opening follows.',
+                      why: 'Two arms with no third side can hinge to any opening. The cage needs its crossbar.' },
+                ],
+            },
+            {
+                ask: 'Now rebuild that cage on the new line — which proposition is the builder?',
+                ok: { t: 'Prop. XXII: one circle carries the arm-length, another the crossbar-length; where they cross, the cage’s peak rises again.',
+                      done: 'By Prop. XXII the same-sided triangle is rebuilt upon the new line.' },
+                no: [
+                    { t: 'Prop. I — the equilateral triangle.',
+                      why: 'Prop. I builds only from three equal sides. Our cage has whatever sides it has: Prop. XXII is the general builder.' },
+                    { t: 'Prop. IX — bisect and conquer.',
+                      why: 'Bisection halves angles; it cannot transplant them. The triangle of Prop. XXII is the carriage.' },
+                ],
+            },
+            {
+                ask: 'The new triangle’s three sides equal the old cage’s three sides. The final word belongs to which proposition?',
+                ok: { t: 'Prop. VIII: equal sides force equal angles — the [yellow-angle] at the new point is the old angle, reborn.',
+                      done: 'By Prop. VIII the rebuilt cage holds the same angles: the [yellow-angle] is copied. Q.E.D.' },
+                flash: ['wV', 'wP'],
+                no: [
+                    { t: 'Prop. IV — side, angle, side.',
+                      why: 'Prop. IV spends an angle to earn its keep — and an equal angle is the very thing we do not yet have. Prop. VIII asks only for sides.' },
+                    { t: 'No proposition — the copy is close enough.',
+                      why: 'Close enough is for carpenters. Prop. VIII makes it exact, and free of charge.' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'i24', ref: 'Book I. Proposition XXIV.',
+        title: 'The wider hinge',
+        enun: 'If two triangles have two matching sides, the one with the wider angle between them has the longer base.',
+        view: '40 60 440 220',
+        P: { A: [110, 100], B: [60, 240], C: [220, 240], D: [300, 100], E: [250, 240], F: [451.2, 193.9] },
+        shapes: [
+            { id: 'wA', t: 'wedge', at: 'A', from: 'B', to: 'C', r: 30, c: 'yellow', s: 0, z: 0 },
+            { id: 'wD', t: 'wedge', at: 'D', from: 'E', to: 'F', r: 34, c: 'yellow', s: 0, z: 0 },
+            { id: 'ab', t: 'line', p: 'A', q: 'B', c: 'red', w: 5, s: 0 },
+            { id: 'ac', t: 'line', p: 'A', q: 'C', c: 'blue', w: 5, s: 0 },
+            { id: 'bc', t: 'line', p: 'B', q: 'C', c: 'black', w: 4.5, s: 0 },
+            { id: 'de', t: 'line', p: 'D', q: 'E', c: 'red', w: 5, s: 0 },
+            { id: 'df', t: 'line', p: 'D', q: 'F', c: 'blue', w: 5, s: 0 },
+            { id: 'ef', t: 'line', p: 'E', q: 'F', c: 'black', w: 4.5, s: 0 },
+        ],
+        steps: [
+            {
+                ask: 'Two hinges: equal [red-line] arms, equal [blue-line] arms — but the right-hand [yellow-angle] opens wider. To compare the bases, where does Euclid begin?',
+                ok: { t: 'Lay the equal red arms together: both blue arms now swing from one pivot, the wider hinge holding its tip farther out.',
+                      done: 'The red arms are laid together; two equal blue arms now swing from one pivot.' },
+                no: [
+                    { t: 'Lay the two bases side by side and squint.',
+                      why: 'The bases are the unknowns — they cannot referee their own contest. The shared pivot can.' },
+                    { t: 'Open the narrow hinge until it matches.',
+                      why: 'Then both triangles would be the wide one, and the question would be gone rather than answered.' },
+                ],
+            },
+            {
+                ask: 'From the pivot, two equal blue arms reach to two different tips. Joining those tips makes an isosceles triangle. What do its Prop. V angles arrange?',
+                ok: { t: 'Equal angles on the tip-chord — and by containment, in the base-triangle the angle facing the far base beats the angle facing the near one.',
+                      done: 'The equal blue arms give equal chord-angles (Prop. V); containment tips the balance toward the wider hinge’s base.' },
+                no: [
+                    { t: 'Nothing — the tips are too far apart to relate.',
+                      why: 'Their chord relates them instantly: isosceles, so Prop. V speaks, and containment does the tipping.' },
+                    { t: 'The chord bisects both hinge angles.',
+                      why: 'The chord plays no favourites with the hinges — its gift is the equal pair at its own two ends.' },
+                ],
+            },
+            {
+                ask: 'A bigger facing angle in the tip triangle. Which proposition converts that into the bases’ verdict?',
+                ok: { t: 'Prop. XIX: greater angle, greater side — the wide hinge’s base is the longer. Open a door farther, and farther swings its arc.',
+                      done: 'By Prop. XIX the wider [yellow-angle] commands the longer base. Q.E.D.' },
+                flash: ['ef', 'bc'],
+                no: [
+                    { t: 'Prop. IV — side, angle, side.',
+                      why: 'Prop. IV needs equal angles and delivers equality; here the angles differ, and inequality is the prize. Prop. XIX handles unequals.' },
+                    { t: 'Prop. XX — the triangle inequality.',
+                      why: 'Prop. XX compares sides within one triangle. Across the two, the angle-to-side lever is Prop. XIX.' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'i25', ref: 'Book I. Proposition XXV.',
+        title: 'The longer base',
+        enun: 'If two triangles have two matching sides, the one with the longer base has the wider angle between the matched sides.',
+        view: '40 60 440 220',
+        P: { A: [110, 100], B: [60, 240], C: [220, 240], D: [300, 100], E: [250, 240], F: [451.2, 193.9] },
+        shapes: [
+            { id: 'wA', t: 'wedge', at: 'A', from: 'B', to: 'C', r: 30, c: 'yellow', s: 0, z: 0 },
+            { id: 'wD', t: 'wedge', at: 'D', from: 'E', to: 'F', r: 34, c: 'yellow', s: 0, z: 0 },
+            { id: 'ab', t: 'line', p: 'A', q: 'B', c: 'red', w: 5, s: 0 },
+            { id: 'ac', t: 'line', p: 'A', q: 'C', c: 'blue', w: 5, s: 0 },
+            { id: 'bc', t: 'line', p: 'B', q: 'C', c: 'black', w: 4.5, s: 0 },
+            { id: 'de', t: 'line', p: 'D', q: 'E', c: 'red', w: 5, s: 0 },
+            { id: 'df', t: 'line', p: 'D', q: 'F', c: 'blue', w: 5, s: 0 },
+            { id: 'ef', t: 'line', p: 'E', q: 'F', c: 'black', w: 4.5, s: 0 },
+        ],
+        steps: [
+            {
+                ask: 'Same two hinges, but now the given is the bases: the right one is longer. Claim: its [yellow-angle] is wider. Suppose the angles were equal instead — what then?',
+                ok: { t: 'Side-angle-side (Prop. IV) would force the bases equal — but the right base is longer. Struck out.',
+                      done: 'Equal hinge angles would equalise the bases (Prop. IV) — against what is given.' },
+                no: [
+                    { t: 'Equal angles with unequal bases could coexist.',
+                      why: 'Not with both arm-pairs matched: Prop. IV would weld the triangles together, bases and all.' },
+                    { t: 'The bases would swap lengths.',
+                      why: 'Lengths do not trade places. What equal angles would force is equality — which the given denies.' },
+                ],
+            },
+            {
+                ask: 'Suppose instead the right-hand angle were the narrower. Which sentinel objects, and what remains?',
+                ok: { t: 'Prop. XXIV: the narrower hinge must have the shorter base — but the right base is the longer. Equal is out, narrower is out: wider is all that remains.',
+                      done: 'A narrower hinge would shorten the base (Prop. XXIV) — contradiction. The longer base owns the wider angle. Q.E.D.' },
+                flash: ['wD', 'ef'],
+                no: [
+                    { t: 'Prop. V — the isosceles guardian.',
+                      why: 'No equal sides within either triangle are in play. Between hinges, the sentinel is Prop. XXIV.' },
+                    { t: 'No sentinel — narrower hinges may hold long bases.',
+                      why: 'Prop. XXIV was proved one proposition ago precisely to forbid it. The trichotomy closes.' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'i26', ref: 'Book I. Proposition XXVI.',
+        title: 'Angle, side, angle',
+        enun: 'If two triangles have two angles equal to two angles, and one matching side, they are equal in every way.',
+        view: '30 55 440 205',
+        P: { A: [110, 90], B: [60, 220], C: [230, 220], D: [320, 90], E: [270, 220], F: [440, 220], G: [85, 155] },
+        shapes: [
+            { id: 'wB', t: 'wedge', at: 'B', from: 'A', to: 'C', r: 28, c: 'red', s: 0, z: 0 },
+            { id: 'wE', t: 'wedge', at: 'E', from: 'D', to: 'F', r: 28, c: 'red', s: 0, z: 0 },
+            { id: 'wC', t: 'wedge', at: 'C', from: 'B', to: 'A', r: 28, c: 'blue', s: 0, z: 0 },
+            { id: 'wF', t: 'wedge', at: 'F', from: 'E', to: 'D', r: 28, c: 'blue', s: 0, z: 0 },
+            { id: 'ab', t: 'line', p: 'A', q: 'B', c: 'black', w: 4.5, s: 0 },
+            { id: 'ac', t: 'line', p: 'A', q: 'C', c: 'black', w: 4.5, s: 0 },
+            { id: 'bc', t: 'line', p: 'B', q: 'C', c: 'yellow', w: 5, s: 0 },
+            { id: 'de', t: 'line', p: 'D', q: 'E', c: 'black', w: 4.5, s: 0 },
+            { id: 'df', t: 'line', p: 'D', q: 'F', c: 'black', w: 4.5, s: 0 },
+            { id: 'ef', t: 'line', p: 'E', q: 'F', c: 'yellow', w: 5, s: 0 },
+            { id: 'dG', t: 'dot', at: 'G', r: 5, c: 'black', s: 1 },
+            { id: 'gc', t: 'line', p: 'G', q: 'C', c: 'yellow', w: 3.5, dash: 1, s: 1 },
+        ],
+        steps: [
+            {
+                ask: 'Given: [yellow-line] base equals base, [red-angle] equals red, [blue-angle] equals blue. To prove the sides equal too, Euclid supposes one arm longer. Then?',
+                ok: { t: 'Cut the longer arm down to the other’s length (Prop. III) and join the cut to the far base corner — a rival triangle appears inside.',
+                      done: 'Suppose one arm longer: it is cut to match, and the cut point joined across.' },
+                no: [
+                    { t: 'Then the bases would already disagree.',
+                      why: 'Not yet — the bases were given equal. The disagreement must be flushed out through the angles.' },
+                    { t: 'Then the angles were measured wrongly.',
+                      why: 'Nothing was measured; the equalities were given. The supposition about the arm is what goes to trial.' },
+                ],
+            },
+            {
+                ask: 'The rival: cut-arm, equal [yellow-line] base, and the given [red-angle] between them. What does Prop. IV decree — and against whom?',
+                ok: { t: 'Rival ≅ the second triangle — so the rival’s base-corner angle equals the given [blue-angle]. But that angle is a mere part of the first triangle’s blue angle. Part equals whole: absurd.',
+                      done: 'By Prop. IV the rival matches the second triangle — making a part of the blue angle equal to the whole of it. Absurd.' },
+                flash: ['gc', 'wC'],
+                no: [
+                    { t: 'The rival is simply a smaller copy — no harm done.',
+                      why: 'The harm is exact: its corner angle must equal the whole blue angle it sits inside. Wholes do not fit inside themselves.' },
+                    { t: 'Prop. IV cannot apply to imaginary triangles.',
+                      why: 'The rival is honestly drawn from the supposition. Prop. IV applies — and detonates the supposition that drew it.' },
+                ],
+            },
+            {
+                ask: 'The supposition dies; the arms are equal. Finish the harvest.',
+                ok: { t: 'With arms equal, base equal, and the angle between given, Prop. IV now runs forward: the triangles are equal in every respect. (And with the side opposite an angle instead, the same trap springs via Prop. XVI.)',
+                      done: 'The arms being equal, Prop. IV completes the congruence: angle-side-angle holds. Q.E.D.' },
+                flash: ['bc', 'ef'],
+                no: [
+                    { t: 'Only the arms are equal — the rest stays open.',
+                      why: 'The rest falls in a breath: two sides and the included angle are matched, and Prop. IV harvests everything.' },
+                    { t: 'The second triangle must now be redrawn.',
+                      why: 'Neither triangle ever moved. Only the false supposition was erased.' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'i27', ref: 'Book I. Proposition XXVII.',
+        title: 'Alternate angles make parallels',
+        enun: 'If a line crossing two lines makes equal alternate angles, the two lines never meet.',
+        view: '60 40 380 300',
+        P: { T1: [80, 120], T2: [400, 120], B1: [80, 260], B2: [400, 260], G: [300, 120], H: [180, 260], X1: [360, 50], X2: [120, 330] },
+        shapes: [
+            { id: 'wH', t: 'wedge', at: 'H', from: 'G', to: 'B2', r: 36, c: 'red', s: 0, z: 0 },
+            { id: 'wG', t: 'wedge', at: 'G', from: 'H', to: 'T1', r: 36, c: 'red', s: 0, z: 0 },
+            { id: 'top', t: 'line', p: 'T1', q: 'T2', c: 'black', w: 4.5, s: 0 },
+            { id: 'bot', t: 'line', p: 'B1', q: 'B2', c: 'black', w: 4.5, s: 0 },
+            { id: 'tr', t: 'line', p: 'X1', q: 'X2', c: 'black', w: 4.5, s: 0 },
+        ],
+        steps: [
+            {
+                ask: 'A crossing line cuts two lines, making equal alternate [red-angle]s — one tucked on each side. The claim: the two lines never meet. How is “never” proved?',
+                ok: { t: 'Suppose they do meet, somewhere far off: with the crossing line they would then pen in a triangle.',
+                      done: 'Suppose the lines met: line, line, and crossing line would enclose a triangle.' },
+                no: [
+                    { t: 'Follow both lines to the edge of the page.',
+                      why: 'The page ends; lines do not. “Never” must be proved by contradiction, not by patient drawing.' },
+                    { t: 'Check that the lines are the same distance apart at both ends.',
+                      why: 'Equidistance is a consequence of parallels, not a permitted starting tool. The alternate angles carry the whole case.' },
+                ],
+            },
+            {
+                ask: 'In that far-off triangle, look again at our two red angles. What have they become?',
+                ok: { t: 'One is now an exterior angle, the other its remote interior — and Prop. XVI insists exterior beats interior. But ours are equal. The triangle is impossible.',
+                      done: 'In the supposed triangle, exterior would have to beat remote interior (Prop. XVI) — yet the angles are equal.' },
+                flash: ['wH', 'wG'],
+                no: [
+                    { t: 'They have become right angles.',
+                      why: 'They are whatever size they always were — the crime is not their size but their equality inside a triangle that forbids it.' },
+                    { t: 'They vanish, being outside the triangle.',
+                      why: 'Look closely: one sits at each crossing, and the supposed meeting makes those crossings two corners of the triangle. Both angles are on trial.' },
+                ],
+            },
+            {
+                ask: 'The meeting on that side is refuted — and by symmetry on the other side too. What are such lines called?',
+                ok: { t: 'Parallel — lines in one plane which, produced ever so far both ways, meet in neither direction (Def. 35).',
+                      done: 'Meeting on neither side, the lines are parallel. Q.E.D.' },
+                no: [
+                    { t: 'Asymptotic — they creep together forever.',
+                      why: 'Straight lines do no creeping: with the meeting refuted, their gap is beyond suspicion. Parallel is the word and Def. 35 the warrant.' },
+                    { t: 'Perpendicular.',
+                      why: 'Perpendicular lines meet with great enthusiasm — at right angles. These two never meet at all.' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'i28', ref: 'Book I. Proposition XXVIII.',
+        title: 'Two more roads to parallel',
+        enun: 'If a crossing line makes corresponding angles equal, or interior angles on one side totalling two right angles, the lines are parallel.',
+        view: '60 40 380 300',
+        P: { T1: [80, 120], T2: [400, 120], B1: [80, 260], B2: [400, 260], G: [300, 120], H: [180, 260], X1: [360, 50], X2: [120, 330] },
+        shapes: [
+            { id: 'wGc', t: 'wedge', at: 'G', from: 'T2', to: 'X1', r: 36, c: 'red', s: 0, z: 0 },
+            { id: 'wHc', t: 'wedge', at: 'H', from: 'B2', to: 'G', r: 36, c: 'red', s: 0, z: 0 },
+            { id: 'wGi', t: 'wedge', at: 'G', from: 'H', to: 'T2', r: 30, c: 'blue', s: 2, z: 0 },
+            { id: 'wGa', t: 'wedge', at: 'G', from: 'H', to: 'T1', r: 36, c: 'yellow', s: 1, z: 0 },
+            { id: 'top', t: 'line', p: 'T1', q: 'T2', c: 'black', w: 4.5, s: 0 },
+            { id: 'bot', t: 'line', p: 'B1', q: 'B2', c: 'black', w: 4.5, s: 0 },
+            { id: 'tr', t: 'line', p: 'X1', q: 'X2', c: 'black', w: 4.5, s: 0 },
+        ],
+        steps: [
+            {
+                ask: 'This time the equal [red-angle]s are corresponding — same side, same station, one at each crossing. How do we reach Prop. XXVII’s door?',
+                ok: { t: 'Vertical angles (Prop. XV): the upper red equals the alternate angle across its crossing — so the alternate pair is equal, and Prop. XXVII opens.',
+                      done: 'By Prop. XV the corresponding pair converts to an equal alternate pair: parallels by Prop. XXVII.' },
+                no: [
+                    { t: 'Corresponding angles are alternate angles already.',
+                      why: 'Not quite — they sit on the same side of the crossing line. One flip through Prop. XV makes them alternate.' },
+                    { t: 'Slide one crossing along to the other.',
+                      why: 'Crossings stay where they are. It is the angle equality that travels, by Prop. XV.' },
+                ],
+            },
+            {
+                ask: 'Second road: the two interior angles on one side total two right angles. How does this one reach the same door?',
+                ok: { t: 'The straight line at either crossing also gives two rights (Prop. XIII); subtracting the shared angle from both sums leaves the alternate pair equal — Prop. XXVII again.',
+                      done: 'Two rights against two rights, the common angle withdrawn: alternate angles equal, and the lines are parallel. Q.E.D.' },
+                flash: ['wGi', 'wHc'],
+                no: [
+                    { t: 'Two rights on one side means the lines lean apart.',
+                      why: 'Leaning is exactly what the sum forbids: what one angle takes, the other returns, and Prop. XIII balances the books into parallelism.' },
+                    { t: 'It cannot — sums say nothing about single angles.',
+                      why: 'Alone, no; but set against Prop. XIII’s equal sum, subtraction isolates the pair beautifully.' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'i29', ref: 'Book I. Proposition XXIX.',
+        title: 'Parallels answer back',
+        enun: 'A line crossing two parallels makes equal alternate angles — the first theorem to lean on Euclid’s famous Fifth Postulate.',
+        view: '60 40 380 300',
+        P: { T1: [80, 120], T2: [400, 120], B1: [80, 260], B2: [400, 260], G: [300, 120], H: [180, 260], X1: [360, 50], X2: [120, 330] },
+        shapes: [
+            { id: 'wH', t: 'wedge', at: 'H', from: 'G', to: 'B2', r: 36, c: 'red', s: 0, z: 0 },
+            { id: 'wG', t: 'wedge', at: 'G', from: 'H', to: 'T1', r: 36, c: 'red', s: 0, z: 0 },
+            { id: 'wGi', t: 'wedge', at: 'G', from: 'H', to: 'T2', r: 30, c: 'blue', s: 1, z: 0 },
+            { id: 'top', t: 'line', p: 'T1', q: 'T2', c: 'black', w: 4.5, s: 0 },
+            { id: 'bot', t: 'line', p: 'B1', q: 'B2', c: 'black', w: 4.5, s: 0 },
+            { id: 'tr', t: 'line', p: 'X1', q: 'X2', c: 'black', w: 4.5, s: 0 },
+        ],
+        steps: [
+            {
+                ask: 'Now the lines are given parallel, and we must show the alternate [red-angle]s equal — Prop. XXVII sailed the other way. Suppose one red angle were the larger. What follows on its slimmer side?',
+                ok: { t: 'Add the [blue-angle] to both: on one side the interior pair then falls short of two right angles.',
+                      done: 'Were the alternates unequal, one side’s interior angles would total less than two right angles.' },
+                no: [
+                    { t: 'The larger angle would spill over the line.',
+                      why: 'Angles do not spill — they total. Follow the sums: one side of the crossing line comes up short.' },
+                    { t: 'Nothing — alternate angles owe each other nothing.',
+                      why: 'Between parallels they owe everything, as the Fifth Postulate is about to collect.' },
+                ],
+            },
+            {
+                ask: 'Interior angles short of two rights on one side. Which axiom now speaks — the most argued-over sentence in mathematics?',
+                ok: { t: 'The Fifth Postulate: lines so disposed, produced far enough, must meet on that short side. But parallels meet nowhere. Contradiction.',
+                      done: 'By the Fifth Postulate the parallels would have to meet — which parallels never do.' },
+                flash: ['wGi', 'wH'],
+                no: [
+                    { t: 'Prop. XVI, the exterior angle.',
+                      why: 'Prop. XVI carried the outward voyage (XXVII). The return crossing is deeper water — only the Fifth Postulate reaches it, and two millennia of readers wished otherwise.' },
+                    { t: 'The common notion that halves of equals are equal.',
+                      why: 'No halving is in sight. What is needed is a licence to force a meeting — the Postulate is that licence.' },
+                ],
+            },
+            {
+                ask: 'The supposition collapses. Gather the spoils.',
+                ok: { t: 'Alternate angles equal — and with Props. XV and XIII, corresponding angles equal and co-interior angles totalling two rights follow at once.',
+                      done: 'Parallels make equal alternate angles (with the corresponding and co-interior facts in train). Q.E.D.' },
+                flash: ['wH', 'wG'],
+                no: [
+                    { t: 'Only the two red angles — nothing more.',
+                      why: 'Take the interest with the principal: Prop. XV flips the equality to corresponding angles, Prop. XIII banks the co-interior sum.' },
+                    { t: 'That the Fifth Postulate is now proved.',
+                      why: 'The reverse — it was spent, not proved. Postulates are the coin proofs are bought with.' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'i30', ref: 'Book I. Proposition XXX.',
+        title: 'Parallels of parallels',
+        enun: 'Lines parallel to the same line are parallel to one another.',
+        view: '60 40 360 280',
+        P: { L1a: [80, 100], L1b: [400, 100], Ma: [80, 180], Mb: [400, 180], L2a: [80, 260], L2b: [400, 260], P1: [180, 100], PM: [240, 180], P2: [300, 260], X1: [150, 60], X2: [330, 300] },
+        shapes: [
+            { id: 'w1', t: 'wedge', at: 'P1', from: 'X2', to: 'L1b', r: 30, c: 'red', s: 1, z: 0 },
+            { id: 'wM', t: 'wedge', at: 'PM', from: 'X2', to: 'Mb', r: 30, c: 'red', s: 1, z: 0 },
+            { id: 'w2', t: 'wedge', at: 'P2', from: 'X2', to: 'L2b', r: 30, c: 'red', s: 1, z: 0 },
+            { id: 'l1', t: 'line', p: 'L1a', q: 'L1b', c: 'black', w: 4.5, s: 0 },
+            { id: 'm', t: 'line', p: 'Ma', q: 'Mb', c: 'black', w: 4.5, s: 0 },
+            { id: 'l2', t: 'line', p: 'L2a', q: 'L2b', c: 'black', w: 4.5, s: 0 },
+            { id: 'tr', t: 'line', p: 'X1', q: 'X2', c: 'black', w: 4, s: 1 },
+        ],
+        steps: [
+            {
+                ask: 'The outer lines are each parallel to the middle one — but are they parallel to each other? A single stroke settles it. Which?',
+                ok: { t: 'One crossing line through all three: against the middle line, each outer line answers with the same [red-angle] (Prop. XXIX, twice).',
+                      done: 'A crossing line is drawn; by Prop. XXIX each outer line makes the same [red-angle] with it as the middle line does.' },
+                no: [
+                    { t: 'Measure the two gaps between the lines.',
+                      why: 'Gaps are unswearable testimony. One crossing line makes all three lines answer the same question at once.' },
+                    { t: 'Remove the middle line — it is in the way.',
+                      why: 'The middle line is the witness! Each outer line is sworn parallel to it, and through it their angles are matched.' },
+                ],
+            },
+            {
+                ask: 'Both outer lines make equal [red-angle]s with the one crossing line. Final word?',
+                ok: { t: 'Things equal to the same thing are equal to each other — so the outer lines make equal angles together, and Prop. XXVII pronounces them parallel.',
+                      done: 'Equal to the same angle, equal to each other: the outer lines are parallel (Prop. XXVII). Q.E.D.' },
+                flash: ['w1', 'w2'],
+                no: [
+                    { t: 'They might still cross somewhere beyond the page.',
+                      why: 'Not with equal alternate angles — Prop. XXVII patrols beyond every page edge.' },
+                    { t: 'Only if all three lines are horizontal.',
+                      why: 'Euclid’s page has no horizon. Tilt the whole figure and every cited proposition holds unblinking.' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'i31', ref: 'Book I. Proposition XXXI.',
+        title: 'To draw a parallel',
+        enun: 'Through a given point, to draw a line parallel to a given line.',
+        view: '60 80 380 210',
+        P: { A: [240, 110], L1: [80, 260], L2: [420, 260], D: [180, 260], E1: [80, 110], E2: [420, 110] },
+        shapes: [
+            { id: 'wD', t: 'wedge', at: 'D', from: 'A', to: 'L2', r: 36, c: 'red', s: 2, z: 0 },
+            { id: 'wA', t: 'wedge', at: 'A', from: 'D', to: 'E1', r: 36, c: 'red', s: 2, z: 0 },
+            { id: 'base', t: 'line', p: 'L1', q: 'L2', c: 'black', w: 4.5, s: 0 },
+            { id: 'dA', t: 'dot', at: 'A', r: 5.5, c: 'black', s: 0 },
+            { id: 'ad', t: 'line', p: 'A', q: 'D', c: 'yellow', w: 4.5, s: 1 },
+            { id: 'dD', t: 'dot', at: 'D', r: 5, c: 'black', s: 1 },
+            { id: 'par', t: 'line', p: 'E1', q: 'E2', c: 'blue', w: 5, s: 2 },
+        ],
+        steps: [
+            {
+                ask: 'A point floats above the line, and through it a parallel must pass. The point is unmoored — first?',
+                ok: { t: 'Tether it: join the point to any spot on the line. The tether now holds a definite [red-angle] against the line.',
+                      done: 'The point is tethered to the line by the [yellow-line].' },
+                no: [
+                    { t: 'Copy the line a little higher up.',
+                      why: '“A little higher” is not a construction — and nothing yet makes the copy pass through our point. The tether will see to that.' },
+                    { t: 'Drop a perpendicular and slide along it.',
+                      why: 'Workable in spirit (Props. XI and XII could do it) — but Euclid’s route is leaner: one tether, one copied angle.' },
+                ],
+            },
+            {
+                ask: 'The tether meets the line at a [red-angle]. What is built at the floating point?',
+                ok: { t: 'The same angle, copied (Prop. XXIII) on the tether’s other side — alternate stations, equal angles.',
+                      done: 'At the point, the tether’s angle is copied alternately (Prop. XXIII), and the new line drawn through.' },
+                no: [
+                    { t: 'A right angle to the tether.',
+                      why: 'Only if the tether happened to stand square to the line. The angle to copy is the tether’s own, whatever it is.' },
+                    { t: 'The same angle on the same side.',
+                      why: 'Same-side would aim the new line to converge. Alternate — across the tether — is what makes Prop. XXVII bite.' },
+                ],
+            },
+            {
+                ask: 'Equal alternate [red-angle]s across the tether. Which proposition signs the certificate?',
+                ok: { t: 'Prop. XXVII: the new line and the old can never meet — parallel, and passing through the given point by construction.',
+                      done: 'By Prop. XXVII the drawn line is parallel to the given one, through the given point. Q.E.D.' },
+                flash: ['par', 'base'],
+                no: [
+                    { t: 'Prop. XXIX.',
+                      why: 'Prop. XXIX spends parallels to buy angles; here we spend angles to buy a parallel — that is Prop. XXVII’s counter.' },
+                    { t: 'The Fifth Postulate.',
+                      why: 'Happily not — building this parallel needs no such extravagance. Only its uniqueness would.' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'i33', ref: 'Book I. Proposition XXXIII.',
+        title: 'Joining equal parallels',
+        enun: 'Lines joining the same-side ends of two equal parallel lines are themselves equal and parallel.',
+        view: '80 80 320 210',
+        P: { A: [120, 110], B: [300, 110], C: [180, 250], D: [360, 250] },
+        shapes: [
+            { id: 'wB1', t: 'wedge', at: 'B', from: 'A', to: 'C', r: 30, c: 'red', s: 1, z: 0 },
+            { id: 'wC1', t: 'wedge', at: 'C', from: 'B', to: 'D', r: 30, c: 'red', s: 1, z: 0 },
+            { id: 'wC2', t: 'wedge', at: 'C', from: 'A', to: 'B', r: 24, c: 'blue', s: 2, z: 0 },
+            { id: 'wB2', t: 'wedge', at: 'B', from: 'C', to: 'D', r: 24, c: 'blue', s: 2, z: 0 },
+            { id: 'ab', t: 'line', p: 'A', q: 'B', c: 'black', w: 5, s: 0 },
+            { id: 'cd', t: 'line', p: 'C', q: 'D', c: 'black', w: 5, s: 0 },
+            { id: 'ac', t: 'line', p: 'A', q: 'C', c: 'blue', w: 5, s: 0 },
+            { id: 'bd', t: 'line', p: 'B', q: 'D', c: 'blue', w: 5, s: 0 },
+            { id: 'bc', t: 'line', p: 'B', q: 'C', c: 'yellow', w: 4, dash: 1, s: 1 },
+        ],
+        steps: [
+            {
+                ask: 'Two equal [black-line]s run parallel, and [blue-line]s join their same-side ends. To study the joins, Euclid cuts a diagonal. What does it earn?',
+                ok: { t: 'Crossing the two parallels, the diagonal makes equal alternate [red-angle]s (Prop. XXIX) — one at each of its ends.',
+                      done: 'The diagonal is drawn: alternate [red-angle]s stand equal at its two ends (Prop. XXIX).' },
+                no: [
+                    { t: 'It splits the figure into halves of equal area.',
+                      why: 'That pleasure belongs to Prop. XXXIV, one door down. Today the diagonal is hired for its angles.' },
+                    { t: 'It measures the gap between the parallels.',
+                      why: 'The diagonal crosses the gap slantwise, measuring nothing — but harvesting alternate angles.' },
+                ],
+            },
+            {
+                ask: 'Equal blacks, the diagonal common, equal red angles between them. Which engine, and what does it yield?',
+                ok: { t: 'Side-angle-side (Prop. IV): the two triangles match, so join equals join — and the second pair of alternate [blue-angle]s comes out equal too.',
+                      done: 'By Prop. IV the triangles match: the [blue-line] joins are equal, and a second alternate pair emerges equal.' },
+                flash: ['ac', 'bd'],
+                no: [
+                    { t: 'Prop. VIII — all three sides are known.',
+                      why: 'Not yet — the joins are the unknowns! Two sides and the red angle between them is exactly Prop. IV’s price.' },
+                    { t: 'The triangles merely share the diagonal.',
+                      why: 'They share better than that: equal black sides and equal red angles about it. Prop. IV forges the rest.' },
+                ],
+            },
+            {
+                ask: 'The new [blue-angle]s are equal alternates across the diagonal. Close the case.',
+                ok: { t: 'Prop. XXVII: the joins are parallel — equal and parallel both, as promised.',
+                      done: 'Equal alternate blues make the joins parallel (Prop. XXVII): equal and parallel. Q.E.D.' },
+                flash: ['ac', 'bd'],
+                no: [
+                    { t: 'The joins are equal but must tilt apart.',
+                      why: 'The equal blue alternates forbid any tilt — Prop. XXVII turns them into a parallelism certificate.' },
+                    { t: 'The figure is therefore a square.',
+                      why: 'A parallelogram, rather — squares demand right angles and equal sides all round, none of which was asked.' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'i34', ref: 'Book I. Proposition XXXIV.',
+        title: 'Anatomy of the parallelogram',
+        enun: 'In a parallelogram, opposite sides are equal, opposite angles are equal, and the diagonal halves the whole.',
+        view: '80 80 340 210',
+        P: { A: [120, 110], B: [320, 110], C: [180, 250], D: [380, 250] },
+        shapes: [
+            { id: 'fT', t: 'poly', ptsN: ['A', 'B', 'C'], c: 'red', s: 3, z: 0 },
+            { id: 'fB', t: 'poly', ptsN: ['C', 'B', 'D'], c: 'blue', s: 3, z: 0 },
+            { id: 'wB1', t: 'wedge', at: 'B', from: 'A', to: 'C', r: 30, c: 'red', s: 1, z: 0 },
+            { id: 'wC1', t: 'wedge', at: 'C', from: 'B', to: 'D', r: 30, c: 'red', s: 1, z: 0 },
+            { id: 'wC2', t: 'wedge', at: 'C', from: 'A', to: 'B', r: 24, c: 'yellow', s: 1, z: 0 },
+            { id: 'wB2', t: 'wedge', at: 'B', from: 'C', to: 'D', r: 24, c: 'yellow', s: 1, z: 0 },
+            { id: 'ab', t: 'line', p: 'A', q: 'B', c: 'black', w: 4.5, s: 0 },
+            { id: 'cd', t: 'line', p: 'C', q: 'D', c: 'black', w: 4.5, s: 0 },
+            { id: 'ac', t: 'line', p: 'A', q: 'C', c: 'black', w: 4.5, s: 0 },
+            { id: 'bd', t: 'line', p: 'B', q: 'D', c: 'black', w: 4.5, s: 0 },
+            { id: 'bc', t: 'line', p: 'B', q: 'C', c: 'yellow', w: 4.5, s: 1 },
+        ],
+        steps: [
+            {
+                ask: 'A parallelogram — two pairs of parallel sides, nothing more sworn. Cut the diagonal: what does it collect at its two ends?',
+                ok: { t: 'Two pairs of equal alternate angles (Prop. XXIX): [red-angle]s across one pair of parallels, [yellow-angle]s across the other.',
+                      done: 'The diagonal collects two alternate pairs: equal [red-angle]s and equal [yellow-angle]s at its ends.' },
+                no: [
+                    { t: 'Two equal segments, cut at its middle.',
+                      why: 'The diagonal’s own bisection is true but unproven here — and unneeded. Its angle harvest does the work.' },
+                    { t: 'Four right angles.',
+                      why: 'Only rectangles would be so tidy. A general parallelogram leans — yet the alternate pairs stay equal.' },
+                ],
+            },
+            {
+                ask: 'Two angles and the side between them, matched pair for pair across the diagonal. Which congruence, and what falls out?',
+                ok: { t: 'Angle-side-angle (Prop. XXVI): the two triangles match — opposite sides equal, opposite angles equal.',
+                      done: 'By Prop. XXVI the triangles match: opposite sides and opposite angles of the parallelogram are equal.' },
+                flash: ['ab', 'cd'],
+                no: [
+                    { t: 'Prop. IV — two sides and the angle between.',
+                      why: 'We hold no equal sides yet — only the shared diagonal and two angle pairs upon it. That is Prop. XXVI’s exact diet.' },
+                    { t: 'Prop. VIII — all three sides.',
+                      why: 'The sides are the loot, not the key. Angle-side-angle opens the door with what the parallels gave.' },
+                ],
+            },
+            {
+                ask: 'And the diagonal’s own boast?',
+                ok: { t: 'The two matched triangles are equal in area — the diagonal halves the parallelogram, red half and blue half.',
+                      done: 'The diagonal parts the parallelogram into two equal triangles: halved. Q.E.D.' },
+                flash: ['fT', 'fB'],
+                no: [
+                    { t: 'It is the longest line in the figure.',
+                      why: 'Sometimes not even that (the other diagonal may beat it). Its provable boast is the halving.' },
+                    { t: 'It halves the perimeter, not the area.',
+                      why: 'It halves both, but area is the theorem: congruent triangles cover equal ground.' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'i35', ref: 'Book I. Proposition XXXV.',
+        title: 'The shear',
+        enun: 'Parallelograms on the same base and between the same parallels are equal in area.',
+        view: '80 86 340 190',
+        P: { A: [100, 110], D: [240, 110], E: [260, 110], F: [400, 110], B: [120, 250], C: [260, 250] },
+        shapes: [
+            { id: 'trap', t: 'poly', ptsN: ['A', 'F', 'C', 'B'], c: 'yellow', s: 1, z: 0 },
+            { id: 'fL', t: 'poly', ptsN: ['A', 'B', 'E'], c: 'red', s: 2, z: 0 },
+            { id: 'fR', t: 'poly', ptsN: ['D', 'C', 'F'], c: 'blue', s: 2, z: 0 },
+            { id: 'rail', t: 'line', p: 'A', q: 'F', c: 'black', w: 4.5, s: 0 },
+            { id: 'base', t: 'line', p: 'B', q: 'C', c: 'black', w: 5, s: 0 },
+            { id: 'ab', t: 'line', p: 'A', q: 'B', c: 'red', w: 5, s: 0 },
+            { id: 'dc', t: 'line', p: 'D', q: 'C', c: 'red', w: 5, s: 0 },
+            { id: 'eb', t: 'line', p: 'E', q: 'B', c: 'blue', w: 5, s: 0 },
+            { id: 'fc', t: 'line', p: 'F', q: 'C', c: 'blue', w: 5, s: 0 },
+        ],
+        steps: [
+            {
+                ask: 'Two parallelograms — red-sided and blue-sided — stand on the same base between the same rails, one sheared over. Where does Euclid look first?',
+                ok: { t: 'At the whole trapezoid their tops and base enclose together — each parallelogram is that whole, less one triangle.',
+                      done: 'The whole trapezoid is marked: each parallelogram is the whole less one outer triangle.' },
+                no: [
+                    { t: 'At the strip both parallelograms cover.',
+                      why: 'The overlap is an awkward, changing shape. The whole-minus-triangle bookkeeping never changes — that is its beauty.' },
+                    { t: 'At the bases, to compare their lengths.',
+                      why: 'It is one and the same base! The contest is the leaning bodies above it.' },
+                ],
+            },
+            {
+                ask: 'Now the two outer triangles, red-shaded and blue-shaded. Why are they equal?',
+                ok: { t: 'Their slant sides are the parallelograms’ equal opposite sides (Prop. XXXIV); their top sides are equal (each is a top less — or plus — the same middle piece); and the angles between match as corresponding (Prop. XXIX). Side-angle-side.',
+                      done: 'By Props. XXXIV, XXIX and IV, the two outer triangles are equal.' },
+                flash: ['fL', 'fR'],
+                no: [
+                    { t: 'Because both triangles lean at the same slope.',
+                      why: 'Only their leading edges do. Equality needs the full toll: two matched sides and the angle between (Prop. IV).' },
+                    { t: 'Because each is half of its parallelogram.',
+                      why: 'Neither is — the diagonal makes halves, and these triangles hang outside the diagonals. They are trimmings, and equal ones.' },
+                ],
+            },
+            {
+                ask: 'Equal trimmings from the same whole. Say the theorem.',
+                ok: { t: 'Whole minus red triangle = one parallelogram; whole minus blue triangle = the other; equals from equals — the parallelograms are equal, however far they shear.',
+                      done: 'Equal triangles taken from the same trapezoid leave the parallelograms equal. Q.E.D.' },
+                flash: ['ab', 'dc', 'eb', 'fc'],
+                no: [
+                    { t: 'The upright parallelogram is bigger — it stands taller.',
+                      why: 'They stand between the same rails: one height for both. The shear steals no area, only posture.' },
+                    { t: 'They are equal only for a small shear.',
+                      why: 'Shear to the horizon — the two trimmings grow together, and the subtraction cancels as perfectly as ever.' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'i36', ref: 'Book I. Proposition XXXVI.',
+        title: 'Equal bases, equal parallelograms',
+        enun: 'Parallelograms on equal bases and between the same parallels are equal in area.',
+        view: '40 88 380 186',
+        P: { A: [80, 110], D: [200, 110], B: [60, 250], C: [180, 250], E: [260, 110], H: [380, 110], F: [280, 250], G: [400, 250] },
+        shapes: [
+            { id: 'f1', t: 'poly', ptsN: ['A', 'D', 'C', 'B'], c: 'red', s: 0, z: 0 },
+            { id: 'f2', t: 'poly', ptsN: ['E', 'H', 'G', 'F'], c: 'blue', s: 0, z: 0 },
+            { id: 'be', t: 'line', p: 'B', q: 'E', c: 'yellow', w: 4, dash: 1, s: 1 },
+            { id: 'ch', t: 'line', p: 'C', q: 'H', c: 'yellow', w: 4, dash: 1, s: 1 },
+        ],
+        steps: [
+            {
+                ask: 'Two parallelograms, apart on the page, but on equal bases between the same rails. They cannot be subtracted from a common whole — how are they bridged?',
+                ok: { t: 'Join base to far top: the joins are equal parallels joined at their ends, so the bridge itself is a parallelogram (Prop. XXXIII).',
+                      done: 'Base is joined to far top: by Prop. XXXIII the bridge is itself a parallelogram.' },
+                no: [
+                    { t: 'Slide one parallelogram along the rails until they touch.',
+                      why: 'Sliding is Prop. XXXV’s conclusion, not a move we may make. The bridge earns the same effect lawfully.' },
+                    { t: 'Cut both into triangles and compare the pieces.',
+                      why: 'A butcher’s method. One elegant bridge, and Prop. XXXV does all the carving unseen.' },
+                ],
+            },
+            {
+                ask: 'The bridge shares a base with each parallelogram in turn. Conclude.',
+                ok: { t: 'Bridge equals the first (same base, same rails — Prop. XXXV) and equals the second likewise: equal to the same, the two are equal to each other.',
+                      done: 'By Prop. XXXV twice, each equals the bridge — and so each other. Q.E.D.' },
+                flash: ['f1', 'f2'],
+                no: [
+                    { t: 'The bridge is bigger than both, spanning farther.',
+                      why: 'Span is not area: the bridge stands on a base equal to theirs, between the same rails — Prop. XXXV holds it to their size.' },
+                    { t: 'Only if the two bases are aligned end to end.',
+                      why: 'Any spacing serves — the bridge stretches to fit, and the two invocations of Prop. XXXV never notice.' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'i37', ref: 'Book I. Proposition XXXVII.',
+        title: 'Triangles between rails',
+        enun: 'Triangles on the same base and between the same parallels are equal in area.',
+        view: '40 86 360 190',
+        P: { B: [140, 250], C: [300, 250], A: [100, 110], D: [340, 110], E1: [260, 110], D2: [180, 110], R1: [60, 110], R2: [380, 110] },
+        shapes: [
+            { id: 'fA', t: 'poly', ptsN: ['A', 'B', 'C'], c: 'red', s: 2, z: 0 },
+            { id: 'fD', t: 'poly', ptsN: ['D', 'B', 'C'], c: 'blue', s: 2, z: 0 },
+            { id: 'rail', t: 'line', p: 'R1', q: 'R2', c: 'black', w: 4, s: 0 },
+            { id: 'base', t: 'line', p: 'B', q: 'C', c: 'black', w: 5, s: 0 },
+            { id: 'ab', t: 'line', p: 'A', q: 'B', c: 'black', w: 4.5, s: 0 },
+            { id: 'ac', t: 'line', p: 'A', q: 'C', c: 'black', w: 4.5, s: 0 },
+            { id: 'db', t: 'line', p: 'D', q: 'B', c: 'black', w: 4.5, s: 0 },
+            { id: 'dc', t: 'line', p: 'D', q: 'C', c: 'black', w: 4.5, s: 0 },
+            { id: 'e1c', t: 'line', p: 'E1', q: 'C', c: 'black', w: 3, dash: 1, s: 1 },
+            { id: 'd2b', t: 'line', p: 'D2', q: 'B', c: 'black', w: 3, dash: 1, s: 1 },
+        ],
+        steps: [
+            {
+                ask: 'Two triangles share a base, their peaks on the same rail. Triangles resist comparison — what does Euclid make of each?',
+                ok: { t: 'A parallelogram: through each peak’s base-corner runs a parallel to the opposite side (Prop. XXXI), completing each triangle to a parallelogram between the rails.',
+                      done: 'Each triangle is completed (Prop. XXXI) into a parallelogram between the same rails.' },
+                no: [
+                    { t: 'A rectangle of the same height.',
+                      why: 'Rectangles want right angles we have not built. The parallelogram completion costs one parallel line each.' },
+                    { t: 'A pair of smaller triangles.',
+                      why: 'Halving multiplies the problem. Doubling into parallelograms delivers it to Prop. XXXV whole.' },
+                ],
+            },
+            {
+                ask: 'Two parallelograms on the same base between the same rails, each holding its triangle as a diagonal-half. Conclude.',
+                ok: { t: 'The parallelograms are equal (Prop. XXXV); each triangle is half its own (Prop. XXXIV); halves of equals are equal.',
+                      done: 'Equal parallelograms (XXXV), halved by their diagonals (XXXIV): the triangles are equal. Q.E.D.' },
+                flash: ['fA', 'fD'],
+                no: [
+                    { t: 'Equal only if the two peaks lean the same way.',
+                      why: 'Lean freely: Prop. XXXV already blessed every shear, and the halving is lean-proof.' },
+                    { t: 'The halves might be unequal halves.',
+                      why: 'A half is a half — Prop. XXXIV certifies the diagonal’s split exactly, both times.' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'i38', ref: 'Book I. Proposition XXXVIII.',
+        title: 'Equal bases, equal triangles',
+        enun: 'Triangles on equal bases and between the same parallels are equal in area.',
+        view: '40 86 380 190',
+        P: { A: [100, 110], B: [80, 250], C: [200, 250], D: [340, 110], E: [260, 250], F: [380, 250], R1: [60, 110], R2: [400, 110], S1: [60, 250], S2: [400, 250] },
+        shapes: [
+            { id: 'fA', t: 'poly', ptsN: ['A', 'B', 'C'], c: 'red', s: 1, z: 0 },
+            { id: 'fD', t: 'poly', ptsN: ['D', 'E', 'F'], c: 'blue', s: 1, z: 0 },
+            { id: 'rail', t: 'line', p: 'R1', q: 'R2', c: 'black', w: 4, s: 0 },
+            { id: 'floor', t: 'line', p: 'S1', q: 'S2', c: 'black', w: 4, s: 0 },
+            { id: 'b1', t: 'line', p: 'B', q: 'C', c: 'red', w: 6, s: 0 },
+            { id: 'b2', t: 'line', p: 'E', q: 'F', c: 'blue', w: 6, s: 0 },
+            { id: 'ab', t: 'line', p: 'A', q: 'B', c: 'black', w: 4.5, s: 0 },
+            { id: 'ac', t: 'line', p: 'A', q: 'C', c: 'black', w: 4.5, s: 0 },
+            { id: 'de', t: 'line', p: 'D', q: 'E', c: 'black', w: 4.5, s: 0 },
+            { id: 'df', t: 'line', p: 'D', q: 'F', c: 'black', w: 4.5, s: 0 },
+        ],
+        steps: [
+            {
+                ask: 'Same rails, but now the bases are merely equal — a red stretch here, a blue stretch there. What carries Prop. XXXVII across the gap?',
+                ok: { t: 'The parallelogram completions again — and Prop. XXXVI, which was minted exactly for equal bases apart on the floor.',
+                      done: 'Each triangle is completed to a parallelogram; Prop. XXXVI holds the two completions equal.' },
+                no: [
+                    { t: 'Slide one base along the floor until they meet.',
+                      why: 'No sliding allowed — but Prop. XXXVI’s bridge of joins already did the equivalent, with a licence.' },
+                    { t: 'The gap between the bases must first be measured.',
+                      why: 'The gap never enters: equal bases and shared rails are all Props. XXXVI and XXXIV consume.' },
+                ],
+            },
+            {
+                ask: 'Equal completions, each halved by a diagonal. Finish.',
+                ok: { t: 'Halves of equals are equal: the red triangle equals the blue, wherever their equal bases lie along the floor.',
+                      done: 'Halves of the equal parallelograms: the triangles are equal. Q.E.D.' },
+                flash: ['fA', 'fD'],
+                no: [
+                    { t: 'Equal only if the triangles also share their peaks’ rail.',
+                      why: 'They do share it — that is the “same parallels” in the enunciation, and it was used, not spared.' },
+                    { t: 'The nearer triangle is slightly larger.',
+                      why: '“Nearer” to what? The page has no favourites: equal bases, equal rails, equal areas.' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'i39', ref: 'Book I. Proposition XXXIX.',
+        title: 'Equal triangles, same rail',
+        enun: 'Equal triangles on the same base and side lie between the same parallels: the line joining their peaks is parallel to the base.',
+        view: '80 86 300 190',
+        P: { B: [120, 250], C: [300, 250], A: [160, 110], D: [320, 110], E: [280, 138] },
+        shapes: [
+            { id: 'fA', t: 'poly', ptsN: ['A', 'B', 'C'], c: 'red', s: 0, z: 0 },
+            { id: 'fD', t: 'poly', ptsN: ['D', 'B', 'C'], c: 'blue', s: 0, z: 0 },
+            { id: 'base', t: 'line', p: 'B', q: 'C', c: 'black', w: 5, s: 0 },
+            { id: 'ab', t: 'line', p: 'A', q: 'B', c: 'black', w: 4.5, s: 0 },
+            { id: 'ac', t: 'line', p: 'A', q: 'C', c: 'black', w: 4.5, s: 0 },
+            { id: 'db', t: 'line', p: 'D', q: 'B', c: 'black', w: 4.5, s: 0 },
+            { id: 'dc', t: 'line', p: 'D', q: 'C', c: 'black', w: 4.5, s: 0 },
+            { id: 'ad', t: 'line', p: 'A', q: 'D', c: 'yellow', w: 4.5, s: 1 },
+            { id: 'ae', t: 'line', p: 'A', q: 'E', c: 'yellow', w: 3, dash: 1, s: 2 },
+            { id: 'ec', t: 'line', p: 'E', q: 'C', c: 'black', w: 3, dash: 1, s: 2 },
+            { id: 'dE', t: 'dot', at: 'E', r: 4.5, c: 'black', s: 2 },
+        ],
+        steps: [
+            {
+                ask: 'The red and blue triangles are equal, on one base, peaks on the same side. Join the peaks: we claim that [yellow-line] runs parallel to the base. Proof by…?',
+                ok: { t: 'Contradiction: suppose it tilts — then the true parallel through the first peak (Prop. XXXI) crosses the second peak’s side at some lower point.',
+                      done: 'Suppose the join not parallel: the true parallel through one peak meets the other’s side elsewhere.' },
+                no: [
+                    { t: 'Construction: build the parallel and observe it hit both peaks.',
+                      why: 'Observation is not proof — the second peak must be forced onto the parallel, and only absurdity forces.' },
+                    { t: 'Symmetry: the triangles are mirror images.',
+                      why: 'Equal in area need not mean mirrored in shape — one peak may loom while the other crouches. Area is all we hold.' },
+                ],
+            },
+            {
+                ask: 'Join that lower crossing-point to the base’s far end, making a shrunken triangle on the parallel. Count its worth.',
+                ok: { t: 'Same base, same rails: shrunken equals the red triangle (Prop. XXXVII) — and the red equals the blue by hypothesis. So the shrunken equals the blue it sits inside.',
+                      done: 'By Prop. XXXVII the shrunken triangle equals the red — hence the blue, its own container.' },
+                flash: ['fD'],
+                no: [
+                    { t: 'Smaller, of course — it was drawn lower.',
+                      why: 'Lower, but on the full base between full rails: Prop. XXXVII prices it equal to the red regardless. That is the trap.' },
+                    { t: 'Its worth depends on where the parallel crossed.',
+                      why: 'Anywhere but the peak itself gives the same verdict — equal to red, nested in blue. The peak is the only escape, and that is the theorem.' },
+                ],
+            },
+            {
+                ask: 'A triangle equal to the whole it nests within. Deliver the sentence.',
+                ok: { t: 'The part cannot equal the whole: the supposed tilt is dead, and the peak-join runs parallel to the base.',
+                      done: 'Part equalling whole is absurd: the peaks’ join is parallel to the base. Q.E.D.' },
+                flash: ['ad', 'base'],
+                no: [
+                    { t: 'The shrunken triangle must be quietly enlarged.',
+                      why: 'Nothing may be quietly anything — the contradiction stands, and it convicts the tilt, not the triangle.' },
+                    { t: 'Equal triangles cannot share a base after all.',
+                      why: 'They share it happily — provided their peaks keep to one rail, which is exactly what was proved.' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'i40', ref: 'Book I. Proposition XL.',
+        title: 'Equal triangles, equal bases',
+        enun: 'Equal triangles on equal bases of one line, on the same side, lie between the same parallels.',
+        view: '40 86 380 190',
+        P: { A: [100, 110], B: [80, 250], C: [200, 250], D: [340, 110], E: [260, 250], F: [380, 250], S1: [60, 250], S2: [400, 250] },
+        shapes: [
+            { id: 'fA', t: 'poly', ptsN: ['A', 'B', 'C'], c: 'red', s: 0, z: 0 },
+            { id: 'fD', t: 'poly', ptsN: ['D', 'E', 'F'], c: 'blue', s: 0, z: 0 },
+            { id: 'floor', t: 'line', p: 'S1', q: 'S2', c: 'black', w: 4, s: 0 },
+            { id: 'ab', t: 'line', p: 'A', q: 'B', c: 'black', w: 4.5, s: 0 },
+            { id: 'ac', t: 'line', p: 'A', q: 'C', c: 'black', w: 4.5, s: 0 },
+            { id: 'de', t: 'line', p: 'D', q: 'E', c: 'black', w: 4.5, s: 0 },
+            { id: 'df', t: 'line', p: 'D', q: 'F', c: 'black', w: 4.5, s: 0 },
+            { id: 'ad', t: 'line', p: 'A', q: 'D', c: 'yellow', w: 4.5, s: 1 },
+        ],
+        steps: [
+            {
+                ask: 'Equal red and blue triangles, on equal bases of one floor, same side. Claim: the peak-join is parallel to the floor. The proof rhymes with which proposition?',
+                ok: { t: 'Prop. XXXIX — suppose the join tilts, draw the true parallel, and a shrunken triangle appears; only now Prop. XXXVIII (equal bases) prices it.',
+                      done: 'As in Prop. XXXIX: a supposed tilt yields a shrunken triangle, priced by Prop. XXXVIII.' },
+                no: [
+                    { t: 'Prop. XXXV — the shear.',
+                      why: 'The shear compares parallelograms already between rails. Here the rail itself is on trial — the XXXIX gambit fits.' },
+                    { t: 'No proposition — this one stands alone.',
+                      why: 'Book I is a family: XL is XXXIX with Prop. XXXVIII swapped in for XXXVII, nearly word for word.' },
+                ],
+            },
+            {
+                ask: 'The shrunken triangle equals the red (Prop. XXXVIII), equals the blue (given), inside the blue. Sentence?',
+                ok: { t: 'Part equal to whole — absurd. The join is parallel: equal triangles on equal bases keep their peaks to one rail.',
+                      done: 'The absurdity dispatches the tilt: the peaks lie between the same parallels. Q.E.D.' },
+                flash: ['ad', 'floor'],
+                no: [
+                    { t: 'The blue triangle must shed the difference.',
+                      why: 'Triangles shed nothing — the false supposition does. It alone leaves the court.' },
+                    { t: 'Absurd, unless the bases overlap a little.',
+                      why: 'Overlap would break the “equal bases of one line” hypothesis before the absurdity is even reached. As given, the parallel stands.' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'i41', ref: 'Book I. Proposition XLI.',
+        title: 'Double the triangle',
+        enun: 'A parallelogram on the same base and between the same parallels as a triangle is double the triangle.',
+        view: '40 86 380 190',
+        P: { A: [100, 110], D: [240, 110], B: [120, 250], C: [260, 250], E: [340, 110], R1: [60, 110], R2: [400, 110] },
+        shapes: [
+            { id: 'fT', t: 'poly', ptsN: ['A', 'B', 'C'], c: 'red', s: 1, z: 0 },
+            { id: 'fE', t: 'poly', ptsN: ['E', 'B', 'C'], c: 'blue', s: 1, z: 0 },
+            { id: 'rail', t: 'line', p: 'R1', q: 'R2', c: 'black', w: 4, s: 0 },
+            { id: 'ad', t: 'line', p: 'A', q: 'D', c: 'black', w: 4.5, s: 0 },
+            { id: 'ab', t: 'line', p: 'A', q: 'B', c: 'black', w: 4.5, s: 0 },
+            { id: 'dc', t: 'line', p: 'D', q: 'C', c: 'black', w: 4.5, s: 0 },
+            { id: 'bc', t: 'line', p: 'B', q: 'C', c: 'black', w: 5, s: 0 },
+            { id: 'eb', t: 'line', p: 'E', q: 'B', c: 'black', w: 4.5, s: 0 },
+            { id: 'ec', t: 'line', p: 'E', q: 'C', c: 'black', w: 4.5, s: 0 },
+            { id: 'diag', t: 'line', p: 'A', q: 'C', c: 'yellow', w: 4.5, s: 1 },
+        ],
+        steps: [
+            {
+                ask: 'A parallelogram and a triangle share a base and rails. To weigh one against the other, what single line does Euclid add?',
+                ok: { t: 'The parallelogram’s diagonal: it conjures a red triangle on the same base and rails as the blue one — equal, by Prop. XXXVII.',
+                      done: 'The diagonal makes a red triangle equal to the blue one (Prop. XXXVII).' },
+                no: [
+                    { t: 'A perpendicular, to compare their heights.',
+                      why: 'Heights whisper of measurement. The diagonal converts the whole question into triangles, which Prop. XXXVII settles.' },
+                    { t: 'A second parallelogram around the triangle.',
+                      why: 'Buildable, but backwards — one diagonal inside what we already have is thriftier.' },
+                ],
+            },
+            {
+                ask: 'The diagonal halves the parallelogram (Prop. XXXIV). Assemble the verdict.',
+                ok: { t: 'Parallelogram = 2 × red triangle = 2 × blue triangle: the parallelogram is double the triangle.',
+                      done: 'The parallelogram, twice its own half, is double the triangle. Q.E.D.' },
+                flash: ['fT', 'fE'],
+                no: [
+                    { t: 'Parallelogram = 3 × triangle — it looks roomier.',
+                      why: 'Rooms are counted, not eyeballed: half of it equals the triangle, so the whole is exactly double.' },
+                    { t: 'They are equal — same base, same rails.',
+                      why: 'Same base and rails equalises like with like: triangle with triangle (XXXVII), parallelogram with parallelogram (XXXV). Across kinds, the rate is two to one.' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'i42', ref: 'Book I. Proposition XLII.',
+        title: 'A parallelogram to order',
+        enun: 'To build a parallelogram equal in area to a given triangle, with a corner of any given angle.',
+        view: '40 66 380 210',
+        P: { A: [140, 90], B: [80, 250], C: [280, 250], E: [180, 250], F: [230, 90], G: [330, 90], R1: [60, 90], R2: [380, 90] },
+        shapes: [
+            { id: 'fT', t: 'poly', ptsN: ['A', 'B', 'C'], c: 'yellow', s: 0, z: 0 },
+            { id: 'ab', t: 'line', p: 'A', q: 'B', c: 'black', w: 4.5, s: 0 },
+            { id: 'ac', t: 'line', p: 'A', q: 'C', c: 'black', w: 4.5, s: 0 },
+            { id: 'bc', t: 'line', p: 'B', q: 'C', c: 'black', w: 5, s: 0 },
+            { id: 'dE', t: 'dot', at: 'E', r: 5, c: 'black', s: 1 },
+            { id: 'ae', t: 'line', p: 'A', q: 'E', c: 'black', w: 3, dash: 1, s: 1 },
+            { id: 'wE', t: 'wedge', at: 'E', from: 'C', to: 'F', r: 30, c: 'blue', s: 2, z: 0 },
+            { id: 'ef', t: 'line', p: 'E', q: 'F', c: 'red', w: 5, s: 2 },
+            { id: 'cg', t: 'line', p: 'C', q: 'G', c: 'red', w: 5, s: 2 },
+            { id: 'fg', t: 'line', p: 'F', q: 'G', c: 'red', w: 5, s: 2 },
+            { id: 'rail', t: 'line', p: 'R1', q: 'R2', c: 'black', w: 3, dash: 1, s: 2 },
+        ],
+        steps: [
+            {
+                ask: 'A triangle’s area must be recast as a parallelogram wearing a chosen corner angle. First stroke?',
+                ok: { t: 'Bisect the base (Prop. X) and join the peak: two triangles on equal half-bases, each half the original (Prop. XXXVIII).',
+                      done: 'The base is bisected; each half-triangle is half the whole (Prop. XXXVIII).' },
+                no: [
+                    { t: 'Copy the chosen angle onto the triangle’s peak.',
+                      why: 'The angle’s hour comes next — first the area must be halved, for Prop. XLI will double whatever we build.' },
+                    { t: 'Square the triangle first, then lean it over.',
+                      why: 'Squaring is Book II’s feast. The half-base route needs only tools already forged.' },
+                ],
+            },
+            {
+                ask: 'On the half-base now: how does the chosen angle enter the build?',
+                ok: { t: 'Copy it at the half-base’s end (Prop. XXIII), run the side to the peak’s rail, and close with a parallel (Prop. XXXI): a parallelogram in the chosen angle, on the half-base, between the rails.',
+                      done: 'The chosen [blue-angle] is copied at the half-base (XXIII); parallels (XXXI) complete the parallelogram.' },
+                no: [
+                    { t: 'Bend the half-triangle’s corner to the chosen angle.',
+                      why: 'Corners do not bend — they are copied (Prop. XXIII) onto fresh lines, and the parallels do the closing.' },
+                    { t: 'The angle must equal the triangle’s own base angle.',
+                      why: '“Any given angle” is the luxury on offer — obtuse, acute, whatever the customer ordered.' },
+                ],
+            },
+            {
+                ask: 'Parallelogram and half-triangle: same half-base, same rails. Price them.',
+                ok: { t: 'The parallelogram is double that half-triangle (Prop. XLI) — and double a half is the whole: it equals the original triangle, in the angle of your choosing.',
+                      done: 'By Prop. XLI the parallelogram doubles the half — equalling the whole triangle, in the given angle. Q.E.D.' },
+                flash: ['fT', 'ef', 'cg', 'fg'],
+                no: [
+                    { t: 'The parallelogram falls short — it is visibly slimmer.',
+                      why: 'Slim but long: Prop. XLI audits by base and rails, and finds double the half, exactly.' },
+                    { t: 'Equal, but only when the chosen angle is right.',
+                      why: 'The angle never entered the accounting — XXXVIII and XLI count area, blind to lean.' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'i43', ref: 'Book I. Proposition XLIII.',
+        title: 'The complements',
+        enun: 'In a parallelogram cut by its diagonal, the two complements about the diagonal are equal.',
+        view: '80 76 320 210',
+        P: { A: [100, 100], B: [340, 100], C: [380, 260], D: [140, 260], K: [226, 172], E: [118, 172], H: [358, 172], G: [208, 100], F: [248, 260] },
+        shapes: [
+            { id: 'cR', t: 'poly', ptsN: ['G', 'B', 'H', 'K'], c: 'red', s: 2, z: 0 },
+            { id: 'cB', t: 'poly', ptsN: ['E', 'K', 'F', 'D'], c: 'blue', s: 2, z: 0 },
+            { id: 'ab', t: 'line', p: 'A', q: 'B', c: 'black', w: 4.5, s: 0 },
+            { id: 'bcs', t: 'line', p: 'B', q: 'C', c: 'black', w: 4.5, s: 0 },
+            { id: 'cds', t: 'line', p: 'C', q: 'D', c: 'black', w: 4.5, s: 0 },
+            { id: 'da', t: 'line', p: 'D', q: 'A', c: 'black', w: 4.5, s: 0 },
+            { id: 'diag', t: 'line', p: 'A', q: 'C', c: 'yellow', w: 4.5, s: 0 },
+            { id: 'eh', t: 'line', p: 'E', q: 'H', c: 'black', w: 3.5, s: 1 },
+            { id: 'gf', t: 'line', p: 'G', q: 'F', c: 'black', w: 3.5, s: 1 },
+            { id: 'dK', t: 'dot', at: 'K', r: 5, c: 'black', s: 1 },
+        ],
+        steps: [
+            {
+                ask: 'Through a point on the diagonal run two lines, each parallel to a side. Four little parallelograms appear: two threaded on the diagonal, two — the complements — beside it. What does the diagonal do to the big parallelogram and to each threaded one?',
+                ok: { t: 'Halves all three (Prop. XXXIV): the whole into two big triangles, and each threaded parallelogram into two little ones.',
+                      done: 'The diagonal halves the whole and both threaded parallelograms (Prop. XXXIV).' },
+                no: [
+                    { t: 'It halves the whole, but merely clips the threaded ones.',
+                      why: 'Look truer: the diagonal is a genuine diagonal of each threaded parallelogram too — Prop. XXXIV halves them just the same.' },
+                    { t: 'It divides all four little parallelograms.',
+                      why: 'The two complements never touch the diagonal — they sit beside it. Only the threaded pair is cut.' },
+                ],
+            },
+            {
+                ask: 'Take one big half-triangle. Inside it sit: a little half, a complement, and nothing else. Its twin across the diagonal holds the matching set. Subtract.',
+                ok: { t: 'Equal big halves, less equal little halves at each end, leave the two complements — equal, without ever knowing their shapes.',
+                      done: 'Equal halves less equal halves: the [red-tri]-side complement equals its opposite. The complements are equal. Q.E.D.' },
+                flash: ['cR', 'cB'],
+                no: [
+                    { t: 'The complements match only if the point is the diagonal’s middle.',
+                      why: 'Slide the point anywhere on the diagonal — the subtraction holds at every station. That freedom is the proposition’s power (Prop. XLIV will spend it).' },
+                    { t: 'Congruent shapes were needed for equality.',
+                      why: 'The complements are usually quite different shapes! Equal area without congruence — area arithmetic at its purest.' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'i44', ref: 'Book I. Proposition XLIV.',
+        title: 'Applying an area to a line',
+        enun: 'To a given straight line, to apply a parallelogram equal to a given triangle, in a given angle.',
+        view: '60 70 340 210',
+        P: { L1: [80, 250], L2: [240, 250], M1: [120, 130], M2: [280, 130], T1: [300, 90], T2: [260, 200], T3: [380, 200] },
+        shapes: [
+            { id: 'fT', t: 'poly', ptsN: ['T1', 'T2', 'T3'], c: 'yellow', s: 0, z: 0 },
+            { id: 'line', t: 'line', p: 'L1', q: 'L2', c: 'black', w: 5.5, s: 0 },
+            { id: 's1', t: 'line', p: 'L1', q: 'M1', c: 'red', w: 5, s: 1 },
+            { id: 's2', t: 'line', p: 'L2', q: 'M2', c: 'red', w: 5, s: 1 },
+            { id: 's3', t: 'line', p: 'M1', q: 'M2', c: 'red', w: 5, s: 1 },
+        ],
+        steps: [
+            {
+                ask: 'The customer hands us a line and a triangle: “a parallelogram of exactly this area, standing exactly on this line, in my angle.” Where does the area come from?',
+                ok: { t: 'Prop. XLII casts the triangle as a parallelogram in the right angle — but standing loose, not on our line. It must be dragged aboard without changing size.',
+                      done: 'By Prop. XLII the triangle becomes a parallelogram in the given angle — loose, beside the line.' },
+                no: [
+                    { t: 'Stretch the line until a parallelogram fits naturally.',
+                      why: 'The line is the customer’s — sacred and unstretchable. The area must come to it.' },
+                    { t: 'Cut the triangle into strips and pave the line.',
+                      why: 'Paving is for floors. Euclid drags areas whole, with the machinery of the complements.' },
+                ],
+            },
+            {
+                ask: 'And the dragging itself — which proposition is the engine?',
+                ok: { t: 'Prop. XLIII: build the loose parallelogram as one complement about a diagonal, with our line framing the other — the complements being equal, the area lands on the line, angle intact.',
+                      done: 'Prop. XLIII’s equal complements transfer the area onto the given line, in the given angle. Q.E.D.' },
+                flash: ['fT', 's1', 's2', 's3'],
+                no: [
+                    { t: 'Prop. XXXV — shear it along until it arrives.',
+                      why: 'Shearing keeps the base — and ours must change base entirely. Only the complements swap an area onto a new line.' },
+                    { t: 'Prop. IV — congruent triangles carry it.',
+                      why: 'Congruence carries shapes; here the shape must surrender (new base, new proportions) while the area alone survives. That is XLIII’s specialty.' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'i45', ref: 'Book I. Proposition XLV.',
+        title: 'Any figure, one parallelogram',
+        enun: 'To build a parallelogram equal to any straight-sided figure, in a given angle.',
+        view: '60 60 400 190',
+        P: { Q1: [80, 120], Q2: [210, 80], Q3: [260, 200], Q4: [120, 230], P1: [300, 90], P2: [400, 90], P3: [420, 160], P4: [320, 160], P5: [440, 230], P6: [340, 230] },
+        shapes: [
+            { id: 'fQ', t: 'poly', ptsN: ['Q1', 'Q2', 'Q3', 'Q4'], c: 'yellow', s: 0, z: 0 },
+            { id: 'dg', t: 'line', p: 'Q1', q: 'Q3', c: 'black', w: 3, dash: 1, s: 1 },
+            { id: 'fP1', t: 'poly', ptsN: ['P1', 'P2', 'P3', 'P4'], c: 'red', s: 2, z: 0 },
+            { id: 'fP2', t: 'poly', ptsN: ['P4', 'P3', 'P5', 'P6'], c: 'blue', s: 2, z: 0 },
+        ],
+        steps: [
+            {
+                ask: 'A four-sided (or forty-sided!) figure must become a single parallelogram. What is the first act of demolition?',
+                ok: { t: 'Diagonals: any straight-sided figure splits into triangles — the universal currency of area.',
+                      done: 'The figure is cut by diagonals into triangles.' },
+                no: [
+                    { t: 'Trim the corners until the figure is rectangular.',
+                      why: 'Trimming discards area, and area is the treasure. Diagonals cut without losing a speck.' },
+                    { t: 'Roll the figure into a circle for safekeeping.',
+                      why: 'The circle keeps its counsel until Book XII. Triangles are the honest bank of Book I.' },
+                ],
+            },
+            {
+                ask: 'A pile of triangles, one target angle. How are they minted and merged?',
+                ok: { t: 'Each becomes a parallelogram in the angle (Prop. XLII), applied to a shared side in turn (Prop. XLIV) — the pieces stack flush into one parallelogram equal to the whole figure.',
+                      done: 'Each triangle, minted by XLII and applied by XLIV, stacks into one parallelogram equal to the figure. Q.E.D.' },
+                flash: ['fQ', 'fP1', 'fP2'],
+                no: [
+                    { t: 'Average the triangles and build from the mean.',
+                      why: 'Areas add; they do not average. Each triangle is converted whole and butted against the last.' },
+                    { t: 'Only two triangles can ever be merged.',
+                      why: 'XLIV applies to a line as often as asked — each new piece docks onto the growing stack’s edge, without limit.' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'i46', ref: 'Book I. Proposition XLVI.',
+        title: 'To describe a square',
+        enun: 'Upon a given straight line, to describe a square.',
+        view: '100 40 240 250',
+        P: { A: [140, 250], B: [300, 250], D: [140, 90], E: [300, 90], Up: [140, 70] },
+        shapes: [
+            { id: 'fSq', t: 'poly', ptsN: ['A', 'D', 'E', 'B'], c: 'yellow', s: 3, z: 0 },
+            { id: 'base', t: 'line', p: 'A', q: 'B', c: 'black', w: 5, s: 0 },
+            { id: 'up', t: 'line', p: 'A', q: 'Up', c: 'black', w: 3, dash: 1, s: 1 },
+            { id: 'ra', t: 'path', d: 'M 152 250 L 152 238 L 140 238', c: 'black', w: 2.5, s: 1 },
+            { id: 'ad', t: 'line', p: 'A', q: 'D', c: 'red', w: 5, s: 2 },
+            { id: 'dD', t: 'dot', at: 'D', r: 5, c: 'black', s: 2 },
+            { id: 'de', t: 'line', p: 'D', q: 'E', c: 'blue', w: 5, s: 3 },
+            { id: 'be', t: 'line', p: 'B', q: 'E', c: 'blue', w: 5, s: 3 },
+            { id: 'rd', t: 'path', d: 'M 140 102 L 152 102 L 152 90', c: 'black', w: 2.5, s: 3 },
+            { id: 're', t: 'path', d: 'M 288 90 L 288 102 L 300 102', c: 'black', w: 2.5, s: 3 },
+            { id: 'rb', t: 'path', d: 'M 300 238 L 288 238 L 288 250', c: 'black', w: 2.5, s: 3 },
+        ],
+        steps: [
+            {
+                ask: 'At last, the square itself — never yet built in the Elements. Upon the [black-line], the first stroke is?',
+                ok: { t: 'A perpendicular raised at one end (Prop. XI): the square’s corner must be right, so a right angle is laid first.',
+                      done: 'A perpendicular is raised at one end of the [black-line] (Prop. XI).' },
+                no: [
+                    { t: 'Four quick strokes of equal length, by eye.',
+                      why: 'Forty-five propositions were not suffered so that the square could be guessed at the end. Each stroke is earned.' },
+                    { t: 'A circle about each end, as in Prop. I.',
+                      why: 'Those circles birth the equilateral triangle. The square’s parent is the right angle, from Prop. XI.' },
+                ],
+            },
+            {
+                ask: 'The perpendicular runs long. What tames it?',
+                ok: { t: 'Prop. III: cut it to the [black-line]’s own length — the [red-line] side, equal to the base and square to it.',
+                      done: 'The perpendicular is cut (Prop. III) to the base’s length: the [red-line] side stands.' },
+                no: [
+                    { t: 'Leave it long — the top side will trim it.',
+                      why: 'Then the “square” would be as tall as chance allowed. The side is cut first, exactly.' },
+                    { t: 'Fold it down along the base to compare.',
+                      why: 'Ever the folding temptation, ever refused! Prop. III cuts lengths without bending a thing.' },
+                ],
+            },
+            {
+                ask: 'Base and one side, equal and square. Complete the figure, and justify its right to the name.',
+                ok: { t: 'Parallels through the two loose ends (Prop. XXXI) close it; opposite sides equal (Prop. XXXIV) make all four equal; co-interior angles with the right one total two rights (Prop. XXIX), so every corner is right. A square, certified.',
+                      done: 'Closed by parallels (XXXI): all sides equal (XXXIV), all angles right (XXIX). The square is described. Q.E.D.' },
+                flash: ['fSq'],
+                no: [
+                    { t: 'Close it and measure the last two sides to be sure.',
+                      why: 'Prop. XXXIV is surer than any ruler: opposite sides of a parallelogram are equal, and the corners follow by XXIX.' },
+                    { t: 'The fourth angle must be checked separately.',
+                      why: 'No angle escapes: each is co-interior with a right angle between parallels — XXIX squares them all at a stroke.' },
+                ],
+            },
+        ],
+    },
+    {
+        id: 'i48', ref: 'Book I. Proposition XLVIII.',
+        title: 'Pythagoras, reversed',
+        enun: 'If the square on one side of a triangle equals the squares on the other two together, the angle between those two is right.',
+        view: '80 40 340 360',
+        P: { A: [160, 220], B: [150, 80], C: [340, 220], D: [160, 360.4] },
+        shapes: [
+            { id: 'ac', t: 'line', p: 'A', q: 'C', c: 'black', w: 5, s: 0 },
+            { id: 'ab', t: 'line', p: 'A', q: 'B', c: 'red', w: 5, s: 0 },
+            { id: 'bc', t: 'line', p: 'B', q: 'C', c: 'black', w: 4.5, s: 0 },
+            { id: 'ad', t: 'line', p: 'A', q: 'D', c: 'blue', w: 5, s: 1 },
+            { id: 'ra', t: 'path', d: 'M 160 232 L 172 232 L 172 220', c: 'black', w: 2.5, s: 1 },
+            { id: 'dD', t: 'dot', at: 'D', r: 5, c: 'black', s: 1 },
+            { id: 'dc', t: 'line', p: 'D', q: 'C', c: 'yellow', w: 4, dash: 1, s: 2 },
+        ],
+        steps: [
+            {
+                ask: 'Given only an equation of squares — far side² = [red-line]² + base² — we must convict the corner of being right. Euclid summons a witness. How is it built?',
+                ok: { t: 'At the corner, on the far side of the base, raise a true perpendicular (Prop. XI) and cut it to the [red-line]’s length (Prop. III): the [blue-line] witness.',
+                      done: 'A witness [blue-line] is raised truly perpendicular at the corner, equal to the [red-line].' },
+                no: [
+                    { t: 'Assume the corner right and see if the equation holds.',
+                      why: 'It would — but that is Prop. XLVII travelling forwards. The return journey needs a separately built right angle to compare against.' },
+                    { t: 'Bisect the suspect corner to inspect its halves.',
+                      why: 'Halves of an unknown are two unknowns. The witness triangle, built right by construction, is the standard to hold against it.' },
+                ],
+            },
+            {
+                ask: 'Join the witness’s tip to the far end. The witness triangle is right-angled by construction — what does Prop. XLVII certify about its joining side?',
+                ok: { t: 'Joining side² = [blue-line]² + base² = [red-line]² + base² = far side²: the joining side equals the triangle’s far side.',
+                      done: 'By Prop. XLVII and the given equation, the witness’s joining side equals the far side.' },
+                flash: ['dc', 'bc'],
+                no: [
+                    { t: 'That it equals the base.',
+                      why: 'It answers to the squares’ sum, not to one of the summands: XLVII prices it against blue² + base², which is the far side’s worth.' },
+                    { t: 'Nothing — Prop. XLVII serves only the original triangle.',
+                      why: 'XLVII serves every right triangle, and the witness is one by construction. That is exactly why the witness was built.' },
+                ],
+            },
+            {
+                ask: 'Two triangles: [red-line] = [blue-line], the base common, far side = joining side. Deliver the reversal.',
+                ok: { t: 'Side-side-side (Prop. VIII): the triangles are equal, so the suspect corner equals the witness’s corner — which was built right. Book I closes with the theorem turned perfectly on its heel.',
+                      done: 'By Prop. VIII the suspect angle equals the constructed right angle: it is right. Q.E.D.' },
+                flash: ['ab', 'ad', 'ra'],
+                no: [
+                    { t: 'Prop. IV — but no included angle is known equal.',
+                      why: 'Quite so — which is why it must be Prop. VIII, the congruence that runs on sides alone.' },
+                    { t: 'The triangles merely overlap; nothing follows.',
+                      why: 'They share every side length, pair for pair — Prop. VIII fuses them, corner for corner, and the right angle transfers.' },
+                ],
+            },
+        ],
+    },
+    // __MORE_PROPS__
+    ];
+    MORE_PROPS.forEach((p) => PROPS.push(p));
+    // Menu order: Book I in Euclid's numbering, then Book III.
+    const gpOrd = (id) => (id.startsWith('iii') ? 3000 + parseInt(id.slice(3), 10) : 1000 + parseInt(id.slice(1), 10));
+    PROPS.sort((a, b) => gpOrd(a.id) - gpOrd(b.id));
+
     /* ========================================================================
      * SVG BUILDING
      * ======================================================================*/
@@ -882,6 +2958,37 @@
         return el;
     }
 
+    // Named-point resolution: props may declare `P: {A:[x,y], ...}` and write
+    // shapes as {t:'line',p:'A',q:'B'}, {t:'dot',at:'A'}, {t:'circle',at:'A',
+    // thru:'B'}, {t:'poly',ptsN:['A','B','C']}, {t:'wedge',at:'B',from:'A',
+    // to:'C'}. Wedge angles are computed (always the non-reflex side), which
+    // removes hand-entered trigonometry as an error source.
+    function gpResolve(prop, sh) {
+        if (!prop.P) return sh;
+        const XY = (n) => prop.P[n];
+        const out = Object.assign({}, sh);
+        if (sh.p) { const [x, y] = XY(sh.p), [x2, y2] = XY(sh.q); out.x1 = x; out.y1 = y; out.x2 = x2; out.y2 = y2; }
+        if (sh.at && (sh.t === 'dot' || sh.t === 'circle' || sh.t === 'wedge')) {
+            const [cx, cy] = XY(sh.at); out.cx = cx; out.cy = cy;
+        }
+        if (sh.t === 'circle' && sh.thru) {
+            const [tx, ty] = XY(sh.thru);
+            out.r = Math.hypot(tx - out.cx, ty - out.cy);
+        }
+        if (sh.ptsN) out.pts = sh.ptsN.map((n) => XY(n));
+        if (sh.t === 'wedge' && sh.from) {
+            const [fx, fy] = XY(sh.from), [tx, ty] = XY(sh.to);
+            const deg = (dy, dx) => Math.atan2(dy, dx) * 180 / Math.PI;
+            let a0 = deg(fy - out.cy, fx - out.cx);
+            let a1 = deg(ty - out.cy, tx - out.cx);
+            let d = ((a1 - a0) % 360 + 360) % 360;
+            if (d > 180) { const t = a0; a0 = a1; a1 = t; d = 360 - d; }
+            out.a0 = a0; out.a1 = a0 + d;
+            out.r = sh.r || 38;
+        }
+        return out;
+    }
+
     function gpBuildSVG(prop, revealAll) {
         const svg = document.createElementNS(SVGNS, 'svg');
         svg.setAttribute('viewBox', prop.view);
@@ -890,8 +2997,10 @@
             .slice()
             .sort((a, b) => (a.z ?? 1) - (b.z ?? 1))
             .forEach((sh) => {
-                const el = gpShapeEl(sh);
+                const el = gpShapeEl(gpResolve(prop, sh));
                 if (!revealAll && sh.s > 0) el.classList.add('gp-hidden');
+                el.dataset.gpId = sh.id;
+                el.dataset.gpStep = sh.s;
                 svg.appendChild(el);
             });
         return svg;
@@ -1031,6 +3140,7 @@
 
     function gpFinish() {
         localStorage.setItem(doneKey(gp.prop), '1');
+        sbInstrumentsRender(); // a proved proposition may enlarge the sandbox kit
         $('gp-ask').classList.add('hidden');
         const qed = $('gp-qed');
         qed.classList.remove('hidden');
@@ -1170,49 +3280,135 @@
     }
     function sbSeed(name) { sbSeedList(SB_SEEDS[name]); }
 
+    /* ---- instruments: the toolkit grows as propositions are completed ----
+     * Completing a proposition (proved or built) unlocks its construction as
+     * a snap power, simulating Euclid's own bootstrapping: once a move is
+     * proved possible, it may be used in one stroke thereafter. */
+    const SB_INSTRUMENTS = [
+        { key: 'extend', label: 'Produce lines', prop: null,
+          title: 'Drag out of an endpoint to extend a line straight on. Always in the kit (Postulate 2).' },
+        { key: 'carry', label: 'Carry lengths', prop: 'i2', also: 'i3', req: 'I.2–3',
+          title: 'The compass no longer collapses: a growing circle sticks at the length of any drawn line. Earned by Prop. I.2/I.3.' },
+        { key: 'bisect', label: 'Bisect angles', prop: 'i9', req: 'I.9',
+          title: 'A line drawn out of a corner snaps to the direction that halves the angle. Earned by Prop. I.9.' },
+        { key: 'mid', label: 'Midpoints', prop: 'i10', req: 'I.10',
+          title: 'Every line shows its midpoint as a snap point. Earned by Prop. I.10.' },
+        { key: 'perp', label: 'Perpendiculars', prop: 'i11', also: 'i12', req: 'I.11–12',
+          title: 'A line drawn from a point on a line snaps square to it. Earned by Prop. I.11/I.12.' },
+        { key: 'para', label: 'Parallels', prop: 'i31', req: 'I.31',
+          title: 'New lines snap parallel to existing lines. Earned by Prop. I.31.' },
+    ];
+    function sbHas(key) {
+        const ins = SB_INSTRUMENTS.find((i) => i.key === key);
+        if (!ins || !ins.prop) return true;
+        const won = (id) => id && (localStorage.getItem(`gpDone_${id}`) === '1' || localStorage.getItem(`gpBuilt_${id}`) === '1');
+        return won(ins.prop) || won(ins.also);
+    }
+    function sbInstrumentsRender() {
+        const el = document.getElementById('gp-sb-instruments');
+        if (!el) return;
+        el.innerHTML = SB_INSTRUMENTS.map((ins) => {
+            const on = sbHas(ins.key);
+            return `<span class="gp-sb-inst${on ? ' on' : ''}" title="${ins.title}">` +
+                `${ins.label}${on ? '' : ` <small>${ins.req}</small>`}</span>`;
+        }).join('');
+    }
+    // Derived snap points that exist only once earned (currently: midpoints).
+    function sbVirtualPts() {
+        if (!sbHas('mid')) return [];
+        const out = [];
+        for (const o of sbState.objs) {
+            if (o.t !== 'seg') continue;
+            const g = sbGeom(o);
+            const mx = (g.x1 + g.x2) / 2, my = (g.y1 + g.y2) / 2;
+            if (sbState.pts.some((p) => Math.hypot(p.x - mx, p.y - my) < 1)) continue;
+            out.push({ x: mx, y: my, virtual: 'mid' });
+        }
+        return out;
+    }
+
     /* ---- snapping ---- */
     function sbSnapAt(x, y, excludeId) {
         let best = null, bd = SB_SNAP;
-        for (const p of sbState.pts) {
-            if (p.id === excludeId) continue;
+        for (const p of sbState.pts.concat(sbVirtualPts())) {
+            if (p.id != null && p.id === excludeId) continue;
             const d = Math.hypot(p.x - x, p.y - y);
             if (d < bd) { bd = d; best = p; }
         }
         return best;
     }
+    // Radius stick: at a key point's distance from the centre, or (once
+    // 'carry' is earned) at the length of any drawn segment.
     function sbRimSnap(cx, cy, r, centerId) {
         let best = null, bd = SB_RIM;
-        for (const p of sbState.pts) {
-            if (p.id === centerId) continue;
+        for (const p of sbState.pts.concat(sbVirtualPts())) {
+            if (p.id != null && p.id === centerId) continue;
             const rp = Math.hypot(p.x - cx, p.y - cy);
             if (rp < 6) continue;
             const d = Math.abs(rp - r);
-            if (d < bd) { bd = d; best = p; }
+            if (d < bd) { bd = d; best = { x: p.x, y: p.y, r: rp }; }
+        }
+        if (sbHas('carry')) {
+            for (const o of sbState.objs) {
+                if (o.t !== 'seg') continue;
+                const g = sbGeom(o);
+                const len = Math.hypot(g.x2 - g.x1, g.y2 - g.y1);
+                if (len < 6) continue;
+                const d = Math.abs(len - r);
+                if (d < bd) { bd = d; best = { lenOnly: true, r: len, g }; }
+            }
         }
         return best;
     }
-    // "Produce the line": if the drag leaves an existing endpoint nearly
-    // collinear with a segment through it, project onto that direction.
+    // Direction snapping for the straightedge. Candidates grow with the kit:
+    //  - always: collinear extension out of an endpoint ("produce the line")
+    //  - bisect: the bisector of any two rays out of the start point
+    //  - perp:   square to any segment the start point lies on
+    //  - para:   parallel to any other segment
     function sbDirSnap(p0id, x0, y0, x, y) {
-        if (p0id == null) return null;
         const vx = x - x0, vy = y - y0;
         const len = Math.hypot(vx, vy);
         if (len < 1e-6) return null;
+        const dirs = [];
+        const rays = [];
         for (const o of sbState.objs) {
             if (o.t !== 'seg') continue;
-            let other = null;
-            if (o.a === p0id) other = sbPt(o.b);
-            else if (o.b === p0id) other = sbPt(o.a);
-            if (!other) continue;
-            const d = Math.hypot(x0 - other.x, y0 - other.y);
+            const g = sbGeom(o);
+            const d = Math.hypot(g.x2 - g.x1, g.y2 - g.y1);
             if (d < 1e-6) continue;
-            const ux = (x0 - other.x) / d, uy = (y0 - other.y) / d; // away from the far end
+            const ux = (g.x2 - g.x1) / d, uy = (g.y2 - g.y1) / d;
+            const isA = p0id != null && o.a === p0id;
+            const isB = p0id != null && o.b === p0id;
+            const t = (x0 - g.x1) * ux + (y0 - g.y1) * uy;
+            const off = Math.hypot(g.x1 + t * ux - x0, g.y1 + t * uy - y0);
+            const onSeg = off < 0.9 && t > -0.9 && t < d + 0.9;
+            if (isA) { rays.push([ux, uy]); dirs.push([-ux, -uy]); }
+            else if (isB) { rays.push([-ux, -uy]); dirs.push([ux, uy]); }
+            else if (onSeg) { rays.push([ux, uy], [-ux, -uy]); dirs.push([ux, uy], [-ux, -uy]); }
+            if (onSeg && sbHas('perp')) dirs.push([-uy, ux], [uy, -ux]);
+            if (!onSeg && sbHas('para')) dirs.push([ux, uy], [-ux, -uy]);
+        }
+        if (sbHas('bisect')) {
+            for (let i = 0; i < rays.length; i++) {
+                for (let j = i + 1; j < rays.length; j++) {
+                    const sx = rays[i][0] + rays[j][0], sy = rays[i][1] + rays[j][1];
+                    const m = Math.hypot(sx, sy);
+                    if (m < 0.05) continue;
+                    dirs.push([sx / m, sy / m]);
+                }
+            }
+        }
+        let best = null, bestOff = Infinity;
+        for (const [ux, uy] of dirs) {
             const dot = vx * ux + vy * uy;
             if (dot <= 0) continue;
             const off = Math.hypot(vx - dot * ux, vy - dot * uy);
-            if (off < Math.max(8, len * 0.1)) return { x: x0 + dot * ux, y: y0 + dot * uy };
+            if (off < Math.max(8, len * 0.1) && off < bestOff) {
+                bestOff = off;
+                best = { x: x0 + dot * ux, y: y0 + dot * uy };
+            }
         }
-        return null;
+        return best;
     }
 
     /* ---- rendering ---- */
@@ -1242,6 +3438,11 @@
             g.appendChild(p.kind === 'x'
                 ? sbMk('circle', { cx: p.x, cy: p.y, r: 2.8, fill: GP_C.black, opacity: 0.55 })
                 : sbMk('circle', { cx: p.x, cy: p.y, r: 4, fill: GP_C.black }));
+        }
+        // Earned midpoint stations render as small hollow dots
+        for (const p of sbVirtualPts()) {
+            g.appendChild(sbMk('circle', { cx: p.x, cy: p.y, r: 3, fill: '#fdf8ea',
+                stroke: GP_C.black, 'stroke-width': 1.5, opacity: 0.8 }));
         }
     }
     function sbSetPreview(children) {
@@ -1316,7 +3517,7 @@
         } else {
             let r = Math.hypot(m.x - d.x0, m.y - d.y0);
             const rim = sbRimSnap(d.x0, d.y0, r, d.p0);
-            if (rim) r = Math.hypot(rim.x - d.x0, rim.y - d.y0);
+            if (rim) r = rim.r;
             d.r = r;
             d.rim = rim;
             prev.push(sbMk('line', { x1: d.x0, y1: d.y0, x2: m.x, y2: m.y,
@@ -1325,7 +3526,13 @@
                 fill: 'none', stroke: ink, 'stroke-width': 3,
                 'stroke-dasharray': rim ? 'none' : '3 6', opacity: rim ? 1 : 0.85 }));
             prev.push(sbMk('circle', { cx: d.x0, cy: d.y0, r: 2.5, fill: ink }));
-            if (rim) prev.push(sbRing(rim.x, rim.y, ink));
+            if (rim && rim.lenOnly) {
+                // carried length: pulse the source segment
+                prev.push(sbMk('line', { x1: rim.g.x1, y1: rim.g.y1, x2: rim.g.x2, y2: rim.g.y2,
+                    stroke: ink, 'stroke-width': 7, opacity: 0.5, 'stroke-linecap': 'round', class: 'gp-sb-ring' }));
+            } else if (rim) {
+                prev.push(sbRing(rim.x, rim.y, ink));
+            }
         }
         sbSetPreview(prev);
     }
@@ -1395,6 +3602,7 @@
         if (first < 0) {
             sbChal.complete = true;
             localStorage.setItem(builtKey(sbChal.prop), '1');
+            sbInstrumentsRender(); // a built proposition may enlarge the kit
             $('gp-sb-chal-instr').innerHTML = gpGlyphs(`<strong>∎ Constructed.</strong> ${b.qed || ''}`);
             $('gp-sb-chal-done').classList.remove('hidden');
         } else {
@@ -1481,6 +3689,7 @@
         sbSeed($('gp-sb-given').value);
     }
 
+
     /* ---- mode toggle (Propositions | Sandbox) ---- */
     function gpSetMode(mode) {
         gpMode = mode;
@@ -1491,6 +3700,8 @@
             $('gp-proof').classList.add('hidden');
             $('gp-sandbox').classList.remove('hidden');
             sbInit();
+            sbInstrumentsRender();
+            sbRender(); // midpoints may have been earned since last visit
         } else {
             $('gp-sandbox').classList.add('hidden');
             gpShowMenu();
@@ -1568,6 +3779,7 @@
               <button id="gp-sb-clear" class="gp-btn-plain">Clear</button>
             </div>
           </div>
+          <div id="gp-sb-instruments" class="gp-sb-instruments"></div>
           <div class="gp-board gp-sb-board">
             <svg id="gp-sb-svg" viewBox="0 0 480 360"></svg>
           </div>
@@ -1594,7 +3806,7 @@
         if (document.querySelector('link[data-gp-css]')) return;
         const link = document.createElement('link');
         link.rel = 'stylesheet';
-        link.href = 'geometry-proofs.css?v=3';
+        link.href = 'geometry-proofs.css?v=4';
         link.dataset.gpCss = '1';
         document.head.appendChild(link);
     }
@@ -1677,6 +3889,9 @@
         register();
         wireEvents();
     }
+
+    // Debug/validation handle (used by tests; harmless in production)
+    window.__GP = { PROPS, SB_INSTRUMENTS };
 
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
     else boot();

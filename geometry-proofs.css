@@ -387,6 +387,39 @@
     max-width: 34ch;
     text-align: right;
 }
+/* ---- instruments (earned snap powers) ----------------------------------------*/
+.gp-sb-instruments {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem 0.45rem;
+    margin-bottom: 0.6rem;
+}
+.gp-sb-inst {
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    padding: 0.18rem 0.55rem;
+    border: 2px dashed #b8ad93;
+    color: #9a8f76;
+    cursor: help;
+}
+.gp-sb-inst small {
+    font-size: 0.62rem;
+    color: #b0a488;
+    font-style: italic;
+    letter-spacing: 0.02em;
+}
+.gp-sb-inst.on {
+    border: 2px solid #2b2926;
+    color: #2b2926;
+    background: #fdf8ea;
+}
+.gp-sb-inst.on::before {
+    content: '● ';
+    color: #d33723;
+    font-size: 0.6rem;
+    vertical-align: 0.1em;
+}
+
 /* ---- build-this-proof challenge ---------------------------------------------*/
 .gp-sb-chal {
     border: 2px solid #2b2926;
