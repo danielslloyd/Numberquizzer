@@ -438,6 +438,13 @@
     line-height: 1.55;
     margin: 0.45rem 0 0.15rem;
 }
+.gp-sb-chal-needs {
+    font-size: 0.82rem;
+    font-style: italic;
+    color: #6f6754;
+    margin: 0 0 0.2rem;
+}
+.gp-sb-chal-needs em { color: #a03b2a; }
 #gp-sb-chal-note { margin: 0.15rem 0 0; }
 #gp-sb-chal-note.gp-sb-chal-good { color: #3d7a3a; }
 .gp-sb-chal-foot {

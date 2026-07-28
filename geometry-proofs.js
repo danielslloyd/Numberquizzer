@@ -648,104 +648,148 @@
                 ],
             },
         ],
+        build: {
+            seed: [[[60, 250], [180, 80]], [[180, 80], [300, 250]], [[300, 250], [60, 250]]],
+            needs: ['para'],
+            targets: [
+                { t: 'seg', from: [300, 250], dir: [1, 0], minLen: 60, ink: 'black',
+                  instr: 'Stretch the base onward past the corner, into empty space.',
+                  miss: 'Drag out of the base’s right end, straight on along it.' },
+                { t: 'seg', from: [300, 250], dir: [0.5767, -0.817], minLen: 110, ink: 'black',
+                  instr: 'Through that same corner, draw the line parallel to the far side of the triangle — the Parallels instrument snaps to it.',
+                  miss: 'Drag out of the right corner, aiming up alongside the triangle’s far (left) side, until the line snaps parallel to it.' },
+            ],
+            qed: 'The triangle’s three angles now stand side by side upon the straight line at the corner: two right angles in all — which is Prop. XXXII.',
+        },
     },
     {
         id: 'i47', ref: 'Book I. Proposition XLVII.',
         title: 'The right-angled triangle (Pythagoras)',
         enun: 'In a right-angled triangle, the square on the side opposite the right angle equals the two squares on the other sides put together.',
         view: '14 -54 452 444',
+        P: { A: [120, 180], B: [320, 180], C: [192, 84], F: [24, 108], G: [96, 12],
+             K: [416, 52], H: [288, -44], D: [120, 380], E: [320, 380], X: [192, 180], L: [192, 380] },
         shapes: [
-            { id: 'sqr', t: 'poly', pts: [[120, 180], [192, 84], [96, 12], [24, 108]],   c: 'red',  outline: 1, s: 1, z: 0 },
-            { id: 'sqb', t: 'poly', pts: [[192, 84], [320, 180], [416, 52], [288, -44]], c: 'blue', outline: 1, s: 2, z: 0 },
-            { id: 'rl',  t: 'poly', pts: [[120, 180], [192, 180], [192, 380], [120, 380]], c: 'red',  outline: 1, s: 5, z: 0 },
-            { id: 'rr',  t: 'poly', pts: [[192, 180], [320, 180], [320, 380], [192, 380]], c: 'blue', outline: 1, s: 6, z: 0 },
-            { id: 'tri', t: 'poly', pts: [[120, 180], [192, 84], [320, 180]], c: 'yellow', s: 0, z: 0 },
-            { id: 'sqc', t: 'poly', pts: [[120, 180], [320, 180], [320, 380], [120, 380]], c: null, outline: 1, w: 3.5, s: 3 },
-            { id: 'ra',  t: 'path', d: 'M 186 92 L 194 98 L 200 90', c: 'black', w: 2.5, s: 0 },
-            { id: 'sAC', t: 'line', x1: 120, y1: 180, x2: 192, y2: 84,  c: 'red',   w: 5, s: 0 },
-            { id: 'sCB', t: 'line', x1: 192, y1: 84,  x2: 320, y2: 180, c: 'blue',  w: 5, s: 0 },
-            { id: 'sAB', t: 'line', x1: 120, y1: 180, x2: 320, y2: 180, c: 'black', w: 5, s: 0 },
-            { id: 'perp', t: 'line', x1: 192, y1: 84, x2: 192, y2: 380, c: 'black', w: 3.5, dash: 1, s: 4 },
+            { id: 'sqr', t: 'poly', ptsN: ['A', 'C', 'G', 'F'], c: 'red', outline: 1, s: 1, z: 0 },
+            { id: 'sqb', t: 'poly', ptsN: ['C', 'B', 'K', 'H'], c: 'blue', outline: 1, s: 1, z: 0 },
+            { id: 'rl', t: 'poly', ptsN: ['A', 'X', 'L', 'D'], c: 'red', outline: 1, s: 7, z: 0 },
+            { id: 'rr', t: 'poly', ptsN: ['X', 'B', 'E', 'L'], c: 'blue', outline: 1, s: 8, z: 0 },
+            { id: 'tri', t: 'poly', ptsN: ['A', 'C', 'B'], c: 'yellow', s: 0, z: 0 },
+            { id: 'wFAB', t: 'wedge', at: 'A', from: 'F', to: 'B', r: 34, c: 'yellow', s: 5, z: 0 },
+            { id: 'wCAD', t: 'wedge', at: 'A', from: 'C', to: 'D', r: 24, c: 'yellow', s: 5, z: 0 },
+            { id: 'sqc', t: 'poly', ptsN: ['A', 'B', 'E', 'D'], c: null, outline: 1, w: 3.5, s: 1 },
+            { id: 'ra', t: 'path', d: 'M 186 92 L 194 98 L 200 90', c: 'black', w: 2.5, s: 0 },
+            { id: 'sAC', t: 'line', p: 'A', q: 'C', c: 'red', w: 5, s: 0 },
+            { id: 'sCB', t: 'line', p: 'C', q: 'B', c: 'blue', w: 5, s: 0 },
+            { id: 'sAB', t: 'line', p: 'A', q: 'B', c: 'black', w: 5, s: 0 },
+            { id: 'gb', t: 'line', p: 'G', q: 'B', c: 'black', w: 2.5, dash: 1, s: 2 },
+            { id: 'perp', t: 'line', p: 'C', q: 'L', c: 'black', w: 3.5, dash: 1, s: 3 },
+            { id: 'fb', t: 'line', p: 'F', q: 'B', c: 'black', w: 3, dash: 1, s: 4 },
+            { id: 'cd', t: 'line', p: 'C', q: 'D', c: 'black', w: 3, dash: 1, s: 4 },
         ],
         steps: [
             {
-                ask: 'A right-angled triangle: a [red-line] side, a [blue-line] side, and the longest side — the [black-line], opposite the right angle. The theorem speaks of squares. What first?',
-                ok: { t: 'Build the [red-square]: a perfect square sitting on the [red-line] side.',
-                      done: 'Upon the [red-line] side, the [red-square] is described.' },
+                ask: 'A right-angled triangle: a [red-line] side, a [blue-line] side, and the longest side — the [black-line], opposite the right angle. The theorem speaks of squares. On what authority do they appear?',
+                ok: { t: 'Proposition XLVI, thrice: the [red-square] on one leg, the [blue-square] on the other, and the great square below the [black-line].',
+                      done: 'By Prop. XLVI, the three squares are described upon the three sides.' },
                 no: [
                     { t: 'Multiply the two short sides together.',
-                      why: 'That would be arithmetic. Euclid proves it with real squares of area, drawn upon the sides themselves.' },
-                    { t: 'Draw a circle through the three corners.',
-                      why: 'A fine construction — but it belongs to another proposition. Today we build squares upon the sides.' },
+                      why: 'That would be arithmetic. Euclid proves it with real squares of area, drawn upon the sides themselves — and Prop. XLVI just taught us to draw them.' },
+                    { t: 'Sketch three squares that look about the right size.',
+                      why: 'Forty-six propositions were spent so that no square need ever be “about” again. Each is described exactly.' },
                 ],
             },
             {
-                ask: 'One side wears its square. What next?',
-                ok: { t: 'Build the [blue-square] upon the [blue-line] side.',
-                      done: 'Upon the [blue-line] side, the [blue-square] is described.' },
+                ask: 'Now a subtlety nearly every retelling skips. The [red-square]’s far side and the [blue-line] leg both leave the right-angle corner. What must be certified about them before anything can be compared?',
+                ok: { t: 'That they lie in one straight line: square-corner and triangle-corner are each right, two rights side by side — so by Prop. XIV the two lines are one.',
+                      done: 'The angles at the corner totalling two rights, the [red-square]’s side and the [blue-line] leg lie in one straight line (Prop. XIV).' },
                 no: [
-                    { t: 'Stop — one square is surely enough.',
-                      why: 'The theorem compares three squares. Each side must carry its own.' },
-                    { t: 'Build a second, larger square on the [red-line] side.',
-                      why: 'The [red-line] already has its square. It is the [blue-line]’s turn.' },
+                    { t: 'Nothing — they plainly line up in the picture.',
+                      why: 'Byrne’s whole book stands against “plainly”. Prop. XIV certifies the straightness from the two right angles — and without it, the coming argument has no rail to run on.' },
+                    { t: 'That they are equal in length.',
+                      why: 'They are generally unequal — one is the red square’s side, the other the blue leg. What matters is their straightness together, sworn by Prop. XIV.' },
                 ],
             },
             {
-                ask: 'Two sides wear their squares. What completes the picture?',
-                ok: { t: 'The greatest square of all, built upon the [black-line] — the side opposite the right angle.',
-                      done: 'Upon the [black-line], the great square is described.' },
+                ask: 'Now split the great square. What line, and by what right?',
+                ok: { t: 'Through the right-angle corner, a line parallel to the great square’s upright sides (Prop. XXXI), falling through it: two rectangles, one under each leg.',
+                      done: 'A parallel through the right angle (Prop. XXXI) divides the great square into two rectangles.' },
                 no: [
-                    { t: 'Join the tops of the [red-square] and the [blue-square] with a line.',
-                      why: 'Pretty, but no use — the prize is the square on the longest side, waiting below the triangle.' },
-                    { t: 'Fold the [red-square] and the [blue-square] down over the triangle.',
-                      why: 'No folding in Euclid! The great square must be drawn where it lives: upon the [black-line].' },
+                    { t: 'A diagonal of the great square.',
+                      why: 'The diagonal halves it — and halves answer to nothing here. The split must fall under the right-angle corner, mirroring the two legs.' },
+                    { t: 'A cut straight across its middle.',
+                      why: 'The middle favours neither leg. The cut must hang from the right angle itself, so each rectangle stands under its own leg.' },
                 ],
             },
             {
-                ask: 'Now Byrne’s favourite stroke. From the right-angle corner, we let a line fall straight down through the great square. What does it do?',
-                ok: { t: 'It splits the great square into two rectangles — one standing under the [red-line] side, one under the [blue-line] side.',
-                      done: 'From the right angle, a perpendicular is let fall, dividing the great square into two rectangles.' },
+                ask: 'Euclid now draws two quiet lines: from the [red-square]’s far corner to the [black-line]’s far end, and from the right-angle corner down to the great square’s near corner. What are they for?',
+                ok: { t: 'They complete two triangles — one hanging from the red square, one standing in the left rectangle — soon to be proved equal, and through them the regions themselves.',
+                      done: 'Two auxiliary triangles are drawn: one on the [red-square]’s side, one on the great square’s side.' },
                 no: [
-                    { t: 'It cuts the great square into two equal halves.',
-                      why: 'Look closely — the two pieces are not equal unless the triangle is perfectly symmetric. Each piece will match its own square instead.' },
-                    { t: 'It misses the great square entirely.',
-                      why: 'It falls from the right angle squarely onto the [black-line], so it must pass straight on through the square below.' },
+                    { t: 'They are decoration — Byrne loved a diagonal.',
+                      why: 'Byrne never decorates: every stroke is a premise. These two carry the entire weight of the theorem between them.' },
+                    { t: 'They measure the two squares directly.',
+                      why: 'No line measures an area. But a triangle can be congruent to another, and doubled into a region — watch.' },
                 ],
             },
             {
-                ask: 'Here is the heart of the proof. By sliding and tilting matching triangles, Euclid shows the [red-square] is equal in area to which piece?',
-                ok: { t: 'The [red-rect] — the rectangle standing beneath the [red-line] side’s end of the [black-line].',
-                      done: 'The [red-square] is equal in area to the [red-rect] beneath the red side.' },
+                ask: 'The two triangles pivot at the same corner of the triangle. Compare their angles there.',
+                ok: { t: 'Each is a right angle plus the very same corner angle — one adds the [red-square]’s corner, the other the great square’s. Equals added to the same: equal (Common Notion 2).',
+                      done: 'Each pivot angle is a right angle plus the common corner angle: the two [yellow-angle]s are equal.' },
+                flash: ['wFAB', 'wCAD'],
+                no: [
+                    { t: 'Both are right angles.',
+                      why: 'Each exceeds a right angle by the shared slant of the triangle — equal to each other, but more than right.' },
+                    { t: 'They are vertical angles (Prop. XV).',
+                      why: 'Vertical angles need two crossing lines; these two open from the same corner. Their equality is bought by addition: right + common = right + common.' },
+                ],
+            },
+            {
+                ask: 'Equal pivot angles — and flanking each, what sides?',
+                ok: { t: 'A [red-square] side equal to a [red-square] side, and a great-square side equal to a great-square side: side-angle-side (Prop. IV) — the two triangles are equal.',
+                      done: 'By Prop. IV the hanging triangle equals the standing one.' },
+                flash: ['fb', 'cd'],
+                no: [
+                    { t: 'All three sides — use Prop. VIII.',
+                      why: 'The third sides are unknown and unneeded: two sides and the included angle is Prop. IV’s exact signature.' },
+                    { t: 'The triangles coincide if the page is folded.',
+                      why: 'No folding! Prop. IV does rigorously what folding only gestures at — and leaves a theorem where the crease would be.' },
+                ],
+            },
+            {
+                ask: 'Neither triangle matters for itself. What is each to its region — the hanging one to the [red-square], the standing one to the left rectangle?',
+                ok: { t: 'Its half, by Prop. XLI: the square doubles the hanging triangle (same base, same parallels — the straight line of step two is the rail!), and the rectangle doubles the standing one. Doubles of equals are equal.',
+                      done: 'By Prop. XLI twice, [red-square] = 2 × triangle = left [red-rect]: the red square equals the left rectangle.' },
                 flash: ['sqr', 'rl'],
                 no: [
-                    { t: 'The [blue-rect], on the far side.',
-                      why: 'Each side keeps to its own end of the [black-line]: the red square matches the rectangle at the red side’s own end.' },
-                    { t: 'The [yellow-tri] in the middle.',
-                      why: 'The little triangle is far too small — a square built on a whole side holds much more than the triangle itself.' },
+                    { t: 'Each is a quarter of its region.',
+                      why: 'Half, not quarter: base along a side, peak on the opposite rail — Prop. XLI’s exact scene, played twice.' },
+                    { t: 'Each merely overlaps its region.',
+                      why: 'Overlap proves nothing. The doubling relation of Prop. XLI is what lets the triangles’ equality climb up into the regions.' },
                 ],
             },
             {
-                ask: 'And by the very same argument on the other side…',
-                ok: { t: 'The [blue-square] equals the [blue-rect] — the rectangle beneath the [blue-line] side.',
-                      done: 'The [blue-square] is equal in area to the [blue-rect].' },
+                ask: 'The [blue-square] and the right rectangle still wait. What settles them?',
+                ok: { t: 'The same chain, mirrored: straightness at the corner (XIV), two joins, right-plus-common angles, Prop. IV, Prop. XLI — the [blue-square] equals the right [blue-rect].',
+                      done: 'By the mirrored chain, the [blue-square] equals the right rectangle.' },
                 flash: ['sqb', 'rr'],
                 no: [
-                    { t: 'The [blue-square] equals the [red-square].',
-                      why: 'Only in one special triangle with equal legs. In general each square matches its own rectangle.' },
-                    { t: 'The [blue-square] equals the whole great square.',
-                      why: 'Then the [red-square] would be left with nothing! The blue square claims only its own rectangle.' },
+                    { t: 'Symmetry alone — no argument needed.',
+                      why: 'The figure is not symmetric (the legs differ!) — but the argument is. Every step re-runs with the colours exchanged, and that is what “mirrored” must mean.' },
+                    { t: 'The blue square equals the red square.',
+                      why: 'Only in one special triangle with equal legs. Each square answers to its own rectangle, by its own chain.' },
                 ],
             },
             {
-                ask: 'The finish. [red-square] = [red-rect], and [blue-square] = [blue-rect]. What do the two rectangles make together?',
-                ok: { t: 'The whole great square — so [red-square] + [blue-square] equals the square upon the [black-line]. The Pythagorean theorem!',
-                      done: 'The two rectangles together are the whole great square: therefore [red-square] + [blue-square] = the square upon the [black-line]. Q.E.D.' },
+                ask: 'The finish. [red-square] = [red-rect], [blue-square] = [blue-rect]. Together?',
+                ok: { t: 'The two rectangles are the whole great square — so [red-square] + [blue-square] equals the square upon the [black-line]. The Pythagorean theorem, every step accounted for.',
+                      done: 'The rectangles together are the great square: [red-square] + [blue-square] = the square on the [black-line]. Q.E.D.' },
                 flash: ['rl', 'rr', 'sqr', 'sqb'],
                 no: [
                     { t: 'Something bigger than the great square.',
-                      why: 'The perpendicular cut the great square into exactly these two pieces — together they are the square, no more, no less.' },
+                      why: 'The parallel of step three cut the great square into exactly these two pieces — together they are the square, no more, no less.' },
                     { t: 'We cannot tell without knowing the side lengths.',
-                      why: 'That is the wonder of it: no lengths were ever needed. The proof holds for every right-angled triangle at once.' },
+                      why: 'That is the wonder of it: no lengths were ever needed — only XIV, IV, XLI, and a straight rail. The proof holds for every right-angled triangle at once.' },
                 ],
             },
         ],
@@ -904,6 +948,39 @@
                 ],
             },
         ],
+        build: {
+            seed: { segs: [[[200, 190], [320, 240]]], pts: [[150, 120]] },
+            targets: [
+                { t: 'seg', x1: 150, y1: 120, x2: 200, y2: 190, ink: 'yellow',
+                  instr: 'The lonely point must receive a copy of the [black-line]. First, join the point to the line’s nearer end.',
+                  miss: 'Draw from the floating point to the nearer end of the given line.' },
+                { t: 'circle', cx: 150, cy: 120, r: 86.02, ink: 'black',
+                  instr: 'Begin an equilateral triangle upon that join (Prop. I): sweep a circle about the point, through the line’s near end.',
+                  miss: 'Press on the floating point and drag to the near end of the line — the join is the radius.' },
+                { t: 'circle', cx: 200, cy: 190, r: 86.02, ink: 'black',
+                  instr: 'And its twin: an equal circle about the near end, back through the point.',
+                  miss: 'The twin circle sits on the line’s near end and passes exactly through the floating point.' },
+                { t: 'seg', x1: 235.6, y1: 111.7, x2: 200, y2: 190, ink: 'black',
+                  instr: 'Join the upper crossing of the circles — the peak — down to the line’s near end.',
+                  miss: 'Draw from the upper crossing of the two circles to the near end of the given line.' },
+                { t: 'seg', from: [200, 190], dir: [-0.4139, 0.9103], minLen: 131, ink: 'black',
+                  instr: 'Produce that ledge onward, well out past the end.',
+                  miss: 'Drag out of the line’s near end, straight on along the ledge — a good long way.' },
+                { t: 'seg', x1: 235.6, y1: 111.7, x2: 150, y2: 120, ink: 'black',
+                  instr: 'Join the peak to the lonely point likewise.',
+                  miss: 'Draw from the peak to the floating point — the second ledge.' },
+                { t: 'seg', from: [150, 120], dir: [-0.9953, 0.0965], minLen: 131, ink: 'black',
+                  instr: 'And produce this ledge too, far out beyond the point.',
+                  miss: 'Drag out of the floating point, straight on along the second ledge, well past it.' },
+                { t: 'circle', cx: 200, cy: 190, r: 130, ink: 'red',
+                  instr: 'Sweep a [red-circle] about the line’s near end, through its far end — banking the line’s length onto the produced ledge.',
+                  miss: 'Press on the near end and drag to the far end of the given line.' },
+                { t: 'circle', cx: 235.6, cy: 111.7, r: 216.02, ink: 'blue',
+                  instr: 'Last: a [blue-circle] about the peak, through the point where the [red-circle] cut the ledge.',
+                  miss: 'Press on the peak and drag to the red circle’s crossing on the produced ledge below.' },
+            ],
+            qed: 'Where the blue circle cuts the other ledge, the piece beyond the point equals the given line: the length has been carried — and the compass is hereby uncollapsed.',
+        },
     },
     {
         id: 'i3', ref: 'Book I. Proposition III.',
@@ -958,6 +1035,16 @@
                 ],
             },
         ],
+        build: {
+            seed: [[[60, 200], [400, 200]], [[280, 80], [348, 128]]],
+            needs: ['carry'],
+            targets: [
+                { t: 'circle', cx: 60, cy: 200, r: 83.23, ink: 'yellow',
+                  instr: 'Sweep a [yellow-circle] about the greater line’s left end, with the lesser line’s own length — the Carry instrument holds the compass open at it.',
+                  miss: 'Press on the greater line’s left end and grow the circle until it sticks at the small line’s length (the small line pulses when it does).' },
+            ],
+            qed: 'From the end to the crossing is exactly the lesser line: the greater is cut. Prop. II’s gift, spent in a single stroke.',
+        },
     },
     {
         id: 'i4', ref: 'Book I. Proposition IV.',
@@ -1253,6 +1340,27 @@
                 ],
             },
         ],
+        build: {
+            seed: { segs: [[[60, 260], [420, 260]]], pts: [[200, 90]] },
+            targets: [
+                { t: 'circle', cx: 200, cy: 90, r: 220.23, ink: 'red',
+                  instr: 'Sweep a [red-circle] about the floating point, through the line’s left end — wide enough to cut the line twice.',
+                  miss: 'Press on the floating point and drag to the line’s left end; the circle will cut the line at a second foothold too.' },
+                { t: 'circle', cx: 60, cy: 260, r: 280, ink: 'blue',
+                  instr: 'Now bisect the two footholds the old way: a [blue-circle] about the left one, through the right.',
+                  miss: 'Press on the left foothold and drag to the right foothold — the whole stretch is the radius.' },
+                { t: 'circle', cx: 340, cy: 260, r: 280, ink: 'blue',
+                  instr: 'And its twin about the right foothold, back through the left.',
+                  miss: 'The twin circle sits on the right foothold and passes exactly through the left one.' },
+                { t: 'seg', x1: 200, y1: 17.51, x2: 200, y2: 90, ink: 'yellow',
+                  instr: 'Join the blue circles’ crossing above to the floating point.',
+                  miss: 'Draw from the crossing of the two blue circles, above the line, down to the floating point.' },
+                { t: 'seg', from: [200, 90], dir: [0, 1], minLen: 180, ink: 'yellow',
+                  instr: 'Produce it downward, straight on through the line.',
+                  miss: 'Drag out of the floating point, straight on down, until you are well past the line.' },
+            ],
+            qed: 'It falls square upon the line: the perpendicular is let fall, and where it lands is the point’s nearest ground.',
+        },
     },
     {
         id: 'i13', ref: 'Book I. Proposition XIII.',
@@ -1421,6 +1529,25 @@
                 ],
             },
         ],
+        build: {
+            seed: [[[160, 90], [80, 250]], [[80, 250], [300, 250]], [[300, 250], [160, 90]]],
+            needs: ['mid'],
+            targets: [
+                { t: 'seg', from: [300, 250], dir: [1, 0], minLen: 60, ink: 'black',
+                  instr: 'Stretch the base out past the far corner — the exterior angle appears there.',
+                  miss: 'Drag out of the base’s right end, straight on along it.' },
+                { t: 'seg', x1: 80, y1: 250, x2: 230, y2: 170, ink: 'yellow',
+                  instr: 'Join the near corner to the midpoint of the slanting side — the Midpoint instrument marks the spot.',
+                  miss: 'Draw from the bottom-left corner to the small hollow dot at the middle of the slanting side.' },
+                { t: 'circle', cx: 230, cy: 170, r: 170, ink: 'red',
+                  instr: 'Sweep a [red-circle] about that midpoint, back through the corner you came from — the doubling gauge.',
+                  miss: 'Press on the midpoint and drag back to the bottom-left corner: that reach is the radius.' },
+                { t: 'seg', from: [230, 170], dir: [0.8824, -0.4706], minLen: 171, ink: 'yellow',
+                  instr: 'Produce the join through the midpoint until it strikes the [red-circle] on the far side.',
+                  miss: 'Drag out of the midpoint, straight on along the join, until you have crossed the red circle.' },
+            ],
+            qed: 'The strike-point doubles the join exactly; the twin triangles match about the midpoint, and the far angle is reborn inside the exterior — which therefore exceeds it (Prop. XVI).',
+        },
     },
     {
         id: 'i17', ref: 'Book I. Proposition XVII.',
@@ -1730,6 +1857,25 @@
                 ],
             },
         ],
+        build: {
+            seed: [[[140, 250], [340, 250]], [[60, 80], [210, 80]], [[270, 80], [400, 80]]],
+            needs: ['carry'],
+            targets: [
+                { t: 'circle', cx: 140, cy: 250, r: 150, ink: 'blue',
+                  instr: 'The longer loose stave must swing from the base’s left end: sweep a [blue-circle] there with that stave’s length — Carry holds the compass open at it.',
+                  miss: 'Press on the base’s left end and grow the circle until it sticks at the longer stave’s length (the stave pulses when it does).' },
+                { t: 'circle', cx: 340, cy: 250, r: 130, ink: 'yellow',
+                  instr: 'The shorter stave swings from the right end: a [yellow-circle] with its length.',
+                  miss: 'Press on the base’s right end and grow the circle until it sticks at the shorter stave’s length.' },
+                { t: 'seg', x1: 140, y1: 250, x2: 254, y2: 152.51, ink: 'blue',
+                  instr: 'Join the left end to the circles’ crossing above the base.',
+                  miss: 'Draw from the base’s left end up to where the two circles cross, above the base.' },
+                { t: 'seg', x1: 340, y1: 250, x2: 254, y2: 152.51, ink: 'yellow',
+                  instr: 'And the right end to the same crossing: the triangle stands.',
+                  miss: 'Draw from the base’s right end up to the same crossing.' },
+            ],
+            qed: 'Three staves, one triangle — possible exactly because every two together outreach the third (Prop. XX).',
+        },
     },
     {
         id: 'i23', ref: 'Book I. Proposition XXIII.',
@@ -2847,6 +2993,28 @@
                 ],
             },
         ],
+        build: {
+            seed: [[[140, 250], [300, 250]]],
+            needs: ['perp'],
+            targets: [
+                { t: 'circle', cx: 140, cy: 250, r: 160, ink: 'red',
+                  instr: 'Sweep a [red-circle] about the base’s left end, through its right end — the side’s length, held ready.',
+                  miss: 'Press on the left end and drag to the right end: the base itself is the radius.' },
+                { t: 'seg', from: [140, 250], dir: [0, -1], minLen: 168, ink: 'black',
+                  instr: 'Raise a line from the left end, square to the base (the Perpendiculars instrument), up and out through the [red-circle].',
+                  miss: 'Drag out of the left end straight upward until the line snaps square — and carry on past the red circle’s rim.' },
+                { t: 'circle', cx: 300, cy: 250, r: 160, ink: 'blue',
+                  instr: 'Sweep a [blue-circle] about the right end, through the left.',
+                  miss: 'Press on the right end and drag to the left end.' },
+                { t: 'seg', from: [140, 90], dir: [1, 0], minLen: 168, ink: 'black',
+                  instr: 'From the corner where your upright cut the [red-circle], run a line square across, out through the [blue-circle].',
+                  miss: 'Drag out of the upright’s crossing with the red circle, straight across until the line snaps square and passes the blue circle.' },
+                { t: 'seg', x1: 300, y1: 250, x2: 300, y2: 90, ink: 'yellow',
+                  instr: 'Close the square: join the base’s right end up to where that line touched the [blue-circle].',
+                  miss: 'Draw from the base’s right end straight up to the top line’s touching point on the blue circle.' },
+            ],
+            qed: 'Equal sides all round, every corner right — the square stands, and Prop. XLVII is waiting for it.',
+        },
     },
     {
         id: 'i48', ref: 'Book I. Proposition XLVIII.',
@@ -3268,10 +3436,14 @@
         triangle: [[[110, 290], [240, 90]], [[240, 90], [380, 290]], [[380, 290], [110, 290]]],
         right:    [[[140, 280], [212, 184]], [[212, 184], [340, 280]], [[340, 280], [140, 280]]],
     };
-    function sbSeedList(segs) {
+    // Seed spec: either a plain array of segments, or {segs:[...], pts:[[x,y],...]}
+    // (bare points, e.g. the floating point of Prop. I.2 / I.12).
+    function sbSeedList(seed) {
         sbState.pts = []; sbState.objs = []; sbState.undo = []; sbState.nextId = 1;
         sbState.drag = null;
-        (segs || []).forEach(([p1, p2]) => {
+        const spec = Array.isArray(seed) ? { segs: seed } : (seed || {});
+        (spec.pts || []).forEach(([x, y]) => sbAddPt(x, y, 'end'));
+        (spec.segs || []).forEach(([p1, p2]) => {
             const a = sbAddPt(p1[0], p1[1], 'end');
             const b = sbAddPt(p2[0], p2[1], 'end');
             sbCommitObj({ t: 'seg', a, b, ink: 'black' });
@@ -3583,6 +3755,21 @@
         if (tg.t === 'circle') {
             return Math.hypot(g.cx - tg.cx, g.cy - tg.cy) < T && Math.abs(g.r - tg.r) < T;
         }
+        if (tg.from) {
+            // Directional segment ("produce the line ..."): one end at `from`,
+            // the other anywhere along `dir` at least `minLen` out.
+            const [fx, fy] = tg.from;
+            const dn = Math.hypot(tg.dir[0], tg.dir[1]);
+            const ux = tg.dir[0] / dn, uy = tg.dir[1] / dn;
+            const ray = (ax, ay, bx, by) => {
+                if (Math.hypot(ax - fx, ay - fy) >= T) return false;
+                const vx = bx - fx, vy = by - fy;
+                const dot = vx * ux + vy * uy;
+                if (dot < (tg.minLen || 10)) return false;
+                return Math.hypot(vx - dot * ux, vy - dot * uy) < T;
+            };
+            return ray(g.x1, g.y1, g.x2, g.y2) || ray(g.x2, g.y2, g.x1, g.y1);
+        }
         const near = (x, y, tx, ty) => Math.hypot(x - tx, y - ty) < T;
         return (near(g.x1, g.y1, tg.x1, tg.y1) && near(g.x2, g.y2, tg.x2, tg.y2))
             || (near(g.x1, g.y1, tg.x2, tg.y2) && near(g.x2, g.y2, tg.x1, tg.y1));
@@ -3644,6 +3831,18 @@
         $('gp-sb-given').disabled = true;
         $('gp-sb-chal').classList.remove('hidden');
         $('gp-sb-chal-ref').textContent = `${prop.ref} — ${prop.title}`;
+        const needsEl = $('gp-sb-chal-needs');
+        if (prop.build.needs && prop.build.needs.length) {
+            needsEl.innerHTML = 'Instruments called for: ' + prop.build.needs.map((k) => {
+                const ins = SB_INSTRUMENTS.find((i) => i.key === k);
+                return sbHas(k)
+                    ? `<strong>${ins.label}</strong>`
+                    : `<em>${ins.label} — still locked; earn it with Prop. ${ins.req}</em>`;
+            }).join(' · ');
+            needsEl.classList.remove('hidden');
+        } else {
+            needsEl.classList.add('hidden');
+        }
         sbChalNote('', false);
         sbChalUpdate();
     }
@@ -3760,6 +3959,7 @@
               <button id="gp-sb-chal-exit" class="gp-btn-plain">Exit challenge</button>
             </div>
             <p id="gp-sb-chal-instr" class="gp-sb-chal-instr"></p>
+            <p id="gp-sb-chal-needs" class="gp-sb-chal-needs hidden"></p>
             <p id="gp-sb-chal-note" class="gp-note"></p>
             <div class="gp-sb-chal-foot">
               <span id="gp-sb-pips" class="gp-sb-pips"></span>
@@ -3806,7 +4006,7 @@
         if (document.querySelector('link[data-gp-css]')) return;
         const link = document.createElement('link');
         link.rel = 'stylesheet';
-        link.href = 'geometry-proofs.css?v=4';
+        link.href = 'geometry-proofs.css?v=5';
         link.dataset.gpCss = '1';
         document.head.appendChild(link);
     }
