@@ -427,6 +427,25 @@ if (phonicsPack && window.WORDS && window.WORDS.soundClassIn) {
             });
         }
         if (n) console.log(`Checked ${n} first/last-sound items.`);
+
+        // Blending must present SOUNDS, not letters: "much" is m-u-ch, and
+        // offering m-u-c-h teaches the opposite of what the node is for.
+        const blend = generators.get('pa.blend');
+        const blendNode = byId.get('pa.blend');
+        if (blend && blendNode && paPhonemes) {
+            for (let i = 0; i < 150; i++) {
+                let item;
+                try { item = blend.fn(makeRng(51000 + i * 7919), blendNode.params || {}); } catch (e) { continue; }
+                const m = /sounds together: (.+?)\. What word/.exec((item || {}).stem || '');
+                if (!m) continue;
+                const shown = m[1].split(' … ');
+                const rec = paPhonemes.find((x) => x.w === item.answer);
+                if (rec && shown.join('|') !== rec.sounds.join('|')) {
+                    failures.push(`pa.blend: shows "${shown.join('-')}" for "${item.answer}",`
+                        + ` but its sounds are "${rec.sounds.join('-')}"`);
+                }
+            }
+        }
     }
 }
 

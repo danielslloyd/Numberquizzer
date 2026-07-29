@@ -22,28 +22,39 @@
      * /th/, not /h/. Taking the first and last characters — as this once did —
      * asks a phonics question and then marks the phonics answer wrong.
      */
+    /*
+     * `sounds` is the phoneme sequence, which is NOT the letters: "much" is
+     * /m/ /u/ /ch/, three sounds in four letters. Splitting the spelling on
+     * characters — as this once did — presents "m u c h" to be blended, which
+     * teaches the opposite of what the node is for. `first` and `last` are the
+     * sounds at each end, for the same reason.
+     */
     const PHONEMES = [
-        { w: 'cat', n: 3, first: 'c', last: 't' },
-        { w: 'ship', n: 3, first: 'sh', last: 'p' },
-        { w: 'chin', n: 3, first: 'ch', last: 'n' },
-        { w: 'duck', n: 3, first: 'd', last: 'ck' },
-        { w: 'stop', n: 4, first: 's', last: 'p' },
-        { w: 'lamp', n: 4, first: 'l', last: 'p' },
-        { w: 'desk', n: 4, first: 'd', last: 'k' },
-        { w: 'that', n: 3, first: 'th', last: 't' },
-        { w: 'bath', n: 3, first: 'b', last: 'th' },
-        { w: 'grin', n: 4, first: 'g', last: 'n' },
-        { w: 'sun', n: 3, first: 's', last: 'n' },
-        { w: 'thick', n: 3, first: 'th', last: 'ck' },
-        { w: 'flag', n: 4, first: 'f', last: 'g' },
-        { w: 'rock', n: 3, first: 'r', last: 'ck' },
-        { w: 'sing', n: 3, first: 's', last: 'ng' },
-        { w: 'best', n: 4, first: 'b', last: 't' },
-        { w: 'fish', n: 3, first: 'f', last: 'sh' },
-        { w: 'much', n: 3, first: 'm', last: 'ch' },
-        { w: 'nest', n: 4, first: 'n', last: 't' },
-        { w: 'wing', n: 3, first: 'w', last: 'ng' },
-    ];
+        { w: 'cat', sounds: ['c', 'a', 't'] },
+        { w: 'ship', sounds: ['sh', 'i', 'p'] },
+        { w: 'chin', sounds: ['ch', 'i', 'n'] },
+        { w: 'duck', sounds: ['d', 'u', 'ck'] },
+        { w: 'stop', sounds: ['s', 't', 'o', 'p'] },
+        { w: 'lamp', sounds: ['l', 'a', 'm', 'p'] },
+        { w: 'desk', sounds: ['d', 'e', 's', 'k'] },
+        { w: 'that', sounds: ['th', 'a', 't'] },
+        { w: 'bath', sounds: ['b', 'a', 'th'] },
+        { w: 'grin', sounds: ['g', 'r', 'i', 'n'] },
+        { w: 'sun', sounds: ['s', 'u', 'n'] },
+        { w: 'thick', sounds: ['th', 'i', 'ck'] },
+        { w: 'flag', sounds: ['f', 'l', 'a', 'g'] },
+        { w: 'rock', sounds: ['r', 'o', 'ck'] },
+        { w: 'sing', sounds: ['s', 'i', 'ng'] },
+        { w: 'best', sounds: ['b', 'e', 's', 't'] },
+        { w: 'fish', sounds: ['f', 'i', 'sh'] },
+        { w: 'much', sounds: ['m', 'u', 'ch'] },
+        { w: 'nest', sounds: ['n', 'e', 's', 't'] },
+        { w: 'wing', sounds: ['w', 'i', 'ng'] },
+    ].map((e) => Object.assign(e, {
+        n: e.sounds.length,
+        first: e.sounds[0],
+        last: e.sounds[e.sounds.length - 1],
+    }));
 
     const SYLLABLES = [
         { w: 'cat', n: 1 }, { w: 'rabbit', n: 2 }, { w: 'napkin', n: 2 }, { w: 'basket', n: 2 },
@@ -83,9 +94,9 @@
     };
 
     G['pa.blend'] = function (rng) {
-        const e = rng.pick(PHONEMES.filter((x) => x.w.length <= 4));
+        const e = rng.pick(PHONEMES.filter((x) => x.n <= 4));
         return genText({
-            stem: 'Put these sounds together: ' + e.w.split('').join(' … ') + '. What word do they make?',
+            stem: 'Put these sounds together: ' + e.sounds.join(' … ') + '. What word do they make?',
             answer: e.w,
             hint: 'Say them faster and faster until they join up.',
             explain: 'They blend into "' + e.w + '".',
