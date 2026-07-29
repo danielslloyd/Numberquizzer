@@ -154,12 +154,25 @@
         'invisible', 'imagination', 'temperature', 'photograph', 'remember'];
     // The unstressed vowel that collapses to /uh/ — the reason long words are
     // hard to read even once every grapheme is known.
+    // Each entry carries the word's own syllables, so the distractors are the
+    // other parts of THAT word. Offering fragments of other words makes the item
+    // answerable without reading it, and risks a "distractor" that is genuinely
+    // part of the word too.
     W.schwa = [
-        { w: 'about', syl: 'a' }, { w: 'pencil', syl: 'cil' }, { w: 'problem', syl: 'lem' },
-        { w: 'banana', syl: 'ba' }, { w: 'family', syl: 'mi' }, { w: 'animal', syl: 'mal' },
-        { w: 'garden', syl: 'den' }, { w: 'ribbon', syl: 'bon' }, { w: 'circus', syl: 'cus' },
-        { w: 'button', syl: 'ton' }, { w: 'melon', syl: 'on' }, { w: 'wagon', syl: 'on' },
-        { w: 'lemon', syl: 'on' }, { w: 'dragon', syl: 'on' },
+        { w: 'about', syls: ['a', 'bout'], syl: 'a' },
+        { w: 'pencil', syls: ['pen', 'cil'], syl: 'cil' },
+        { w: 'problem', syls: ['prob', 'lem'], syl: 'lem' },
+        { w: 'banana', syls: ['ba', 'na', 'na'], syl: 'ba' },
+        { w: 'family', syls: ['fam', 'i', 'ly'], syl: 'i' },
+        { w: 'animal', syls: ['an', 'i', 'mal'], syl: 'mal' },
+        { w: 'garden', syls: ['gar', 'den'], syl: 'den' },
+        { w: 'ribbon', syls: ['rib', 'bon'], syl: 'bon' },
+        { w: 'circus', syls: ['cir', 'cus'], syl: 'cus' },
+        { w: 'button', syls: ['but', 'ton'], syl: 'ton' },
+        { w: 'dragon', syls: ['dra', 'gon'], syl: 'gon' },
+        { w: 'carrot', syls: ['car', 'rot'], syl: 'rot' },
+        { w: 'seven', syls: ['sev', 'en'], syl: 'en' },
+        { w: 'oven', syls: ['ov', 'en'], syl: 'en' },
     ];
 
     // ---- high-frequency and irregular ---------------------------------------
@@ -175,16 +188,20 @@
      * prevent.
      */
     W.heart = [
-        { w: 'said', odd: 'ai', why: 'ai here says /e/' },
-        { w: 'was', odd: 'a', why: 'a here says /u/' },
-        { w: 'of', odd: 'f', why: 'f here says /v/' },
-        { w: 'come', odd: 'o', why: 'o here says /u/' },
-        { w: 'some', odd: 'o', why: 'o here says /u/' },
-        { w: 'they', odd: 'ey', why: 'ey here says long a' },
-        { w: 'do', odd: 'o', why: 'o here says /oo/' },
-        { w: 'you', odd: 'ou', why: 'ou here says /oo/' },
-        { w: 'friend', odd: 'ie', why: 'ie here says /e/' },
-        { w: 'once', odd: 'o', why: 'o here says /w/ then /u/' },
+        { w: 'said', odd: 'ai', parts: ['s', 'ai', 'd'], why: 'ai here says /e/' },
+        { w: 'was', odd: 'a', parts: ['w', 'a', 's'], why: 'a here says /u/' },
+        { w: 'of', odd: 'f', parts: ['o', 'f'], why: 'f here says /v/' },
+        { w: 'come', odd: 'o', parts: ['c', 'o', 'm', 'e'], why: 'o here says /u/' },
+        { w: 'some', odd: 'o', parts: ['s', 'o', 'm', 'e'], why: 'o here says /u/' },
+        { w: 'they', odd: 'ey', parts: ['th', 'ey'], why: 'ey here says long a' },
+        { w: 'do', odd: 'o', parts: ['d', 'o'], why: 'o here says /oo/' },
+        { w: 'you', odd: 'ou', parts: ['y', 'ou'], why: 'ou here says /oo/' },
+        { w: 'friend', odd: 'ie', parts: ['fr', 'ie', 'n', 'd'], why: 'ie here says /e/' },
+        { w: 'once', odd: 'o', parts: ['o', 'n', 'ce'], why: 'o here says /w/ then /u/' },
+        { w: 'give', odd: 'e', parts: ['g', 'i', 'v', 'e'], why: 'the e does not make the i long' },
+        { w: 'have', odd: 'e', parts: ['h', 'a', 'v', 'e'], why: 'the e does not make the a long' },
+        { w: 'want', odd: 'a', parts: ['w', 'a', 'n', 't'], why: 'a here says /o/' },
+        { w: 'said', odd: 'ai', parts: ['s', 'ai', 'd'], why: 'ai here says /e/' },
     ];
 
     // ---- spelling, with clues so audio is never required ---------------------

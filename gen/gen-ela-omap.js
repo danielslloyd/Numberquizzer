@@ -57,11 +57,12 @@
 
     G['omap.heartWords'] = function (rng) {
         const h = rng.pick(W.heart);
-        const others = W.heart.filter((x) => x.w !== h.w && x.odd !== h.odd).map((x) => x.odd);
+        // The other parts of the SAME word. Offering pieces of other words would
+        // let a learner answer without looking at this one.
         return genMc(rng, {
             stem: 'In the word "' + h.w + '", which part does not follow the usual rules?',
             correct: h.odd,
-            distractors: rng.sample(others, 3),
+            distractors: h.parts.filter((x) => x !== h.odd),
             hint: 'Most of the word can be sounded out. Only one bit has to be learned by heart.',
             explain: 'In "' + h.w + '", ' + h.why + '. The rest of the word behaves normally, which '
                 + 'is why it is worth finding the odd part rather than memorising the whole shape.',

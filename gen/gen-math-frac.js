@@ -282,8 +282,13 @@
             correct: aBig ? fstr(a[0], a[1]) : fstr(b[0], b[1]),
             distractors: [aBig ? fstr(b[0], b[1]) : fstr(a[0], a[1]), 'They are equal'],
             hint: 'Try comparing each one to a half.',
-            explain: 'As equivalent fractions with the same bottom number: '
-                + fstr(a[0] * b[1], a[1] * b[1]) + ' and ' + fstr(b[0] * a[1], b[1] * a[1]) + '.',
+            explain: (function () {
+                // Lowest common denominator, not the product — 6/12 and 4/12 is
+                // a great deal easier to read than 36/72 and 24/72.
+                const lcd = a[1] * b[1] / gcd(a[1], b[1]);
+                return 'As equivalent fractions with the same bottom number: '
+                    + fstr(a[0] * (lcd / a[1]), lcd) + ' and ' + fstr(b[0] * (lcd / b[1]), lcd) + '.';
+            })(),
             sig: 'cmpUnlike:' + a.join('/') + ':' + b.join('/'),
         });
     };

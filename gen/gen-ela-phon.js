@@ -251,12 +251,13 @@
 
     G['phon.schwa'] = function (rng) {
         const e = rng.pick(W.schwa);
-        const parts = [e.syl].concat(
-            rng.sample(W.schwa.filter((x) => x.w !== e.w).map((x) => x.syl), 3));
+        // Distractors are the word's OWN other syllables. Fragments of other
+        // words would be eliminable at a glance, and one of them could easily
+        // turn out to be part of this word as well.
         return genMc(rng, {
             stem: 'In "' + e.w + '", which part has the lazy "uh" sound?',
             correct: e.syl,
-            distractors: parts.slice(1),
+            distractors: e.syls.filter((x) => x !== e.syl),
             explain: 'In "' + e.w + '" the "' + e.syl + '" part is unstressed, so its vowel '
                 + 'flattens to "uh". That is what makes long words hard to read even when you '
                 + 'know every letter.',
