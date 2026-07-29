@@ -232,6 +232,33 @@ function check(name, ok, detail) {
     check('40 instant correct answers do not reach proficient',
         mashed.lvl < 3 && mashed.sn === 0, JSON.stringify(mashed));
 
+    // ---- practice modes feed the same mastery record --------------------
+    const practice = await page.evaluate(() => {
+        const before = (window.__PR.raw().nodes['mult.facts'] || {}).n || 0;
+        ttBumpMastery(6, 7);                       // as the Times Tables grid does
+        const after = window.__PR.raw().nodes['mult.facts'];
+        return {
+            grew: after.n === before + 1,
+            legacyKept: localStorage.getItem('ttFact_6x7') !== null,
+            timed: (after.times || []).length,
+        };
+    });
+    check('times-tables practice records against mult.facts', practice.grew, JSON.stringify(practice));
+    check('legacy ttFact_ key still written', practice.legacyKept);
+    // Practice carries no timing on purpose, so it cannot satisfy a latency gate.
+    check('practice contributes no latency evidence', practice.timed === 0, 'times=' + practice.timed);
+
+    const flashNode = await page.evaluate(() => [
+        flashcardNode('7\n×\n8', 10),
+        flashcardNode('9\n÷\n3', 10),
+        flashcardNode('4\n+\n5', 10),
+        flashcardNode('40\n+\n55', 100),
+    ]);
+    check('flash cards map to the right proficiency by operator and range',
+        JSON.stringify(flashNode) === JSON.stringify(
+            ['mult.facts', 'mult.div.facts', 'add.facts.within10', 'add.within100']),
+        JSON.stringify(flashNode));
+
     // ---- storage helper -------------------------------------------------
     const stOk = await page.evaluate(() => {
         stSetJSON('smoke.test', { a: 1 });
