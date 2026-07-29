@@ -27,7 +27,13 @@
     const NAMES = { 2: 'halves', 3: 'thirds', 4: 'quarters', 5: 'fifths', 6: 'sixths', 8: 'eighths', 10: 'tenths', 12: 'twelfths' };
     const NAME1 = { 2: 'a half', 3: 'a third', 4: 'a quarter', 5: 'a fifth', 6: 'a sixth', 8: 'an eighth', 10: 'a tenth', 12: 'a twelfth' };
 
-    function dens(params) { return (params && params.dens) || [2, 3, 4, 6, 8]; }
+    /*
+     * The introductory denominators are 2, 3, 4, 6 and 8, and the four earliest
+     * nodes pin themselves to those in their params. Everything above them gets
+     * the wider set: there is no grade boundary here to respect, and five
+     * denominators meant several nodes could only ever ask five questions.
+     */
+    function dens(params) { return (params && params.dens) || [2, 3, 4, 5, 6, 8, 10, 12]; }
     function shape(rng) { return rng.bool() ? 'fraction-bar' : 'fraction-pie'; }
 
     // These four are the shared constructors from item-gen-helpers.js under the
@@ -44,44 +50,49 @@
     G['frac.equalShares'] = function (rng, p) {
         const d = rng.pick(dens(p).filter((x) => NAMES[x]));
         const others = dens(p).filter((x) => x !== d && NAMES[x]);
+        const sh = shape(rng);
         return mc(rng, {
             stem: 'This shape is cut into equal pieces. What are the pieces called?',
             prompt: [
                 { t: 'text', s: 'This shape is cut into equal pieces. What are the pieces called?' },
-                { t: 'svg', draw: shape(rng), args: { num: 0, den: d } },
+                { t: 'svg', draw: sh, args: { num: 0, den: d } },
             ],
             correct: NAMES[d],
             distractors: rng.sample(others, 2).map((x) => NAMES[x]),
             explain: 'It is cut into ' + d + ' equal pieces, so each one is ' + NAME1[d] + '.',
-            sig: 'equalShares:' + d,
+            sig: 'equalShares:' + d + ':' + sh,
         });
     };
 
     G['frac.unit'] = function (rng, p) {
         const d = rng.pick(dens(p));
         const others = dens(p).filter((x) => x !== d);
+        // Seeing the same unit fraction as a bar and as a pie is a different
+        // exposure for this node, so the shape belongs in the item's identity.
+        const sh = shape(rng);
         return mc(rng, {
             stem: 'What fraction of the shape is shaded?',
             prompt: [
                 { t: 'text', s: 'What fraction is shaded?' },
-                { t: 'svg', draw: shape(rng), args: { num: 1, den: d } },
+                { t: 'svg', draw: sh, args: { num: 1, den: d } },
             ],
             correct: fstr(1, d),
             // The classic slip is naming the unshaded pieces instead.
             distractors: [fstr(1, d - 1), fstr(d - 1, d)].concat(rng.sample(others, 1).map((x) => fstr(1, x))),
             explain: 'One piece out of ' + d + ' equal pieces is ' + fstr(1, d) + '.',
-            sig: 'unit:' + d,
+            sig: 'unit:' + d + ':' + sh,
         });
     };
 
     G['frac.aOverB'] = function (rng, p) {
         const d = rng.pick(dens(p).filter((x) => x >= 3));
         const n = rng.int(2, d - 1);
+        const sh = shape(rng);
         return mc(rng, {
             stem: 'What fraction of the shape is shaded?',
             prompt: [
                 { t: 'text', s: 'What fraction is shaded?' },
-                { t: 'svg', draw: shape(rng), args: { num: n, den: d } },
+                { t: 'svg', draw: sh, args: { num: n, den: d } },
             ],
             correct: fstr(n, d),
             distractors: [
@@ -90,7 +101,7 @@
                 fstr(d, n),              // upside down
             ],
             explain: n + ' pieces are shaded out of ' + d + ' equal pieces, so ' + fstr(n, d) + '.',
-            sig: 'aOverB:' + n + ':' + d,
+            sig: 'aOverB:' + n + ':' + d + ':' + sh,
         });
     };
 
