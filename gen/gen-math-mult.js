@@ -229,6 +229,47 @@
         });
     };
 
+
+    // ---- tier 2 --------------------------------------------------------------
+    G['mult.primeComposite'] = function (rng) {
+        const PRIMES = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37];
+        const COMPOSITE = [4, 6, 8, 9, 10, 12, 14, 15, 16, 18, 20, 21, 22, 24, 25];
+        if (rng.bool()) {
+            const p = rng.pick(PRIMES);
+            return genMc(rng, {
+                stem: 'Which of these is a prime number?',
+                correct: String(p),
+                distractors: rng.sample(COMPOSITE, 3).map(String),
+                explain: p + ' can only be divided by 1 and itself.',
+                sig: 'prime:' + p,
+            });
+        }
+        // 1 is neither, and calling it prime is the standard slip.
+        return genMc(rng, {
+            stem: 'Is the number 1 prime, composite, or neither?',
+            correct: 'Neither',
+            distractors: ['Prime', 'Composite', 'Both'],
+            explain: 'A prime has exactly two different factors, 1 and itself. 1 has only one '
+                + 'factor, so it is neither prime nor composite.',
+            sig: 'primeOne',
+        });
+    };
+
+    G['mult.word.multiStep'] = function (rng) {
+        const packs = rng.int(3, 8);
+        const each = rng.int(4, 9);
+        const eaten = rng.int(2, packs * each - 1);
+        return genNum({
+            stem: 'There are ' + packs + ' packs with ' + each + ' biscuits in each. '
+                + eaten + ' biscuits are eaten. How many are left?',
+            answer: packs * each - eaten,
+            hint: 'Work out the total first.',
+            explain: packs + ' × ' + each + ' = ' + (packs * each) + ', then − ' + eaten
+                + ' = ' + (packs * each - eaten) + '.',
+            sig: 'mws:' + packs + ':' + each + ':' + eaten,
+        });
+    };
+
     if (typeof CUR !== 'undefined') CUR.registerGens('math-mult', G);
     if (typeof module !== 'undefined' && module.exports) module.exports = G;
 })();

@@ -191,6 +191,51 @@
         });
     };
 
+
+    // ---- tier 2/3 ------------------------------------------------------------
+    G['morph.compound'] = function (rng) {
+        const COMPOUNDS = [
+            ['bird', 'house'], ['rain', 'bow'], ['foot', 'ball'], ['sun', 'flower'],
+            ['play', 'ground'], ['tooth', 'brush'], ['book', 'shelf'], ['snow', 'man'],
+        ];
+        const c = rng.pick(COMPOUNDS);
+        const word = c[0] + c[1];
+        if (rng.bool()) {
+            return genMc(rng, {
+                stem: 'Which two words make up "' + word + '"?',
+                correct: c[0] + ' + ' + c[1],
+                distractors: rng.sample(COMPOUNDS.filter((x) => x[0] !== c[0]), 3)
+                    .map((x) => x[0] + ' + ' + x[1]),
+                sig: 'compA:' + word,
+            });
+        }
+        return genMc(rng, {
+            stem: 'Which of these is a compound word — two whole words joined together?',
+            correct: word,
+            distractors: ['happiness', 'unhappy', 'quickly'],
+            explain: '"' + word + '" is "' + c[0] + '" and "' + c[1] + '" joined. The others have '
+                + 'parts added on, but those parts are not whole words.',
+            sig: 'compB:' + word,
+        });
+    };
+
+    G['morph.absorbedPrefix'] = function (rng) {
+        const CASES = [
+            { w: 'impossible', form: 'im', base: 'possible', why: 'before p, in- becomes im-' },
+            { w: 'illegal', form: 'il', base: 'legal', why: 'before l, in- becomes il-' },
+            { w: 'irregular', form: 'ir', base: 'regular', why: 'before r, in- becomes ir-' },
+            { w: 'incorrect', form: 'in', base: 'correct', why: 'before c, in- stays in-' },
+        ];
+        const c = rng.pick(CASES);
+        return genMc(rng, {
+            stem: 'The word "' + c.w + '" means "not ' + c.base + '". Which prefix is it, really?',
+            correct: 'in- (meaning not)',
+            distractors: ['im- (meaning into)', 'il- (meaning very)', 'ir- (meaning again)'],
+            explain: 'It is in- meaning "not", but it changes shape to match the next letter: ' + c.why + '.',
+            sig: 'absorb:' + c.w,
+        });
+    };
+
     if (typeof CUR !== 'undefined') CUR.registerGens('ela-morph', G);
     if (typeof module !== 'undefined' && module.exports) module.exports = G;
 })();

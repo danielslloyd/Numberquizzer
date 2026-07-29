@@ -79,6 +79,57 @@
         });
     };
 
+
+    // ---- tier 2 --------------------------------------------------------------
+    const RHYMES = [
+        ['cat', 'hat', 'mat', 'bat'], ['dog', 'log', 'fog', 'jog'], ['pin', 'win', 'tin', 'bin'],
+        ['bed', 'red', 'fed', 'led'], ['cake', 'lake', 'make', 'bake'], ['tree', 'bee', 'see', 'free'],
+    ];
+
+    G['pa.rhyme'] = function (rng) {
+        const group = rng.pick(RHYMES);
+        const others = RHYMES.filter((g) => g !== group).reduce((a, g) => a.concat(g), []);
+        const word = rng.pick(group);
+        return genMc(rng, {
+            stem: 'Which word rhymes with "' + word + '"?',
+            correct: rng.pick(group.filter((w) => w !== word)),
+            distractors: rng.sample(others, 3),
+            explain: 'Rhyming words end with the same sound.',
+            sig: 'rhyme:' + word,
+        });
+    };
+
+    G['pa.onsetRime'] = function (rng) {
+        const group = rng.pick(RHYMES);
+        const word = rng.pick(group);
+        const rime = word.slice(1);
+        return genText({
+            stem: 'Put the beginning sound "' + word[0] + '" together with the ending "' + rime
+                + '". What word is that?',
+            answer: word,
+            explain: word[0] + ' + ' + rime + ' makes "' + word + '".',
+            sig: 'onset:' + word,
+        });
+    };
+
+    G['pa.manipulate'] = function (rng) {
+        const CASES = [
+            { from: 'cat', op: 'change the c to an h', to: 'hat' },
+            { from: 'stop', op: 'take away the s', to: 'top' },
+            { from: 'ship', op: 'change the sh to a t', to: 'tip' },
+            { from: 'and', op: 'put an h at the front', to: 'hand' },
+            { from: 'bring', op: 'take away the b', to: 'ring' },
+            { from: 'lamp', op: 'change the l to a c', to: 'camp' },
+        ];
+        const c = rng.pick(CASES);
+        return genText({
+            stem: 'Say "' + c.from + '". Now ' + c.op + '. What word do you get?',
+            answer: c.to,
+            explain: '"' + c.from + '" becomes "' + c.to + '".',
+            sig: 'manip:' + c.from,
+        });
+    };
+
     if (typeof CUR !== 'undefined') CUR.registerGens('ela-pa', G);
     if (typeof module !== 'undefined' && module.exports) module.exports = G;
 })();

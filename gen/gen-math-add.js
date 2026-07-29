@@ -198,6 +198,63 @@
         });
     };
 
+
+    // ---- tier 2 --------------------------------------------------------------
+    G['add.unknownAddend'] = function (rng, p) {
+        const max = p.max || 20;
+        const b = rng.int(1, max - 1);
+        const ans = rng.int(1, max - b);
+        return genNum({
+            stem: 'How many more do you need to get from ' + b + ' to ' + (b + ans) + '?',
+            prompt: [{ t: 'expr', s: b + '  +  ?  =  ' + (b + ans) }],
+            answer: ans,
+            hint: 'Counting up from ' + b + ' is the same as taking ' + b + ' away from ' + (b + ans) + '.',
+            explain: (b + ans) + ' − ' + b + ' = ' + ans + '.',
+            sig: 'ua:' + b + ':' + ans,
+        });
+    };
+
+    G['add.mental.tensHundreds'] = function (rng) {
+        const n = rng.int(120, 880);
+        const step = rng.pick([10, 100, -10, -100]);
+        return genNum({
+            stem: (step > 0 ? 'What is ' + step + ' more than ' : 'What is ' + (-step) + ' less than ') + n + '?',
+            answer: n + step,
+            hint: 'Only one digit changes.',
+            sig: 'mental:' + n + ':' + step,
+        });
+    };
+
+    function wordProblem(rng, steps) {
+        const NAMES = ['Ada', 'Ben', 'Cleo', 'Dev', 'Esme', 'Finn'];
+        const THINGS = ['marbles', 'stickers', 'conkers', 'shells', 'cards', 'beads'];
+        const who = rng.pick(NAMES);
+        const what = rng.pick(THINGS);
+        const start = rng.int(20, 90);
+        const a = rng.int(5, 40);
+        if (steps === 1) {
+            const gain = rng.bool();
+            return genNum({
+                stem: who + ' had ' + start + ' ' + what + ' and ' + (gain ? 'was given ' : 'gave away ')
+                    + a + '. How many now?',
+                answer: gain ? start + a : start - a,
+                sig: 'w1:' + start + ':' + a + ':' + (gain ? 'g' : 'l'),
+            });
+        }
+        const b = rng.int(5, Math.max(6, start));
+        return genNum({
+            stem: who + ' had ' + start + ' ' + what + ', was given ' + a + ' more, then gave '
+                + b + ' to a friend. How many are left?',
+            answer: start + a - b,
+            hint: 'Do it in two steps, in the order it happened.',
+            explain: start + ' + ' + a + ' = ' + (start + a) + ', then − ' + b + ' = ' + (start + a - b) + '.',
+            sig: 'w2:' + start + ':' + a + ':' + b,
+        });
+    }
+
+    G['add.word.oneStep'] = function (rng) { return wordProblem(rng, 1); };
+    G['add.word.twoStep'] = function (rng) { return wordProblem(rng, 2); };
+
     if (typeof CUR !== 'undefined') CUR.registerGens('math-add', G);
     if (typeof module !== 'undefined' && module.exports) module.exports = G;
 })();

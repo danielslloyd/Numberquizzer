@@ -170,8 +170,13 @@ function check(name, ok, detail) {
         unbuilt: document.querySelectorAll('.lb-rung-unbuilt').length,
         hash: location.hash,
     }));
-    check('fractions ladder shows 26 rungs, 2 unbuilt',
-        ladder.rungs === 26 && ladder.unbuilt === 2, JSON.stringify(ladder));
+    // Derived rather than hard-coded: the greyed-out count must always equal the
+    // number of rungs with no generator, however many that happens to be.
+    const expectedUnbuilt = await page.evaluate(() =>
+        CUR.ladder('frac').filter((n) => !CUR.isBuilt(n.id)).length);
+    check('fractions ladder shows every rung, greying only the unbuilt ones',
+        ladder.rungs === 26 && ladder.unbuilt === expectedUnbuilt,
+        JSON.stringify(Object.assign({ expectedUnbuilt }, ladder)));
     check('ladder deep-links by hash', ladder.hash === '#/frac', ladder.hash);
 
     // Nothing is gated: the top rung must be openable from a cold profile.

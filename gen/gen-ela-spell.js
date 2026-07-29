@@ -77,6 +77,46 @@
         });
     };
 
+
+    // ---- tier 2 --------------------------------------------------------------
+    G['spell.plurals'] = function (rng) {
+        const CASES = [
+            { one: 'box', many: 'boxes', rule: 'add -es after x' },
+            { one: 'baby', many: 'babies', rule: 'change y to i and add -es' },
+            { one: 'leaf', many: 'leaves', rule: 'change f to v and add -es' },
+            { one: 'child', many: 'children', rule: 'this one is irregular' },
+            { one: 'mouse', many: 'mice', rule: 'this one is irregular' },
+            { one: 'dish', many: 'dishes', rule: 'add -es after sh' },
+            { one: 'sheep', many: 'sheep', rule: 'this one does not change' },
+        ];
+        const c = rng.pick(CASES);
+        return genText({
+            stem: 'Spell the plural of "' + c.one + '".',
+            prompt: [{ t: 'text', s: 'One ' + c.one + ', two …?' }],
+            answer: c.many,
+            explain: '"' + c.many + '" — ' + c.rule + '.',
+            sig: 'plur:' + c.one,
+        });
+    };
+
+    G['spell.positionRules'] = function (rng) {
+        const CASES = [
+            { w: 'duck', wrong: 'duk', why: 'ck comes after a short vowel at the end of a short word' },
+            { w: 'catch', wrong: 'cach', why: 'tch comes straight after a short vowel' },
+            { w: 'badge', wrong: 'baj', why: 'dge comes straight after a short vowel' },
+            { w: 'peach', wrong: 'peatch', why: 'after a vowel team it is ch, not tch' },
+            { w: 'cake', wrong: 'cak', why: 'the silent e makes the vowel long' },
+        ];
+        const c = rng.pick(CASES);
+        return genMc(rng, {
+            stem: 'Which spelling is right?',
+            correct: c.w,
+            distractors: [c.wrong],
+            explain: '"' + c.w + '" — ' + c.why + '.',
+            sig: 'posRule:' + c.w,
+        });
+    };
+
     if (typeof CUR !== 'undefined') CUR.registerGens('ela-spell', G);
     if (typeof module !== 'undefined' && module.exports) module.exports = G;
 })();

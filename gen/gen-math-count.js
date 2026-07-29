@@ -174,6 +174,20 @@
         });
     };
 
+
+    // ---- tier 2/3 -----------------------------------------------------------
+    G['count.ordinal'] = function (rng) {
+        const ORD = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth'];
+        const i = rng.int(0, 9);
+        return genMc(rng, {
+            stem: 'In a line of ten children, which position is the ' + ORD[i] + '?',
+            correct: String(i + 1),
+            distractors: [String(i), String(i + 2), String(10 - i)].filter((x) => x !== String(i + 1)),
+            explain: ORD[i] + ' means position ' + (i + 1) + '.',
+            sig: 'ord:' + i,
+        });
+    };
+
     if (typeof CUR !== 'undefined') CUR.registerGens('math-count', G);
     if (typeof module !== 'undefined' && module.exports) module.exports = G;
 })();

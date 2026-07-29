@@ -180,6 +180,32 @@
         });
     };
 
+
+    // ---- tier 2 --------------------------------------------------------------
+    G['dec.expanded'] = function (rng) {
+        const whole = rng.int(1, 99);
+        const t = rng.int(1, 9), h = rng.int(1, 9);
+        const value = Number(whole + '.' + t + h);
+        const parts = [];
+        String(whole).split('').forEach((d, i, arr) => {
+            const v = Number(d) * Math.pow(10, arr.length - 1 - i);
+            if (v > 0) parts.push(String(v));
+        });
+        parts.push('0.' + t);
+        parts.push('0.0' + h);
+        return genMc(rng, {
+            stem: 'Which is ' + value.toFixed(2) + ' written out in expanded form?',
+            correct: parts.join(' + '),
+            distractors: [
+                parts.slice().reverse().join(' + '),
+                parts.map((x) => x.replace('0.0', '0.')).join(' + '),
+                String(whole) + ' + ' + t + ' + ' + h,
+            ],
+            explain: value.toFixed(2) + ' = ' + parts.join(' + ') + '.',
+            sig: 'decExp:' + whole + ':' + t + ':' + h,
+        });
+    };
+
     if (typeof CUR !== 'undefined') CUR.registerGens('math-dec', G);
     if (typeof module !== 'undefined' && module.exports) module.exports = G;
 })();

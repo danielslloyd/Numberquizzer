@@ -210,6 +210,37 @@
         });
     };
 
+
+    // ---- tier 2 --------------------------------------------------------------
+    G['pv.numberNames'] = function (rng) {
+        const ONES = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'];
+        const TEENS = ['ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen',
+            'seventeen', 'eighteen', 'nineteen'];
+        const TENS = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+
+        function under100(n) {
+            if (n === 0) return '';
+            if (n < 10) return ONES[n];
+            if (n < 20) return TEENS[n - 10];
+            return TENS[Math.floor(n / 10)] + (n % 10 ? '-' + ONES[n % 10] : '');
+        }
+        // British convention, matching the place-value visualiser's "and".
+        function name(n) {
+            if (n < 100) return under100(n);
+            const h = Math.floor(n / 100), rest = n % 100;
+            return ONES[h] + ' hundred' + (rest ? ' and ' + under100(rest) : '');
+        }
+
+        const n = rng.int(101, 999);
+        return genMc(rng, {
+            stem: 'How do you write ' + n + ' in words?',
+            correct: name(n),
+            distractors: [name(n + 1), name(n - 1), name(Math.floor(n / 100) * 100 + (n % 10))]
+                .filter((x) => x !== name(n)),
+            sig: 'names:' + n,
+        });
+    };
+
     if (typeof CUR !== 'undefined') CUR.registerGens('math-pv', G);
     if (typeof module !== 'undefined' && module.exports) module.exports = G;
 })();

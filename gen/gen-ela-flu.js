@@ -40,6 +40,22 @@
         });
     };
 
+
+    G['flu.phrase'] = function (rng) {
+        const PHRASES = [
+            'in the garden', 'on the table', 'under the bed', 'after the rain',
+            'down the long road', 'over the wooden bridge', 'before it gets dark',
+        ];
+        const p = rng.pick(PHRASES);
+        const others = PHRASES.filter((x) => x !== p);
+        return genMc(rng, {
+            stem: 'Read quickly: which phrase is "' + p + '"?',
+            correct: p,
+            distractors: rng.sample(others, 3),
+            sig: 'phrase:' + p,
+        });
+    };
+
     if (typeof CUR !== 'undefined') CUR.registerGens('ela-flu', G);
     if (typeof module !== 'undefined' && module.exports) module.exports = G;
 })();

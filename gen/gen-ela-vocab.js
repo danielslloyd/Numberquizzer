@@ -109,6 +109,106 @@
         });
     };
 
+
+    // ---- tier 2 --------------------------------------------------------------
+    G['vocab.shadesOfMeaning'] = function (rng) {
+        const SCALES = [
+            { weak: 'warm', mid: 'hot', strong: 'boiling' },
+            { weak: 'cool', mid: 'cold', strong: 'freezing' },
+            { weak: 'liked', mid: 'loved', strong: 'adored' },
+            { weak: 'annoyed', mid: 'angry', strong: 'furious' },
+            { weak: 'tired', mid: 'exhausted', strong: 'shattered' },
+            { weak: 'good', mid: 'great', strong: 'outstanding' },
+        ];
+        const s = rng.pick(SCALES);
+        return genMc(rng, {
+            stem: 'Which word is the strongest?  ' + [s.weak, s.mid, s.strong].join(', '),
+            correct: s.strong,
+            distractors: [s.weak, s.mid],
+            explain: 'They all mean something similar, but "' + s.strong + '" is the strongest.',
+            sig: 'shades:' + s.strong,
+        });
+    };
+
+    G['vocab.categories'] = function (rng) {
+        const CATS = [
+            { name: 'furniture', in: ['chair', 'table', 'sofa', 'wardrobe'], out: ['apple', 'river', 'trumpet'] },
+            { name: 'instruments', in: ['violin', 'drum', 'flute', 'piano'], out: ['carrot', 'ladder', 'cloud'] },
+            { name: 'vegetables', in: ['carrot', 'pea', 'cabbage', 'leek'], out: ['hammer', 'kitten', 'ocean'] },
+            { name: 'weather', in: ['rain', 'snow', 'fog', 'thunder'], out: ['pencil', 'giraffe', 'sofa'] },
+        ];
+        const c = rng.pick(CATS);
+        return genMulti(rng, {
+            stem: 'Choose every word that belongs with ' + c.name + '.',
+            right: rng.sample(c.in, 3),
+            wrong: c.out,
+            sig: 'cat:' + c.name,
+        });
+    };
+
+    G['vocab.homograph'] = function (rng) {
+        const CASES = [
+            { w: 'read', a: 'I like to read before bed.', b: 'I read that book last year.',
+              why: 'said "reed" in one and "red" in the other' },
+            { w: 'live', a: 'They live near the park.', b: 'It was a live broadcast.',
+              why: 'the vowel changes' },
+            { w: 'tear', a: 'A tear rolled down her cheek.', b: 'Try not to tear the paper.',
+              why: 'said "teer" in one and "tair" in the other' },
+            { w: 'wind', a: 'The wind blew hard.', b: 'Wind the string round the stick.',
+              why: 'the vowel changes' },
+        ];
+        const c = rng.pick(CASES);
+        return genMc(rng, {
+            stem: 'These two sentences use "' + c.w + '". What is true about them?',
+            prompt: [{ t: 'text', s: c.a }, { t: 'text', s: c.b }],
+            correct: 'Same spelling, said differently',
+            distractors: ['Same spelling, said the same', 'Different spelling, said the same',
+                'They mean exactly the same thing'],
+            explain: '"' + c.w + '" is a homograph: ' + c.why + '.',
+            sig: 'homog:' + c.w,
+        });
+    };
+
+    G['vocab.simileMetaphor'] = function (rng) {
+        const CASES = [
+            { s: 'She ran like the wind.', kind: 'simile' },
+            { s: 'He was as quiet as a mouse.', kind: 'simile' },
+            { s: 'The classroom was a zoo.', kind: 'metaphor' },
+            { s: 'Her voice is music to my ears.', kind: 'metaphor' },
+            { s: 'The snow was like a blanket.', kind: 'simile' },
+            { s: 'Time is a thief.', kind: 'metaphor' },
+        ];
+        const c = rng.pick(CASES);
+        return genMc(rng, {
+            stem: 'Is this a simile or a metaphor?  "' + c.s + '"',
+            correct: c.kind,
+            distractors: [c.kind === 'simile' ? 'metaphor' : 'simile'],
+            hint: 'A simile uses "like" or "as". A metaphor says one thing IS another.',
+            explain: 'It is a ' + c.kind + (c.kind === 'simile'
+                ? ', because it compares using "like" or "as".'
+                : ', because it says one thing simply is the other.'),
+            sig: 'simile:' + c.s.slice(0, 12),
+        });
+    };
+
+    G['vocab.idiom'] = function (rng) {
+        const IDIOMS = [
+            { s: 'break the ice', m: 'make people feel more comfortable' },
+            { s: 'under the weather', m: 'feeling unwell' },
+            { s: 'a piece of cake', m: 'very easy' },
+            { s: 'bite your tongue', m: 'stop yourself from saying something' },
+            { s: 'the last straw', m: 'the final thing that makes it too much' },
+        ];
+        const c = rng.pick(IDIOMS);
+        return genMc(rng, {
+            stem: 'What does "' + c.s + '" mean?',
+            correct: c.m,
+            distractors: rng.sample(IDIOMS.filter((x) => x.s !== c.s).map((x) => x.m), 3),
+            explain: '"' + c.s + '" means ' + c.m + '. It is not meant word for word.',
+            sig: 'idiom:' + c.s,
+        });
+    };
+
     if (typeof CUR !== 'undefined') CUR.registerGens('ela-vocab', G);
     if (typeof module !== 'undefined' && module.exports) module.exports = G;
 })();

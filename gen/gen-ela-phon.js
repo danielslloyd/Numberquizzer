@@ -266,6 +266,95 @@
         });
     };
 
+
+    // ---- tier 2 --------------------------------------------------------------
+    G['phon.ffllss'] = function (rng) {
+        const word = rng.pick(W.ffllss);
+        return genMc(rng, {
+            stem: 'Which word is spelled correctly?',
+            correct: word,
+            distractors: [word.slice(0, -1), word + word[word.length - 1], word.slice(0, -2) + word[word.length - 1]]
+                .filter((x, i, a) => x !== word && a.indexOf(x) === i),
+            explain: 'After one short vowel at the end of a short word, f, l and s are doubled.',
+            sig: 'ffllss:' + word,
+        });
+    };
+
+    G['phon.vowelTeams.exceptions'] = function (rng) {
+        const e = rng.pick(W.vowelTeamExceptions);
+        const odd = rng.pick(e.odd);
+        return genMc(rng, {
+            stem: 'These words all contain "' + e.team + '". Which one says it differently from the others?',
+            correct: odd,
+            distractors: rng.sample(e.usual, 3),
+            explain: '"' + odd + '" breaks the usual pattern for "' + e.team
+                + '" — the same letters do not always make the same sound.',
+            sig: 'vtEx:' + e.team + ':' + odd,
+        });
+    };
+
+    G['phon.softCG'] = function (rng) {
+        const soft = rng.bool();
+        const letter = rng.bool() ? 'c' : 'g';
+        const softList = letter === 'c' ? W.softC : W.softG;
+        const hardList = letter === 'c' ? W.hardC : W.hardG;
+        return genMc(rng, {
+            stem: 'In which word does the "' + letter + '" make its ' + (soft ? 'soft' : 'hard') + ' sound?',
+            correct: rng.pick(soft ? softList : hardList),
+            distractors: rng.sample(soft ? hardList : softList, 3),
+            hint: 'c and g go soft before e, i and y.',
+            sig: 'softcg:' + letter + ':' + (soft ? 's' : 'h'),
+        });
+    };
+
+    G['phon.tchDge'] = function (rng) {
+        const key = rng.bool() ? 'tch' : 'dge';
+        return genMc(rng, {
+            stem: 'Which word uses "' + key + '"?',
+            correct: rng.pick(W.tchDge[key]),
+            distractors: rng.sample(W.tchDge[key === 'tch' ? 'dge' : 'tch'].concat(flat(W.cvc)), 3),
+            explain: '"' + key + '" is used straight after a short vowel.',
+            sig: 'tchdge:' + key,
+        });
+    };
+
+    G['phon.silentLetters'] = function (rng) {
+        const key = rng.pick(Object.keys(W.silent));
+        const word = rng.pick(W.silent[key]);
+        return genMc(rng, {
+            stem: 'In the word "' + word + '", which letter is not sounded?',
+            correct: key[0],
+            distractors: word.split('').filter((c) => c !== key[0])
+                .filter((c, i, a) => a.indexOf(c) === i).slice(0, 3),
+            explain: 'In "' + key + '" the ' + key[0] + ' is silent.',
+            sig: 'silent:' + word,
+        });
+    };
+
+    G['phon.yAsVowel'] = function (rng) {
+        const longI = rng.bool();
+        return genMc(rng, {
+            stem: 'In which word does the "y" sound like a long ' + (longI ? 'i' : 'e') + '?',
+            correct: rng.pick(W.yVowel[longI ? 'long i' : 'long e']),
+            distractors: rng.sample(W.yVowel[longI ? 'long e' : 'long i'], 3),
+            hint: 'A y at the end of a one-syllable word usually says long i; at the end of a longer word it usually says long e.',
+            sig: 'yv:' + (longI ? 'i' : 'e'),
+        });
+    };
+
+    G['phon.consonantLe'] = function (rng) {
+        const LE = ['table', 'little', 'apple', 'purple', 'candle', 'bubble', 'simple', 'handle'];
+        const word = rng.pick(LE);
+        return genMc(rng, {
+            stem: 'Where does "' + word + '" split into syllables?',
+            correct: word.slice(0, -3) + '/' + word.slice(-3),
+            distractors: [word.slice(0, -2) + '/' + word.slice(-2), word.slice(0, -4) + '/' + word.slice(-4),
+                word.slice(0, 2) + '/' + word.slice(2)].filter((x) => x !== word.slice(0, -3) + '/' + word.slice(-3)),
+            explain: 'The final syllable takes the consonant before the -le with it.',
+            sig: 'cle:' + word,
+        });
+    };
+
     if (typeof CUR !== 'undefined') CUR.registerGens('ela-phon', G);
     if (typeof module !== 'undefined' && module.exports) module.exports = G;
 })();

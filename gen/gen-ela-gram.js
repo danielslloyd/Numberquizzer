@@ -158,6 +158,57 @@
         });
     };
 
+
+    // ---- tier 2 --------------------------------------------------------------
+    G['gram.capitalisation'] = function (rng) {
+        const c = rng.pick(L.capitals);
+        return genMc(rng, {
+            stem: 'Which sentence uses capital letters correctly?',
+            correct: c.right,
+            distractors: [c.wrong],
+            explain: 'Capitals are needed for the ' + c.why + '.',
+            sig: 'caps:' + c.why,
+        });
+    };
+
+    G['gram.sentenceTypes'] = function (rng) {
+        const CASES = [
+            { s: 'The cat is asleep.', kind: 'a statement' },
+            { s: 'Where did you put my shoes?', kind: 'a question' },
+            { s: 'Please close the door.', kind: 'a command' },
+            { s: 'What a beautiful morning!', kind: 'an exclamation' },
+            { s: 'We walked to the shops.', kind: 'a statement' },
+            { s: 'Pass me the salt.', kind: 'a command' },
+        ];
+        const c = rng.pick(CASES);
+        return genMc(rng, {
+            stem: 'What kind of sentence is this?  "' + c.s + '"',
+            correct: c.kind,
+            distractors: ['a statement', 'a question', 'a command', 'an exclamation']
+                .filter((k) => k !== c.kind),
+            sig: 'stype:' + c.s.slice(0, 12),
+        });
+    };
+
+    G['gram.quotation'] = function (rng) {
+        const CASES = [
+            { right: '"I am ready," said Ella.', wrong: '"I am ready" said Ella.',
+              why: 'a comma goes inside the speech marks before "said"' },
+            { right: 'Tom asked, "Is it raining?"', wrong: 'Tom asked "Is it raining"?',
+              why: 'the question mark belongs to the spoken words, so it goes inside' },
+            { right: '"Wait for me!" shouted Ravi.', wrong: '"Wait for me"! shouted Ravi.',
+              why: 'the exclamation mark belongs to the spoken words' },
+        ];
+        const c = rng.pick(CASES);
+        return genMc(rng, {
+            stem: 'Which line is punctuated correctly?',
+            correct: c.right,
+            distractors: [c.wrong],
+            explain: c.why + '.',
+            sig: 'quote:' + c.why.slice(0, 15),
+        });
+    };
+
     if (typeof CUR !== 'undefined') CUR.registerGens('ela-gram', G);
     if (typeof module !== 'undefined' && module.exports) module.exports = G;
 })();

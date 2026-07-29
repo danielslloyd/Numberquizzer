@@ -38,7 +38,7 @@
           provenance: { ccss: ['RF.K.2b'] } },
 
         { id: 'pa.onsetRime', label: 'Blend onset and rime', tier: 2,
-          prereq: ['pa.syllable'], types: ['mc'], params: { audio: true },
+          prereq: ['pa.syllable'], types: ['mc', 'text'], params: { audio: true },
           provenance: { ccss: ['RF.K.2c'] } },
 
         { id: 'pa.isolate', label: 'Hear the first, last and middle sound',
@@ -294,7 +294,7 @@
           provenance: { ccss: ['L.2.5b', 'L.3.5c'] } },
 
         { id: 'vocab.categories', label: 'How words group together', tier: 2,
-          prereq: ['vocab.synonymAntonym'], types: ['sort-bins', 'mc'], practice: ['sorting'],
+          prereq: ['vocab.synonymAntonym'], types: ['sort-bins', 'multi', 'mc'], practice: ['sorting'],
           provenance: { ccss: ['L.2.5a', 'L.3.5b'] } },
 
         { id: 'vocab.homophone', label: 'Sound the same, spelled differently',
@@ -410,7 +410,7 @@
           provenance: { ccss: ['L.K.2b', 'L.1.2b'] } },
 
         { id: 'gram.capitalisation', label: 'What gets a capital letter', tier: 2,
-          prereq: ['gram.sentence'], types: ['tap-token'], practice: ['la-cap'],
+          prereq: ['gram.sentence'], types: ['tap-token', 'mc'], practice: ['la-cap'],
           provenance: { ccss: ['L.1.2a', 'L.2.2a', 'L.3.2a'] } },
 
         { id: 'gram.subjectVerb', label: 'Matching the subject and the verb',

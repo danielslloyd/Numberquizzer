@@ -498,6 +498,38 @@
         });
     };
 
+
+    // ---- tier 2 --------------------------------------------------------------
+    G['frac.estimate'] = function (rng, p) {
+        const d1 = rng.pick(dens(p).filter((x) => x >= 3));
+        const d2 = rng.pick(dens(p).filter((x) => x >= 3));
+        const a = rng.int(1, d1 - 1), b = rng.int(1, d2 - 1);
+        const sum = a / d1 + b / d2;
+        const near = sum < 0.75 ? 'about a half' : sum < 1.25 ? 'about 1' : 'about 2';
+        return mc(rng, {
+            stem: 'Without working it out exactly, roughly what is ' + fstr(a, d1) + ' + ' + fstr(b, d2) + '?',
+            prompt: [{ t: 'expr', s: fstr(a, d1) + '  +  ' + fstr(b, d2) }],
+            correct: near,
+            distractors: ['about a half', 'about 1', 'about 2', 'about 10'].filter((x) => x !== near),
+            hint: 'Round each fraction to 0, a half, or 1 first.',
+            explain: 'It comes to about ' + sum.toFixed(2) + ', so ' + near + '.',
+            sig: 'est:' + a + '/' + d1 + '+' + b + '/' + d2,
+        });
+    };
+
+    G['frac.simplify'] = function (rng) {
+        const base = rng.pick([[1, 2], [1, 3], [2, 3], [1, 4], [3, 4], [2, 5], [3, 5], [1, 6], [5, 6]]);
+        const k = rng.int(2, 4);
+        return fracAnswer({
+            stem: 'Write ' + fstr(base[0] * k, base[1] * k) + ' in its simplest form.',
+            prompt: [{ t: 'expr', s: fstr(base[0] * k, base[1] * k) + '  =  ?' }],
+            num: base[0], den: base[1], lowest: true,
+            hint: 'What number goes into both the top and the bottom?',
+            explain: 'Both divide by ' + k + ', giving ' + fstr(base[0], base[1]) + '.',
+            sig: 'simp:' + base.join('/') + ':' + k,
+        });
+    };
+
     if (typeof CUR !== 'undefined') CUR.registerGens('math-frac', G);
     if (typeof module !== 'undefined' && module.exports) module.exports = G;
 })();

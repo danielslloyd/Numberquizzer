@@ -396,7 +396,7 @@
           provenance: { ccss: ['5.NF.A.2'] } },
 
         { id: 'frac.simplify', label: 'Simplest form', tier: 2,
-          prereq: ['frac.equivalent.generate', 'mult.factorsMultiples'], types: ['numeric'],
+          prereq: ['frac.equivalent.generate', 'mult.factorsMultiples'], types: ['fraction', 'numeric'],
           practice: ['fractions'],
           provenance: { ccss: ['4.NF.A.1'] } },
     ]},
@@ -444,7 +444,7 @@
           provenance: { ccss: ['5.NBT.B.7'] } },
 
         { id: 'dec.expanded', label: 'Expanded form with decimals', tier: 2,
-          prereq: ['dec.thousandths', 'pv.expanded'], types: ['cloze', 'numeric'],
+          prereq: ['dec.thousandths', 'pv.expanded'], types: ['cloze', 'mc', 'numeric'],
           provenance: { ccss: ['5.NBT.A.3a'] } },
     ]},
 

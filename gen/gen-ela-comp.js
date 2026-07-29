@@ -74,6 +74,48 @@
         });
     };
 
+
+    // ---- tier 2 --------------------------------------------------------------
+    G['comp.textStructure'] = function (rng) {
+        const CASES = [
+            { s: 'First, gather your materials. Next, cut the card. Finally, glue the pieces together.',
+              a: 'sequence — steps in order', w: ['cause and effect', 'compare and contrast', 'problem and solution'] },
+            { s: 'Cats sleep for most of the day, while dogs are awake and active far more of the time.',
+              a: 'compare and contrast', w: ['sequence', 'cause and effect', 'problem and solution'] },
+            { s: 'Because the river burst its banks, the fields flooded and the crops were ruined.',
+              a: 'cause and effect', w: ['sequence', 'compare and contrast', 'problem and solution'] },
+            { s: 'The bees were disappearing. To help them, the school planted a meadow of wild flowers.',
+              a: 'problem and solution', w: ['sequence', 'compare and contrast', 'cause and effect'] },
+        ];
+        const c = rng.pick(CASES);
+        return genMc(rng, {
+            stem: 'How is this passage organised?  "' + c.s + '"',
+            prompt: [{ t: 'text', s: c.s }, { t: 'text', s: 'How is this organised?' }],
+            correct: c.a,
+            distractors: c.w,
+            hint: 'Look at the joining words.',
+            sig: 'struct:' + c.a,
+        });
+    };
+
+    G['comp.evidence'] = function (rng) {
+        const p = rng.pick(L.passages);
+        const sentences = p.text.split(/(?<=\.)\s+/).filter((x) => x.trim());
+        const claim = p.mainIdea.a;
+        // The supporting sentence is the one the inference answer draws on; the
+        // rest of the passage supplies the foils, so all options are true.
+        const best = sentences[sentences.length - 1];
+        return genMc(rng, {
+            stem: 'Which sentence best supports the idea that: ' + claim + '?',
+            prompt: [{ t: 'text', s: p.text }, { t: 'text', s: 'Which sentence best supports: ' + claim + '?' }],
+            correct: best,
+            distractors: sentences.slice(0, -1),
+            hint: 'All of them are in the passage. Which one actually backs up that idea?',
+            explain: 'Being true is not the same as being evidence for this particular claim.',
+            sig: 'evid:' + p.id,
+        });
+    };
+
     if (typeof CUR !== 'undefined') CUR.registerGens('ela-comp', G);
     if (typeof module !== 'undefined' && module.exports) module.exports = G;
 })();
