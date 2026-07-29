@@ -68,11 +68,17 @@ A node must pass **1 and 2**, plus **at least two of 3–6**:
 
 | Tier | Meaning |
 |---|---|
-| **1** | Load-bearing. Build for v1. |
-| **2** | Real and worth having. Backlog — appears in the ladder marked *not built yet*. |
+| **1** | Load-bearing. Must be built, and may not depend on tier 2 or 3. |
+| **2** | Real and worth having, but not load-bearing. |
 | **3** | Nice to have. Backlog. |
 
-When a node is arguable, admit it at tier 2 and move on. Only tier 1 blocks progress.
+When a node is arguable, admit it at tier 2 and move on. Only tier 1 blocks
+progress.
+
+**All 201 now have generators**, so tier currently records priority and
+dependency rules rather than what exists. The distinction still matters when
+adding a proficiency: a tier-1 node may not depend on a tier-2 one, and the
+validator enforces it.
 
 ## Why the weighting is deliberately lopsided
 

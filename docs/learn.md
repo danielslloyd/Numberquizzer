@@ -102,9 +102,9 @@ whether that happened.
    which must be committed.
 5. `node tools/validate-curriculum.js`.
 
-Tier-1 nodes may not depend on tier-2 or tier-3 nodes; the validator enforces it,
-because otherwise the suggested-next chain points at something marked *not built
-yet*.
+Tier-1 nodes may not depend on tier-2 or tier-3 nodes, and the validator enforces
+it: a load-bearing rung whose prerequisite is backlog leaves a hole in the
+suggested-next chain.
 
 ## Adding a response type
 
@@ -121,7 +121,7 @@ as a separate node is the most common way lists like this bloat.
 | Command | What it does |
 |---|---|
 | `node tools/validate-curriculum.js` | Graph integrity, tier-1 closure, doc/data agreement, no `provenance` in UI code |
-| `node tools/smoke-generators.js` | Draws 7000+ items, grades each against its own grader, regenerates `gen/manifest.js` |
+| `node tools/smoke-generators.js` | Draws 10,000+ items, grades each against its own grader, regenerates `gen/manifest.js` |
 | `NODE_PATH=/opt/node22/lib/node_modules node tools/smoke-browser.js` | Full in-browser run; needs `python3 -m http.server 8765` first |
 
 None of them is a build gate. This repo has no build step and is not getting one.
@@ -140,4 +140,9 @@ Stated plainly rather than papered over:
 - **`uknc` provenance is unfilled.** The UK National Curriculum (OGL v3, freely
   reusable) is the intended copyable skeleton, especially English Appendix 1 for
   the phonics and spelling sequence. Do not invent the references.
-- **59 nodes are tier 2/3** and appear in the ladders marked *not built yet*.
+- **Tier is now about priority, not availability.** All 201 nodes generate items,
+  so nothing shows as *not built yet* today. Tier still governs what a new
+  proficiency must clear to be treated as load-bearing, and the tier-1 closure
+  rule still applies — but the ladder's greyed-out state is currently unused.
+  `CUR.isBuilt()` and the manifest remain the mechanism, so adding a node without
+  a generator degrades gracefully rather than erroring.

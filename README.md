@@ -6,8 +6,8 @@ no build step, no dependencies, no framework, no server.
 Two halves:
 
 - **Learn** — 201 curated proficiencies arranged as per-strand ladders, with a
-  generic assessment runner, a mastery model, and spaced review. 142 of them
-  generate questions today.
+  generic assessment runner, a mastery model, and spaced review. All of them
+  generate questions.
 - **Play** — eighteen hand-built activity modes, from speech-driven flash cards
   to a Byrne-style Euclid proof builder. These are the practice half, and they
   feed the same mastery record.
