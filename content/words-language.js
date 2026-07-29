@@ -88,6 +88,14 @@
         { w: 'quiet', same: 'silent', opp: 'noisy' },
         { w: 'wealthy', same: 'rich', opp: 'poor' },
         { w: 'shiny', same: 'glossy', opp: 'dull' },
+        { w: 'gentle', same: 'mild', opp: 'rough' },
+        { w: 'tidy', same: 'neat', opp: 'messy' },
+        { w: 'sharp', same: 'keen', opp: 'blunt' },
+        { w: 'generous', same: 'giving', opp: 'mean' },
+        { w: 'sturdy', same: 'strong', opp: 'flimsy' },
+        { w: 'common', same: 'ordinary', opp: 'rare' },
+        { w: 'ample', same: 'plenty', opp: 'scarce' },
+        { w: 'weary', same: 'tired', opp: 'refreshed' },
     ];
 
     L.multiMeaning = [
@@ -101,6 +109,16 @@
           sa: 'She wore a silver ring.', sb: 'I heard the bell ring twice.' },
         { w: 'trunk', a: 'the thick stem of a tree', b: "an elephant's nose",
           sa: 'Moss grew on the trunk of the tree.', sb: 'The elephant lifted its trunk.' },
+        { w: 'wave', a: 'a moving ridge of water', b: 'to move your hand in greeting',
+          sa: 'A huge wave broke on the rocks.', sb: 'She began to wave from the platform.' },
+        { w: 'match', a: 'a game between two teams', b: 'a small stick for lighting a fire',
+          sa: 'The match ended in a draw.', sb: 'He struck a match to light the candle.' },
+        { w: 'fair', a: 'reasonable and just', b: 'a place with rides and stalls',
+          sa: 'That does not seem fair to me.', sb: 'We went on the big wheel at the fair.' },
+        { w: 'watch', a: 'to look at something', b: 'a small clock worn on the wrist',
+          sa: 'They stopped to watch the parade.', sb: 'My watch has stopped.' },
+        { w: 'park', a: 'a green space in a town', b: 'to leave a car somewhere',
+          sa: 'We fed the ducks in the park.', sb: 'You cannot park on the bridge.' },
     ];
 
     L.homophones = [
@@ -110,6 +128,15 @@
         { a: 'two', b: 'too', clue: 'the number 2', sentence: 'She has ___ older brothers.' },
         { a: 'hear', b: 'here', clue: 'to listen with your ears', sentence: 'Can you ___ the music?' },
         { a: 'here', b: 'hear', clue: 'in this place', sentence: 'Come and sit ___ beside me.' },
+        { a: 'to', b: 'too', clue: 'part of a verb, or towards', sentence: 'We walked ___ the station.' },
+        { a: 'write', b: 'right', clue: 'to put words on paper', sentence: 'Please ___ your name here.' },
+        { a: 'right', b: 'write', clue: 'correct, or the opposite of left', sentence: 'That answer is ___.' },
+        { a: 'knew', b: 'new', clue: 'the past tense of know', sentence: 'She ___ the answer at once.' },
+        { a: 'new', b: 'knew', clue: 'not old', sentence: 'He wore his ___ shoes.' },
+        { a: 'weather', b: 'whether', clue: 'sun, rain and wind', sentence: 'The ___ turned cold.' },
+        { a: 'whether', b: 'weather', clue: 'if, when there is a choice', sentence: 'I cannot decide ___ to go.' },
+        { a: 'peace', b: 'piece', clue: 'quiet, or the opposite of war', sentence: 'At last there was ___ and quiet.' },
+        { a: 'piece', b: 'peace', clue: 'a part of something', sentence: 'Would you like a ___ of cake?' },
     ];
 
     // Tier 2: general academic words that turn up across every subject, which is
@@ -123,6 +150,14 @@
         { w: 'summarise', means: 'give the main points briefly', s: 'Try to ___ the chapter in three sentences.' },
         { w: 'evidence', means: 'facts that support an idea', s: 'What ___ is there that it rained?' },
         { w: 'estimate', means: 'make a sensible guess', s: 'I ___ there were about fifty people.' },
+        { w: 'analyse', means: 'look at something part by part', s: 'We will ___ the results tomorrow.' },
+        { w: 'identify', means: 'work out what something is', s: 'Can you ___ this bird?' },
+        { w: 'suggest', means: 'put forward an idea', s: 'What would you ___ we do next?' },
+        { w: 'require', means: 'need', s: 'These plants ___ very little water.' },
+        { w: 'contrast', means: 'look for what is different', s: 'The essay will ___ the two towns.' },
+        { w: 'occur', means: 'happen', s: 'Storms ___ most often in autumn.' },
+        { w: 'sufficient', means: 'enough', s: 'We had ___ time to finish.' },
+        { w: 'consequence', means: 'what happens as a result', s: 'The ___ of the delay was a missed train.' },
     ];
 
     L.figurative = [
@@ -134,6 +169,12 @@
         { s: 'Time flies when you are enjoying yourself.', lit: false, means: 'time seems to pass quickly' },
         { s: 'The clock on the wall stopped at noon.', lit: true, means: null },
         { s: 'She has a heart of gold.', lit: false, means: 'she is very kind' },
+        { s: 'The wind howled around the chimney all night.', lit: false, means: 'the wind made a loud wailing noise' },
+        { s: 'He was buried in paperwork.', lit: false, means: 'he had far too much to do' },
+        { s: 'The kettle whistled on the stove.', lit: true, means: null },
+        { s: 'She was walking on air after the news.', lit: false, means: 'she was extremely happy' },
+        { s: 'The bus arrived ten minutes late.', lit: true, means: null },
+        { s: 'That idea does not hold water.', lit: false, means: 'it does not make sense when examined' },
     ];
 
     // ---- comprehension --------------------------------------------------------

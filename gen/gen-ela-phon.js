@@ -219,6 +219,12 @@
             { w: 'muffin', right: 'muf/fin', wrong: ['mu/ffin', 'muff/in', 'm/uffin'] },
             { w: 'sunset', right: 'sun/set', wrong: ['su/nset', 'suns/et', 's/unset'] },
             { w: 'magnet', right: 'mag/net', wrong: ['ma/gnet', 'magn/et', 'm/agnet'] },
+            { w: 'tennis', right: 'ten/nis', wrong: ['te/nnis', 'tenn/is', 't/ennis'] },
+            { w: 'picnic', right: 'pic/nic', wrong: ['pi/cnic', 'picn/ic', 'p/icnic'] },
+            { w: 'kitten', right: 'kit/ten', wrong: ['ki/tten', 'kitt/en', 'k/itten'] },
+            { w: 'contest', right: 'con/test', wrong: ['co/ntest', 'cont/est', 'c/ontest'] },
+            { w: 'puppet', right: 'pup/pet', wrong: ['pu/ppet', 'pupp/et', 'p/uppet'] },
+            { w: 'window', right: 'win/dow', wrong: ['wi/ndow', 'wind/ow', 'w/indow'] },
         ];
         const s = rng.pick(SPLITS);
         return genMc(rng, {

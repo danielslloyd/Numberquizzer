@@ -45,6 +45,9 @@
         const PHRASES = [
             'in the garden', 'on the table', 'under the bed', 'after the rain',
             'down the long road', 'over the wooden bridge', 'before it gets dark',
+            'across the busy street', 'inside the old wooden box', 'beside the garden wall',
+            'through the narrow gate', 'behind the tall grey door', 'along the river path',
+            'without making a sound', 'until the very last minute',
         ];
         const p = rng.pick(PHRASES);
         const others = PHRASES.filter((x) => x !== p);

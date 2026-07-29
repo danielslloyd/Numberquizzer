@@ -119,6 +119,13 @@
             { weak: 'annoyed', mid: 'angry', strong: 'furious' },
             { weak: 'tired', mid: 'exhausted', strong: 'shattered' },
             { weak: 'good', mid: 'great', strong: 'outstanding' },
+            { weak: 'damp', mid: 'wet', strong: 'soaked' },
+            { weak: 'small', mid: 'tiny', strong: 'microscopic' },
+            { weak: 'quiet', mid: 'silent', strong: 'soundless' },
+            { weak: 'surprised', mid: 'astonished', strong: 'dumbfounded' },
+            { weak: 'hungry', mid: 'starving', strong: 'ravenous' },
+            { weak: 'pretty', mid: 'beautiful', strong: 'stunning' },
+            { weak: 'old', mid: 'elderly', strong: 'ancient' },
         ];
         const s = rng.pick(SCALES);
         return genMc(rng, {
@@ -185,6 +192,12 @@
             { s: 'Her voice is music to my ears.', kind: 'metaphor' },
             { s: 'The snow was like a blanket.', kind: 'simile' },
             { s: 'Time is a thief.', kind: 'metaphor' },
+            { s: 'The road was a ribbon of moonlight.', kind: 'metaphor' },
+            { s: 'His hands were as cold as ice.', kind: 'simile' },
+            { s: 'The city is a furnace in August.', kind: 'metaphor' },
+            { s: 'She sang like a bird.', kind: 'simile' },
+            { s: 'That exam was a nightmare.', kind: 'metaphor' },
+            { s: 'The lake was as flat as glass.', kind: 'simile' },
         ];
         const c = rng.pick(CASES);
         return genMc(rng, {

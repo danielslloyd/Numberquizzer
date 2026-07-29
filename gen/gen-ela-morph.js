@@ -148,6 +148,11 @@
             { w: 'carelessly', parts: 'care + less + ly' },
             { w: 'unbreakable', parts: 'un + break + able' },
             { w: 'transportation', parts: 'trans + port + ation' },
+            { w: 'misunderstanding', parts: 'mis + understand + ing' },
+            { w: 'unforgettable', parts: 'un + forget + able' },
+            { w: 'reconstruction', parts: 're + construct + ion' },
+            { w: 'hopelessness', parts: 'hope + less + ness' },
+            { w: 'uncomfortable', parts: 'un + comfort + able' },
         ];
         const c = rng.pick(CASES);
         const wrong = CASES.filter((x) => x.w !== c.w).map((x) => x.parts);
@@ -236,6 +241,11 @@
             { w: 'illegal', form: 'il', base: 'legal', why: 'before l, in- becomes il-' },
             { w: 'irregular', form: 'ir', base: 'regular', why: 'before r, in- becomes ir-' },
             { w: 'incorrect', form: 'in', base: 'correct', why: 'before c, in- stays in-' },
+            { w: 'immature', form: 'im', base: 'mature', why: 'before m, in- becomes im-' },
+            { w: 'illogical', form: 'il', base: 'logical', why: 'before l, in- becomes il-' },
+            { w: 'irresponsible', form: 'ir', base: 'responsible', why: 'before r, in- becomes ir-' },
+            { w: 'invisible', form: 'in', base: 'visible', why: 'before v, in- stays in-' },
+            { w: 'impatient', form: 'im', base: 'patient', why: 'before p, in- becomes im-' },
         ];
         const c = rng.pick(CASES);
         return genMc(rng, {

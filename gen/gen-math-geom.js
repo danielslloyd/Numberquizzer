@@ -50,6 +50,9 @@
         { n: 'rectangle', sides: 4, corners: 4 },
         { n: 'pentagon', sides: 5, corners: 5 },
         { n: 'hexagon', sides: 6, corners: 6 },
+        { n: 'rhombus', sides: 4, corners: 4 },
+        { n: 'heptagon', sides: 7, corners: 7 },
+        { n: 'trapezium', sides: 4, corners: 4 },
         { n: 'octagon', sides: 8, corners: 8 },
     ];
     const SHAPES_3D = [
@@ -203,6 +206,10 @@
             { s: 'a square', n: 4 }, { s: 'a rectangle', n: 2 }, { s: 'an equilateral triangle', n: 3 },
             { s: 'a circle drawn with 8 marked lines', n: 8 }, { s: 'the letter A', n: 1 },
             { s: 'the letter H', n: 2 },
+            { s: 'an isosceles triangle', n: 1 }, { s: 'a regular pentagon', n: 5 },
+            { s: 'a regular hexagon', n: 6 }, { s: 'the letter T', n: 1 },
+            { s: 'the letter X', n: 2 }, { s: 'the letter O', n: 2 },
+            { s: 'a scalene triangle', n: 0 }, { s: 'a parallelogram that is not a rectangle', n: 0 },
         ];
         const c = rng.pick(CASES);
         return genNum({

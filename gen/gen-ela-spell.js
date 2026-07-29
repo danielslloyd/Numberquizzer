@@ -106,6 +106,12 @@
             { w: 'badge', wrong: 'baj', why: 'dge comes straight after a short vowel' },
             { w: 'peach', wrong: 'peatch', why: 'after a vowel team it is ch, not tch' },
             { w: 'cake', wrong: 'cak', why: 'the silent e makes the vowel long' },
+            { w: 'brick', wrong: 'brik', why: 'ck comes after a short vowel at the end of a short word' },
+            { w: 'fetch', wrong: 'fech', why: 'tch comes straight after a short vowel' },
+            { w: 'bridge', wrong: 'brij', why: 'dge comes straight after a short vowel' },
+            { w: 'coach', wrong: 'coatch', why: 'after a vowel team it is ch, not tch' },
+            { w: 'large', wrong: 'larj', why: 'after an r it is ge, not dge' },
+            { w: 'bike', wrong: 'bik', why: 'the silent e makes the vowel long' },
         ];
         const c = rng.pick(CASES);
         return genMc(rng, {

@@ -48,6 +48,12 @@
             { s: 'What time is it', mark: '?', why: 'it asks something' },
             { s: 'We had toast for breakfast', mark: '.', why: 'it tells you something' },
             { s: 'How wonderful that is', mark: '!', why: 'it shows strong feeling' },
+            { s: 'Do not touch the wet paint', mark: '!', why: 'it is a warning' },
+            { s: 'My cousin lives in Cardiff', mark: '.', why: 'it tells you something' },
+            { s: 'Who left the door open', mark: '?', why: 'it asks something' },
+            { s: 'That was the best day ever', mark: '!', why: 'it shows strong feeling' },
+            { s: 'Have you finished your homework', mark: '?', why: 'it asks something' },
+            { s: 'The train leaves at half past four', mark: '.', why: 'it tells you something' },
         ];
         const c = rng.pick(CASES);
         return genMc(rng, {
@@ -185,6 +191,12 @@
             { s: 'What a beautiful morning!', kind: 'an exclamation' },
             { s: 'We walked to the shops.', kind: 'a statement' },
             { s: 'Pass me the salt.', kind: 'a command' },
+            { s: 'How did you do that?', kind: 'a question' },
+            { s: 'Stand behind the line.', kind: 'a command' },
+            { s: 'What a mess this is!', kind: 'an exclamation' },
+            { s: 'The library closes at five.', kind: 'a statement' },
+            { s: 'Are these seats free?', kind: 'a question' },
+            { s: 'How cold it is today!', kind: 'an exclamation' },
         ];
         const c = rng.pick(CASES);
         return genMc(rng, {

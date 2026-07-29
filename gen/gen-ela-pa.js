@@ -120,6 +120,12 @@
             { from: 'and', op: 'put an h at the front', to: 'hand' },
             { from: 'bring', op: 'take away the b', to: 'ring' },
             { from: 'lamp', op: 'change the l to a c', to: 'camp' },
+            { from: 'sand', op: 'take away the s', to: 'and' },
+            { from: 'cart', op: 'change the c to a p', to: 'part' },
+            { from: 'nice', op: 'change the n to an m', to: 'mice' },
+            { from: 'seat', op: 'change the s to an h', to: 'heat' },
+            { from: 'flat', op: 'take away the l', to: 'fat' },
+            { from: 'best', op: 'change the b to an n', to: 'nest' },
         ];
         const c = rng.pick(CASES);
         return genText({
