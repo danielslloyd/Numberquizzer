@@ -180,9 +180,14 @@
 .ir-speech-dot {
     width: .7rem; height: .7rem; border-radius: 50%; background: #bbb; flex: none;
 }
-.ir-speech.is-live .ir-speech-dot { background: #c62828; animation: ir-mic-pulse 1.4s ease-in-out infinite; }
-.ir-speech.is-live .ir-speech-msg { color: #c62828; }
+.ir-speech.is-live .ir-speech-dot,
+.ir-numeric-mic.is-live .ir-speech-dot { background: #c62828; animation: ir-mic-pulse 1.4s ease-in-out infinite; }
+.ir-speech.is-live .ir-speech-msg,
+.ir-numeric-mic.is-live .ir-speech-msg { color: #c62828; }
 .ir-speech.is-off .ir-speech-dot { background: #bbb; }
+/* The same chip under a typed-answer box, where the keyboard is the main route
+ * and the microphone is the shortcut. */
+.ir-numeric-mic { justify-content: center; font-size: .95rem; }
 .ir-speech-actions { display: flex; gap: .6rem; flex-wrap: wrap; justify-content: center; }
 
 @keyframes ir-mic-pulse {

@@ -167,8 +167,12 @@
         }
 
         const practice = (n.practice || []).filter((t) => typeof TAB_ENTRY !== 'undefined' && TAB_ENTRY[t]);
-        const canRead = isBuilt && (n.types || []).indexOf('speech') >= 0
-            && typeof spSupported === 'function' && spSupported();
+        // Two quite different uses of the microphone. Reading a word aloud is the
+        // assessment itself; saying a number is a shortcut past the keyboard, and
+        // exactly what the flash cards have always done.
+        const hasMic = typeof spSupported === 'function' && spSupported();
+        const canRead = isBuilt && hasMic && (n.types || []).indexOf('speech') >= 0;
+        const canSay = isBuilt && hasMic && !canRead && (n.types || []).indexOf('numeric') >= 0;
 
         html += '<div class="lb-actions">';
         if (isBuilt) {
@@ -176,7 +180,8 @@
             // four can be done by elimination without decoding anything; reading
             // it cannot, so it is both the better question and the better game.
             if (canRead) html += '<button class="btn btn-primary" data-act="read">Read aloud</button>';
-            html += `<button class="btn btn-${canRead ? 'secondary' : 'primary'}" data-act="check">Check</button>`;
+            else if (canSay) html += '<button class="btn btn-primary" data-act="read">Say the answers</button>';
+            html += `<button class="btn btn-${canRead || canSay ? 'secondary' : 'primary'}" data-act="check">Check</button>`;
         } else {
             html += '<button class="btn btn-primary" disabled>Not built yet</button>';
         }
@@ -190,10 +195,13 @@
         // Said plainly rather than buried: on most browsers speech recognition
         // is a network service, so the audio leaves the device. A parent should
         // be able to know that before handing over a microphone.
-        if (canRead) {
-            html += '<p class="lb-mic-note">Reading aloud uses your browser\'s speech '
-                + 'recognition, which on most browsers sends the audio away to be '
-                + 'recognised. Everything else in the app stays on this device.</p>';
+        if (canRead || canSay) {
+            html += '<p class="lb-mic-note">'
+                + (canSay ? 'Saying an answer only ever counts in your favour — if it is '
+                    + 'misheard, nothing happens and you can type instead. It uses your '
+                    : 'This uses your ')
+                + 'browser\'s speech recognition, which on most browsers sends the audio '
+                + 'away to be recognised. Everything else in the app stays on this device.</p>';
         }
 
         $('lb-node-body').innerHTML = html;

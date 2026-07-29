@@ -29,7 +29,7 @@
         items: [], idx: 0, results: [],
         mode: 'practice', nodeIds: [], onDone: null,
         shownAt: 0, startedAt: 0, locked: false, type: null,
-        mic: false, reserve: [], unheard: 0,
+        mic: false, reserve: [], unheard: 0, advanceAt: null,
     };
 
     // Three items in a row that the microphone could not hear is not a learner
@@ -75,6 +75,8 @@
         S.locked = false;
         S.type = null;
         S.unheard = 0;
+        clearTimeout(S.advanceAt);
+        S.advanceAt = null;
         S.reserve = [];
         S.startedAt = Date.now();
         S.mic = !!o.mic && typeof spSupported === 'function' && spSupported();
@@ -157,7 +159,7 @@
 
         const host = $('ir-response-host');
         host.dataset.locked = '0';
-        S.type.render(host, item, { submit: irSubmit });
+        S.type.render(host, item, { submit: irSubmit, mic: S.mic });
         if (S.type.focus) S.type.focus(host);
 
         $('ir-feedback').textContent = '';
@@ -230,7 +232,12 @@
 
         // A correct answer moves on by itself; a wrong one waits, because the
         // correct answer sitting next to your own is most of the value.
-        if (verdict.correct) setTimeout(() => { if (S.locked) irNext(); }, 700);
+        //
+        // The handle matters. Pressing Next yourself before the beat is up used
+        // to leave this timer running, and if you then answered the NEXT item
+        // inside the same 700 ms it fired against that one and skipped it — a
+        // question silently lost, and more likely the faster you are.
+        if (verdict.correct) S.advanceAt = setTimeout(() => { if (S.locked) irNext(); }, 700);
     }
 
     /* The microphone heard nothing. Record nothing, add an item back so the run
@@ -282,6 +289,8 @@
     function pickPraise() { return PRAISE[praiseAt++ % PRAISE.length]; }
 
     function irNext() {
+        clearTimeout(S.advanceAt);
+        S.advanceAt = null;
         S.locked = false;
         S.idx++;
         irRender();

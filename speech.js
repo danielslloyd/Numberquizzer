@@ -167,4 +167,22 @@
     window.spActive    = spActive;
     window.spListen    = spListen;
     window.spRelease   = spRelease;
+
+    /*
+     * Debug handle, in the manner of window.__IR and window.__GP.
+     *
+     * `feed` delivers a transcript to the current claim exactly as a real result
+     * would. It exists because a headless browser has SpeechRecognition and no
+     * speech service behind it, so this is the only way to exercise what happens
+     * when something IS heard — which is otherwise a large untested surface.
+     */
+    window.__SP = {
+        claim: function () { return claim; },
+        feed: function (text, final) {
+            if (!claim) return false;
+            const alts = Array.isArray(text) ? text.map(String) : [String(text)];
+            claim.onText(alts[0], { final: final !== false, alternatives: alts });
+            return true;
+        },
+    };
 })();

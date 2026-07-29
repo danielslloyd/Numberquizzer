@@ -549,6 +549,47 @@ function check(name, ok, detail) {
     check('flash cards release the microphone when the quiz ends',
         quizMic.after === null && quizMic.token === null, JSON.stringify(quizMic));
 
+    // ---- the self-advance timer ------------------------------------------
+    // A correct answer advances itself after 700ms. Pressing Next yourself
+    // before then used to leave that timer running, so answering the NEXT item
+    // inside the same 700ms fired it against that one and skipped a question —
+    // silently, and more often the quicker you are.
+    await page.evaluate(() => irStart({
+        nodeIds: ['add.facts.within20'], count: 6, mode: 'practice', seed: 5,
+    }));
+    await page.waitForFunction(() => document.querySelector('#ir-response-host .ir-input'),
+        { timeout: 10000 }).catch(() => {});
+
+    // Answer item 0 right, hurry past it, then get item 1 WRONG. A wrong answer
+    // deliberately waits — the correct answer sitting next to your own is most
+    // of the value — so if the stale timer from item 0 is still armed it fires
+    // here and whips the explanation away after a fraction of a second.
+    const answerItem = (offset) => page.evaluate((off) => {
+        const S = window.__IR;
+        document.querySelector('#ir-response-host .ir-input').value =
+            String(Number(S.items[S.idx].answer) + off);
+        document.getElementById('ir-submit').click();
+    }, offset);
+
+    await page.waitForTimeout(450);
+    await answerItem(0);                                 // item 0 — correct, arms the timer
+    await page.waitForTimeout(120);
+    await page.evaluate(() => document.getElementById('ir-next').click());   // hurry on
+    await page.waitForTimeout(420);
+    const beforeRace = await page.evaluate(() => window.__IR.idx);
+    await answerItem(1);                                 // item 1 — wrong, must sit still
+    await page.waitForTimeout(150);
+    const gradedWrong = await page.evaluate(() => /ir-fb-wrong/.test(
+        document.getElementById('ir-feedback').className));
+    await page.waitForTimeout(800);                      // past when the stale timer would fire
+    const afterRace = await page.evaluate(() => ({
+        idx: window.__IR.idx,
+        fb: document.getElementById('ir-feedback').className,
+    }));
+    check('hurrying past a correct answer does not cut short the next explanation',
+        gradedWrong && afterRace.idx === beforeRace && /ir-fb-wrong/.test(afterRace.fb),
+        JSON.stringify({ beforeRace, gradedWrong, afterRace }));
+
     // ---- read aloud ------------------------------------------------------
     // Headless Chromium has SpeechRecognition but no speech service behind it,
     // so it hears nothing — which is exactly the path worth testing, because
@@ -590,6 +631,75 @@ function check(name, ok, detail) {
     check('and carries spare tap items for the ones it cannot hear',
         micRun.reserve > 0, JSON.stringify(micRun));
     check('the run holds the microphone', await page.evaluate(() => spActive() !== null));
+
+    // What happens when something IS heard — the two outcomes a silence cannot
+    // reach. There is no speech service here, so deliver the transcript through
+    // the same callback a real result arrives on.
+    const toSpeechItem = async () => {
+        for (let i = 0; i < 12; i++) {
+            const t = await page.evaluate(() =>
+                (window.__IR.items[window.__IR.idx] || {}).type);
+            if (t === 'speech') return true;
+            await page.evaluate(() => { window.__IR.idx++; });
+            await page.evaluate(() => { window.__IR.idx--; });
+            await page.evaluate(() => { const S = window.__IR; S.locked = true; });
+            await page.evaluate(() => { document.getElementById('ir-next').click(); });
+            await page.waitForTimeout(120);
+        }
+        return false;
+    };
+
+    check('found a read-aloud item to drive', await toSpeechItem());
+
+    const misread = await page.evaluate(() => {
+        const before = JSON.stringify(prGet('phon.cvc'));
+        window.__SP.feed('elephant');
+        return { before: before, fb: document.getElementById('ir-feedback').textContent,
+                 status: document.querySelector('.ir-speech-msg').textContent };
+    });
+    check('a different word does not end the item — it may yet be corrected',
+        misread.fb === '' && /elephant/.test(misread.status), JSON.stringify(misread));
+
+    await page.click('#ir-response-host [data-act="skip"]');
+    await page.waitForTimeout(250);
+    const misreadOut = await page.evaluate(() => ({
+        fb: document.getElementById('ir-feedback').className,
+        detail: document.getElementById('ir-feedback').textContent,
+        stats: JSON.stringify(prGet('phon.cvc')),
+    }));
+    check('but a clear misread is scored, unlike a silence',
+        /ir-fb-wrong/.test(misreadOut.fb) && misreadOut.stats !== misread.before,
+        JSON.stringify(misreadOut));
+    check('and it says what it heard',
+        /elephant/.test(misreadOut.detail), misreadOut.detail);
+
+    await page.evaluate(() => { document.getElementById('ir-next').click(); });
+    await page.waitForTimeout(150);
+    check('found a second read-aloud item', await toSpeechItem());
+
+    const heardRight = await page.evaluate(() => {
+        const want = String(window.__IR.items[window.__IR.idx].answer);
+        const before = JSON.stringify(prGet('phon.cvc'));
+        window.__SP.feed(want);
+        return { want: want, before: before };
+    });
+    await page.waitForTimeout(250);
+    const readOutcome = await page.evaluate(() => ({
+        fb: document.getElementById('ir-feedback').className,
+        stats: JSON.stringify(prGet('phon.cvc')),
+    }));
+    check('reading the word correctly is heard and marked right',
+        /ir-fb-correct/.test(readOutcome.fb), JSON.stringify(readOutcome));
+    check('and it is recorded, unlike a silence',
+        readOutcome.stats !== heardRight.before,
+        heardRight.before + ' -> ' + readOutcome.stats);
+
+    // Back to a fresh run for the silence walk, so the record above does not
+    // muddle the "records nothing" comparison.
+    await page.evaluate(() => irStart({
+        nodeIds: ['phon.cvc'], count: 10, mode: 'assess', mic: true, seed: 20260729,
+    }));
+    await page.waitForFunction(() => window.__IR.items.length > 0, { timeout: 10000 }).catch(() => {});
 
     // Walk the whole run, answering tap items and pressing "Move on" for every
     // read-aloud one, until the microphone has been given up on.
@@ -654,6 +764,59 @@ function check(name, ok, detail) {
     await page.evaluate(() => { const b = document.getElementById('ir-quit'); if (b) b.click(); });
     await page.waitForTimeout(200);
     check('leaving the runner gives the microphone back',
+        await page.evaluate(() => spActive() === null));
+
+    // ---- saying a number -------------------------------------------------
+    // A different contract from reading aloud, and the difference is the point:
+    // the keyboard is right there, so a misheard number must cost nothing. The
+    // microphone may only ever produce a correct answer here.
+    await page.evaluate(() => { location.hash = '#/add/add.facts.within20'; TAB_ENTRY.learn(); });
+    await page.waitForTimeout(300);
+    const sayBtn = await page.evaluate(() => {
+        const b = document.querySelector('[data-act="read"]');
+        return b ? b.textContent : null;
+    });
+    check('a typed-number node offers to be answered out loud',
+        sayBtn === 'Say the answers', String(sayBtn));
+
+    await page.evaluate(() => irStart({
+        nodeIds: ['add.facts.within20'], count: 4, mode: 'practice', mic: true, seed: 11,
+    }));
+    await page.waitForFunction(() => document.querySelector('#ir-response-host .ir-input'),
+        { timeout: 10000 }).catch(() => {});
+    check('the number pad still listens alongside the keyboard',
+        await page.evaluate(() => !!document.querySelector('.ir-numeric-mic') && spActive() !== null));
+
+    // Deliver a wrong number, then the right one, through the same callback a
+    // real recogniser result arrives on.
+    const beforeSpoken = await page.evaluate(() => ({
+        want: Number(window.__IR.items[window.__IR.idx].answer),
+        idx: window.__IR.idx,
+    }));
+    const afterWrong = await page.evaluate((want) => {
+        window.__SP.feed(String(want === 3 ? 4 : 3));
+        return {
+            idx: window.__IR.idx,
+            locked: window.__IR.locked,
+            input: document.querySelector('#ir-response-host .ir-input').value,
+        };
+    }, beforeSpoken.want);
+    check('a misheard number does nothing at all — no mark, no text, no advance',
+        afterWrong.idx === beforeSpoken.idx && !afterWrong.locked && afterWrong.input === '',
+        JSON.stringify({ beforeSpoken, afterWrong }));
+
+    await page.evaluate((want) => { window.__SP.feed(String(want)); }, beforeSpoken.want);
+    await page.waitForTimeout(250);
+    const afterRight = await page.evaluate(() => ({
+        input: (document.querySelector('#ir-response-host .ir-input') || {}).value,
+        fb: document.getElementById('ir-feedback').className,
+    }));
+    check('the right number spoken is taken as the answer',
+        /ir-fb-correct/.test(afterRight.fb), JSON.stringify(afterRight));
+
+    await page.evaluate(() => { const b = document.getElementById('ir-quit'); if (b) b.click(); });
+    await page.waitForTimeout(200);
+    check('the number pad gives the microphone back too',
         await page.evaluate(() => spActive() === null));
 
     await page.evaluate(() => { location.hash = '#/'; });
