@@ -16,11 +16,33 @@
 
     const G = {};
 
+    /*
+     * `first` and `last` are the SOUNDS at each end, which are not always the
+     * letters at each end: "ship" begins with /sh/, not /s/, and "bath" ends with
+     * /th/, not /h/. Taking the first and last characters — as this once did —
+     * asks a phonics question and then marks the phonics answer wrong.
+     */
     const PHONEMES = [
-        { w: 'cat', n: 3 }, { w: 'ship', n: 3 }, { w: 'chin', n: 3 }, { w: 'duck', n: 3 },
-        { w: 'stop', n: 4 }, { w: 'lamp', n: 4 }, { w: 'desk', n: 4 }, { w: 'that', n: 3 },
-        { w: 'bath', n: 3 }, { w: 'grin', n: 4 }, { w: 'sun', n: 3 }, { w: 'thick', n: 3 },
-        { w: 'flag', n: 4 }, { w: 'rock', n: 3 }, { w: 'sing', n: 3 }, { w: 'best', n: 4 },
+        { w: 'cat', n: 3, first: 'c', last: 't' },
+        { w: 'ship', n: 3, first: 'sh', last: 'p' },
+        { w: 'chin', n: 3, first: 'ch', last: 'n' },
+        { w: 'duck', n: 3, first: 'd', last: 'ck' },
+        { w: 'stop', n: 4, first: 's', last: 'p' },
+        { w: 'lamp', n: 4, first: 'l', last: 'p' },
+        { w: 'desk', n: 4, first: 'd', last: 'k' },
+        { w: 'that', n: 3, first: 'th', last: 't' },
+        { w: 'bath', n: 3, first: 'b', last: 'th' },
+        { w: 'grin', n: 4, first: 'g', last: 'n' },
+        { w: 'sun', n: 3, first: 's', last: 'n' },
+        { w: 'thick', n: 3, first: 'th', last: 'ck' },
+        { w: 'flag', n: 4, first: 'f', last: 'g' },
+        { w: 'rock', n: 3, first: 'r', last: 'ck' },
+        { w: 'sing', n: 3, first: 's', last: 'ng' },
+        { w: 'best', n: 4, first: 'b', last: 't' },
+        { w: 'fish', n: 3, first: 'f', last: 'sh' },
+        { w: 'much', n: 3, first: 'm', last: 'ch' },
+        { w: 'nest', n: 4, first: 'n', last: 't' },
+        { w: 'wing', n: 3, first: 'w', last: 'ng' },
     ];
 
     const SYLLABLES = [
@@ -44,13 +66,18 @@
     G['pa.isolate'] = function (rng) {
         const e = rng.pick(PHONEMES);
         const where = rng.pick(['first', 'last']);
-        const letter = where === 'first' ? e.w[0] : e.w[e.w.length - 1];
-        const others = 'bcdfghjklmnprstvw'.split('').filter((c) => c !== letter);
+        const sound = e[where];
+        // Distractors are sounds from the other words, minus anything that is
+        // also in this one.
+        const pool = PHONEMES.reduce((a, x) => a.concat([x.first, x.last]), [])
+            .filter((c, i, arr) => arr.indexOf(c) === i)
+            .filter((c) => c !== sound && e.w.indexOf(c) === -1);
         return genMc(rng, {
             stem: 'What is the ' + where + ' sound in the word "' + e.w + '"?',
-            correct: letter,
-            distractors: rng.sample(others, 3),
-            explain: 'Say "' + e.w + '" slowly and listen to the ' + where + ' sound.',
+            correct: sound,
+            distractors: rng.sample(pool, 3),
+            explain: 'Say "' + e.w + '" slowly. The ' + where + ' sound is "' + sound + '"'
+                + (sound.length > 1 ? ' — two letters working together as one sound.' : '.'),
             sig: 'iso:' + e.w + ':' + where,
         });
     };
@@ -135,6 +162,11 @@
             sig: 'manip:' + c.from,
         });
     };
+
+    // Exposed for tools/smoke-generators.js. Checking the answer is merely "at
+    // that end of the word" is too weak: "s" really is at the start of "ship",
+    // it just is not the first sound. The test needs the recorded sounds.
+    G.__PHONEMES = PHONEMES;
 
     if (typeof CUR !== 'undefined') CUR.registerGens('ela-pa', G);
     if (typeof module !== 'undefined' && module.exports) module.exports = G;

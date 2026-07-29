@@ -62,7 +62,11 @@
         const all = flat(W.cvc);
         const word = rng.pick(all);
         const first = word[0];
-        const others = all.filter((w) => w[0] !== first);
+        // c and k make the same sound, so "different first letter" is not enough
+        // to make a word a wrong answer to a question about the first SOUND.
+        const SAME_SOUND = { c: 'k', k: 'c' };
+        const twin = SAME_SOUND[first];
+        const others = all.filter((w) => w[0] !== first && w[0] !== twin);
         return genMc(rng, {
             stem: 'Which word starts with the same sound as "' + word + '"?',
             correct: rng.pick(all.filter((w) => w[0] === first && w !== word)) || word,

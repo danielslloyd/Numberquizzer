@@ -391,6 +391,45 @@ if (phonicsPack && window.WORDS && window.WORDS.soundClassIn) {
     if (soundChecked) console.log(`Checked ${soundChecked} phonics items for foils sharing the answer's sound.`);
 }
 
+// ---- first/last sound must sit at that end -------------------------------------
+/*
+ * pa.isolate once took the first and last CHARACTERS, which asks a phonics
+ * question and then marks the phonics answer wrong: "ship" begins with /sh/, not
+ * /s/. The answer must appear at the end of the word it claims, and no other
+ * option may appear there at all.
+ */
+{
+    const paPack = fs.existsSync(path.join(genDir, 'gen-ela-pa.js'))
+        ? require(path.join(genDir, 'gen-ela-pa.js')) : null;
+    const paPhonemes = paPack && paPack.__PHONEMES;
+    const entry = generators.get('pa.isolate');
+    const node = byId.get('pa.isolate');
+    if (entry && node) {
+        let n = 0;
+        for (let i = 0; i < 200; i++) {
+            let item;
+            try { item = entry.fn(makeRng(50000 + i * 7919), node.params || {}); } catch (e) { continue; }
+            const m = /the (first|last) sound in the word "(\w+)"/.exec((item || {}).stem || '');
+            if (!m || !item.choices) continue;
+            n++;
+            const [, where, word] = m;
+            const answer = String(item.choices[Number(item.answer)]);
+            const rec = (paPhonemes || []).find((x) => x.w === word);
+            if (rec && answer !== rec[where]) {
+                failures.push(`pa.isolate: says the ${where} sound of "${word}" is "${answer}",`
+                    + ` but it is "${rec[where]}"`);
+            }
+            item.choices.forEach((c, idx) => {
+                if (idx === Number(item.answer)) return;
+                const alsoThere = where === 'first' ? word.indexOf(String(c)) === 0
+                    : word.lastIndexOf(String(c)) === word.length - String(c).length;
+                if (alsoThere) failures.push(`pa.isolate: foil "${c}" is also the ${where} of "${word}"`);
+            });
+        }
+        if (n) console.log(`Checked ${n} first/last-sound items.`);
+    }
+}
+
 // ---- item variety -------------------------------------------------------------
 /*
  * How many distinct questions can each generator actually produce? A node backed
