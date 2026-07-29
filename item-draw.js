@@ -115,8 +115,13 @@
     // ---- prompt rendering -----------------------------------------------
     function renderBlock(b) {
         switch (b.t) {
-            case 'text':
-                return `<p class="idr-text">${esc(b.s)}</p>`;
+            case 'text': {
+                // Centred text is fine for a one-line question and poor for a
+                // paragraph, so anything passage-length is set left-aligned and
+                // given a comfortable measure.
+                const prose = b.prose || b.s.length > 120;
+                return `<p class="idr-text${prose ? ' idr-prose' : ''}">${esc(b.s)}</p>`;
+            }
 
             case 'expr':
                 return `<div class="idr-expr">${esc(b.s)}</div>`;
