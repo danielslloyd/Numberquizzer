@@ -321,6 +321,10 @@
     function prImport(json) {
         const data = typeof json === 'string' ? JSON.parse(json) : json;
         if (!data || !data.progress || !data.progress.nodes) throw new Error('not a Numberquizzer backup');
+        // Drop anything the old writer still had queued: it describes the
+        // progress we are about to replace, and flushing it later would undo
+        // the restore.
+        if (writer && writer.discard) writer.discard();
         progress = data.progress;
         if (data.profile) { profile = data.profile; stSetJSON(PROFILE_KEY, profile); }
         writer = stDebounced(progressKey(profile.active), 500);
@@ -331,6 +335,7 @@
 
     function prReset() {
         ensure();
+        if (writer && writer.discard) writer.discard();
         progress = { v: 1, updatedAt: Date.now(), nodes: {}, sessions: [], badges: {} };
         save();
         writer.flush();

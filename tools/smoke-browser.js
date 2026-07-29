@@ -343,6 +343,25 @@ function check(name, ok, detail) {
     check('reset clears progress', backup.wiped === 0, 'left ' + backup.wiped);
     check('export/import round-trips progress exactly', backup.restored);
 
+    // A restore must survive the debounced writer. Recording leaves a blob
+    // queued; if the pre-restore blob is later flushed it silently undoes the
+    // restore, and nobody would know why their progress came back wrong.
+    const restoreSticks = await page.evaluate(async () => {
+        prReset();
+        prRecord('frac.unit', { correct: true, partial: 1, ms: 1200 });
+        const dump = prExport();                 // snapshot WITH frac.unit
+        prRecord('frac.unit', { correct: false, partial: 0, ms: 1500 });  // queues newer state
+        prImport(dump);                          // restore the snapshot
+        // Wait past the debounce interval rather than calling a flush helper, so
+        // this exercises the timer that actually caused the bug.
+        await new Promise((r) => setTimeout(r, 900));
+        const onDisk = JSON.parse(localStorage.getItem('nq.progress.v1.l1') || '{}');
+        const rec = (onDisk.nodes || {})['frac.unit'] || {};
+        return { n: rec.n, c: rec.c };
+    });
+    check('a restore is not overwritten by the queued pre-restore blob',
+        restoreSticks.n === 1 && restoreSticks.c === 1, JSON.stringify(restoreSticks));
+
     const badImport = await page.evaluate(() => {
         try { prImport('{"not":"a backup"}'); return 'accepted'; }
         catch (e) { return 'rejected'; }

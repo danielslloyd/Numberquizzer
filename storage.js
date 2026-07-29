@@ -136,8 +136,34 @@
     /* Coalesces bursts of writes. Recording a result on every answered item
      * would otherwise stringify the whole progress blob per keystroke. Flushes
      * on a timer and, critically, when the page is hidden or unloaded — mobile
-     * browsers often kill a backgrounded tab without ever firing unload. */
+     * browsers often kill a backgrounded tab without ever firing unload.
+     *
+     * Writers are held in one registry and the page listeners are attached once.
+     * Attaching them per writer was not just a leak: restoring a backup creates a
+     * fresh writer, and the abandoned one still held the pre-restore blob and
+     * would flush it over the restored data on the way out.
+     */
+    const writers = new Map();      // key -> writer
+    let listenersAttached = false;
+
+    function flushAll() { writers.forEach(function (w) { w.flush(); }); }
+
+    function attachListeners() {
+        if (listenersAttached) return;
+        listenersAttached = true;
+        if (typeof document !== 'undefined') {
+            document.addEventListener('visibilitychange', function () {
+                if (document.visibilityState === 'hidden') flushAll();
+            });
+        }
+        if (typeof window !== 'undefined') window.addEventListener('beforeunload', flushAll);
+    }
+
     window.stDebounced = function (key, delayMs) {
+        // One writer per key. Asking twice hands back the same one, so a second
+        // caller cannot strand the first with unwritten data.
+        if (writers.has(key)) return writers.get(key);
+
         let pending = null;
         let timer = null;
         const flush = function () {
@@ -147,19 +173,26 @@
             pending = null;
             window.stSetJSON(key, value);
         };
-        if (typeof document !== 'undefined') {
-            document.addEventListener('visibilitychange', function () {
-                if (document.visibilityState === 'hidden') flush();
-            });
-        }
-        if (typeof window !== 'undefined') window.addEventListener('beforeunload', flush);
-        return {
+
+        const writer = {
             set: function (value) {
                 pending = value;
                 if (timer) clearTimeout(timer);
                 timer = setTimeout(flush, delayMs === undefined ? 500 : delayMs);
             },
             flush: flush,
+            /* Drop anything not yet written. Used when the data underneath has
+             * been replaced wholesale and the queued blob is now stale. */
+            discard: function () {
+                if (timer) { clearTimeout(timer); timer = null; }
+                pending = null;
+            },
         };
+
+        writers.set(key, writer);
+        attachListeners();
+        return writer;
     };
+
+    window.stFlushAll = flushAll;
 })();
