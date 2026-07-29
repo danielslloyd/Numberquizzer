@@ -474,7 +474,7 @@
           provenance: { ccss: ['2.MD.C.7'] } },
 
         { id: 'meas.time.elapsed', label: 'Time to the minute, and elapsed time', tier: 2,
-          prereq: ['meas.time.fiveMin', 'add.within100'], types: ['numeric'],
+          prereq: ['meas.time.fiveMin', 'add.within100'], types: ['numeric', 'mc'],
           provenance: { ccss: ['3.MD.A.1'] } },
 
         { id: 'meas.money.count', label: 'Count coins and notes', tier: 2,
@@ -497,7 +497,7 @@
           provenance: { ccss: ['3.MD.C.7', '4.MD.A.3'] } },
 
         { id: 'meas.perimeter', label: 'Perimeter, and how it differs from area', tier: 2,
-          prereq: ['meas.area.multiply', 'add.within100'], types: ['numeric'],
+          prereq: ['meas.area.multiply', 'add.within100'], types: ['numeric', 'mc'],
           misconceptions: ['assumes equal perimeter forces equal area'],
           provenance: { ccss: ['3.MD.D.8'] } },
 
