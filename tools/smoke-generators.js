@@ -195,7 +195,43 @@ DOT_NODES.forEach((nodeId) => {
         }
     }
 });
-if (dotsChecked) console.log(`\nChecked ${dotsChecked} dot pictures against their answers.`);
+
+// The ten-frame must be filled to the number being asked about, and the two-set
+// comparison must draw the counts its explanation claims — otherwise "which side
+// has more" can show the wrong side.
+const frameNode = generators.get('count.subitize.grouped');
+if (frameNode) {
+    const node = byId.get('count.subitize.grouped');
+    for (let i = 0; i < 200; i++) {
+        let item;
+        try { item = frameNode.fn(makeRng(70000 + i * 7919), node.params || {}); } catch (e) { continue; }
+        const frame = ((item || {}).prompt || []).find((b) => b.t === 'svg' && b.draw === 'ten-frame');
+        if (!frame) continue;
+        dotsChecked++;
+        if (Number(frame.args.filled) !== Number(item.answer)) {
+            failures.push(`count.subitize.grouped: frame filled to ${frame.args.filled} but the answer says ${item.answer}`);
+        }
+    }
+}
+
+const setsNode = generators.get('count.compare.sets');
+if (setsNode) {
+    const node = byId.get('count.compare.sets');
+    for (let i = 0; i < 200; i++) {
+        let item;
+        try { item = setsNode.fn(makeRng(60000 + i * 7919), node.params || {}); } catch (e) { continue; }
+        const svg = ((item || {}).prompt || []).find((b) => b.t === 'svg' && b.draw === 'two-sets');
+        const claim = /Blue has (\d+) and orange has (\d+)/.exec((item || {}).explain || '');
+        if (!svg || !claim) continue;
+        dotsChecked++;
+        if (svg.args.left.length !== Number(claim[1]) || svg.args.right.length !== Number(claim[2])) {
+            failures.push(`count.compare.sets: drew ${svg.args.left.length}/${svg.args.right.length}`
+                + ` but claims ${claim[1]}/${claim[2]} — the wrong side could look bigger`);
+        }
+    }
+}
+
+if (dotsChecked) console.log(`\nChecked ${dotsChecked} pictures against their answers.`);
 
 // ---- item variety -------------------------------------------------------------
 /*

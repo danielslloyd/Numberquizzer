@@ -72,6 +72,24 @@
                 + ticks + mark + '</svg>';
         },
 
+        /* A ten-frame filled to `filled`. Five in the top row and the rest below
+         * is the arrangement that makes "five and some more" visible without
+         * counting, which is the whole point of grouped subitising. */
+        'ten-frame': function (a) {
+            const filled = Math.max(0, Math.min(10, a.filled || 0));
+            const S = 44, PAD = 6;
+            let cells = '';
+            for (let i = 0; i < 10; i++) {
+                const c = i % 5, r = Math.floor(i / 5);
+                const x = PAD + c * S, y = PAD + r * S;
+                cells += `<rect x="${x}" y="${y}" width="${S}" height="${S}" fill="#fff" stroke="#555" stroke-width="2"/>`;
+                if (i < filled) {
+                    cells += `<circle cx="${x + S / 2}" cy="${y + S / 2}" r="${S * 0.32}" fill="#1565c0"/>`;
+                }
+            }
+            return `<svg viewBox="0 0 ${5 * S + PAD * 2} ${2 * S + PAD * 2}" class="idr-svg" xmlns="http://www.w3.org/2000/svg">${cells}</svg>`;
+        },
+
         /* Loose dots at generator-supplied positions. Placement is decided by the
          * generator's seeded rng and passed in, so the same item always draws the
          * same picture — counting a *scattered* set is a harder and different

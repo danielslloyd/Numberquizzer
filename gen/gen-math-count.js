@@ -17,21 +17,43 @@
 
     const G = {};
 
-    // Scattered placement with a minimum separation, so dots stay countable but
-    // are not in a helpful row. Uses the seeded rng, so the layout is part of
-    // the reproducible item.
+    /*
+     * Scattered placement with a minimum separation, so dots stay countable but
+     * are not in a helpful row. Uses the seeded rng, so the layout is part of the
+     * reproducible item.
+     *
+     * It MUST return exactly n points. Rejection sampling alone cannot promise
+     * that — in a small box it sometimes gave up short, and a picture with fewer
+     * dots than the answer marks a child wrong for counting correctly. So the
+     * separation relaxes on each pass and, if even that fails, a plain grid
+     * finishes the job. Slightly less scattered beats silently wrong.
+     */
     function scatter(rng, n, w, h, pad) {
-        const pts = [];
-        let guard = 0;
-        while (pts.length < n && guard < n * 200) {
-            guard++;
-            const x = rng.int(pad, w - pad);
-            const y = rng.int(pad, h - pad);
-            if (pts.every((p) => (p[0] - x) * (p[0] - x) + (p[1] - y) * (p[1] - y) > 34 * 34)) {
-                pts.push([x, y]);
+        for (let sep = 34; sep >= 18; sep -= 4) {
+            const pts = [];
+            let guard = 0;
+            while (pts.length < n && guard < n * 200) {
+                guard++;
+                const x = rng.int(pad, w - pad);
+                const y = rng.int(pad, h - pad);
+                if (pts.every((p) => (p[0] - x) * (p[0] - x) + (p[1] - y) * (p[1] - y) > sep * sep)) {
+                    pts.push([x, y]);
+                }
             }
+            if (pts.length === n) return pts;
         }
-        return pts;
+
+        const cols = Math.ceil(Math.sqrt(n * (w / h)));
+        const rows = Math.ceil(n / cols);
+        const out = [];
+        for (let i = 0; i < n; i++) {
+            const c = i % cols, r = Math.floor(i / cols);
+            out.push([
+                Math.round(pad + (c + 0.5) * ((w - 2 * pad) / cols)),
+                Math.round(pad + (r + 0.5) * ((h - 2 * pad) / rows)),
+            ]);
+        }
+        return out;
     }
 
     G['count.subitize.small'] = function (rng, p) {
@@ -95,6 +117,12 @@
         });
     };
 
+    /*
+     * A ten-frame, filled to n. This used to draw a full 2x5 array of ten dots
+     * whatever the answer was, and explain the difference in words underneath —
+     * so a child who counted the picture got ten every time and was marked wrong.
+     * The frame now shows exactly the quantity being asked about.
+     */
     G['count.subitize.grouped'] = function (rng, p) {
         const max = Math.min(10, p.max || 10);
         const n = rng.int(6, max);
@@ -102,8 +130,7 @@
             stem: 'How many dots? Look for five and some more.',
             prompt: [
                 { t: 'text', s: 'How many? Look for five and some more.' },
-                { t: 'svg', draw: 'array', args: { rows: 2, cols: 5 } },
-                { t: 'text', s: 'The top row is full. ' + (n - 5) + ' more are filled below.' },
+                { t: 'svg', draw: 'ten-frame', args: { filled: n } },
             ],
             answer: n,
             hint: 'Five in the full row, then count on.',
