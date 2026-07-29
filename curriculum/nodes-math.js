@@ -316,7 +316,7 @@
           provenance: { ccss: ['3.NF.A.3a', '3.NF.A.3b'] } },
 
         { id: 'frac.equivalent.generate', label: 'Make equivalent fractions',
-          prereq: ['frac.equivalent.recognise', 'mult.facts'], types: ['numeric'],
+          prereq: ['frac.equivalent.recognise', 'mult.facts'], types: ['numeric', 'fraction'],
           misconceptions: ['adds the same number to both parts instead of multiplying'],
           provenance: { ccss: ['4.NF.A.1'] } },
 
@@ -347,29 +347,29 @@
           provenance: { ccss: ['4.NF.B.3b'] } },
 
         { id: 'frac.add.likeDen', label: 'Add and subtract with the same denominator',
-          prereq: ['frac.decompose'], types: ['numeric'],
+          prereq: ['frac.decompose'], types: ['fraction'],
           misconceptions: ['adds the denominators too'],
           provenance: { ccss: ['4.NF.B.3a'] } },
 
         { id: 'frac.mixedImproper', label: 'Mixed numbers and improper fractions',
-          prereq: ['frac.wholeAsFraction', 'frac.aOverB'], types: ['numeric'],
+          prereq: ['frac.wholeAsFraction', 'frac.aOverB'], types: ['fraction', 'numeric'],
           provenance: { ccss: ['4.NF.B.3c'] } },
 
         { id: 'frac.add.mixed', label: 'Add and subtract mixed numbers',
-          prereq: ['frac.add.likeDen', 'frac.mixedImproper'], types: ['numeric'],
+          prereq: ['frac.add.likeDen', 'frac.mixedImproper'], types: ['fraction'],
           misconceptions: ['cannot regroup a whole into fifths in order to subtract'],
           provenance: { ccss: ['4.NF.B.3c'] } },
 
         { id: 'frac.add.unlikeDen', label: 'Add and subtract with different denominators',
-          prereq: ['frac.add.likeDen', 'frac.equivalent.generate'], types: ['numeric'],
+          prereq: ['frac.add.likeDen', 'frac.equivalent.generate'], types: ['fraction'],
           provenance: { ccss: ['5.NF.A.1', '5.NF.A.2'] } },
 
         { id: 'frac.mult.byWhole', label: 'Multiply a fraction by a whole number',
-          prereq: ['frac.decompose', 'mult.equalGroups'], types: ['numeric'],
+          prereq: ['frac.decompose', 'mult.equalGroups'], types: ['fraction'],
           provenance: { ccss: ['4.NF.B.4'] } },
 
         { id: 'frac.mult.byFraction', label: 'Multiply a fraction by a fraction',
-          prereq: ['frac.mult.byWhole'], types: ['numeric'],
+          prereq: ['frac.mult.byWhole'], types: ['fraction'],
           provenance: { ccss: ['5.NF.B.4'] } },
 
         { id: 'frac.scaling', label: 'Multiplying can make a number smaller',
@@ -378,12 +378,12 @@
           provenance: { ccss: ['5.NF.B.5'] } },
 
         { id: 'frac.asDivision', label: 'A fraction is a division',
-          prereq: ['frac.unit', 'mult.divInverse'], types: ['numeric', 'mc'],
+          prereq: ['frac.unit', 'mult.divInverse'], types: ['numeric', 'mc', 'fraction'],
           misconceptions: ['never connects 3/4 to 3 ÷ 4'],
           provenance: { ccss: ['5.NF.B.3'] } },
 
         { id: 'frac.div.unitByWhole', label: 'Divide a unit fraction by a whole number',
-          prereq: ['frac.asDivision', 'frac.mult.byFraction'], types: ['numeric'],
+          prereq: ['frac.asDivision', 'frac.mult.byFraction'], types: ['fraction'],
           provenance: { ccss: ['5.NF.B.7a'] } },
 
         { id: 'frac.div.wholeByUnit', label: 'Divide a whole number by a unit fraction',

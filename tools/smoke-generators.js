@@ -1,0 +1,230 @@
+#!/usr/bin/env node
+/*
+ * Generator smoke test.
+ *
+ *   node tools/smoke-generators.js
+ *
+ * For every node that has a generator, draw N items with fixed seeds and assert
+ * that each item's OWN answer grades correct through its OWN declared grader.
+ *
+ * This is the test that matters most in the whole repo. Every other failure is
+ * cosmetic next to telling a child their right answer is wrong, or marking a
+ * wrong answer right. It must pass before any pack ships.
+ *
+ * It also catches the quieter faults: a generator that is not deterministic, one
+ * that emits an item type the node never declared, a multiple-choice item whose
+ * correct option is always in the same position, and distractors that duplicate
+ * the answer.
+ */
+'use strict';
+
+const path = require('path');
+const fs = require('fs');
+
+const DRAWS = Number(process.env.DRAWS || 50);
+
+// ---- minimal harness: the browser globals the modules expect ---------------
+global.window = global;
+window.idrEscape = (s) => String(s);
+window.idrDraw = new Proxy({}, { get: () => () => '' });
+
+const nodes = [];
+['curriculum/nodes-math.js', 'curriculum/nodes-english.js'].forEach((rel) => {
+    const abs = path.join(__dirname, '..', rel);
+    if (fs.existsSync(abs)) require(abs).forEach((n) => nodes.push(n));
+});
+const byId = new Map(nodes.map((n) => [n.id, n]));
+
+// item-types.js assigns to window.*; document is only touched inside render(),
+// which this test never calls.
+require(path.join(__dirname, '..', 'item-types.js'));
+const GRADERS = window.GRADERS;
+
+// The same xorshift32 curriculum.js uses, so seeds line up with the real app.
+function makeRng(seed) {
+    let s = (seed | 0) || 0x9e3779b9;
+    const rng = function () {
+        s ^= s << 13; s |= 0;
+        s ^= s >>> 17;
+        s ^= s << 5; s |= 0;
+        return ((s >>> 0) / 4294967296);
+    };
+    rng.int = (lo, hi) => lo + Math.floor(rng() * (hi - lo + 1));
+    rng.pick = (a) => a[Math.floor(rng() * a.length)];
+    rng.bool = (p) => rng() < (p === undefined ? 0.5 : p);
+    rng.shuffle = (a) => {
+        const x = a.slice();
+        for (let i = x.length - 1; i > 0; i--) {
+            const j = Math.floor(rng() * (i + 1));
+            const t = x[i]; x[i] = x[j]; x[j] = t;
+        }
+        return x;
+    };
+    rng.sample = (a, n) => rng.shuffle(a).slice(0, n);
+    return rng;
+}
+
+// A generator must not reach for real randomness.
+Math.random = function () {
+    throw new Error('a generator called Math.random() — use the seeded rng argument');
+};
+
+// ---- load packs ------------------------------------------------------------
+const genDir = path.join(__dirname, '..', 'gen');
+// manifest.js is this script's own output, not a pack.
+const packs = fs.existsSync(genDir)
+    ? fs.readdirSync(genDir).filter((f) => f.endsWith('.js') && f !== 'manifest.js')
+    : [];
+if (!packs.length) { console.log('\nNo generator packs yet — nothing to smoke.\n'); process.exit(0); }
+
+const generators = new Map();
+packs.forEach((f) => {
+    const G = require(path.join(genDir, f));
+    Object.keys(G).forEach((id) => generators.set(id, { fn: G[id], pack: f }));
+});
+
+// ---- run -------------------------------------------------------------------
+const failures = [];
+let drawn = 0;
+const mcPositions = new Map();
+
+generators.forEach((entry, nodeId) => {
+    const node = byId.get(nodeId);
+    if (!node) { failures.push(`${entry.pack}: generator for unknown node "${nodeId}"`); return; }
+
+    for (let i = 0; i < DRAWS; i++) {
+        const seed = 1000 + i * 7919;
+        let item;
+        try {
+            item = entry.fn(makeRng(seed), node.params || {});
+        } catch (e) {
+            failures.push(`${nodeId} seed ${seed}: threw — ${e.message}`);
+            continue;
+        }
+        if (!item) { failures.push(`${nodeId} seed ${seed}: returned nothing`); continue; }
+        drawn++;
+
+        if (!item.type) failures.push(`${nodeId} seed ${seed}: no item type`);
+        if (!item.stem) failures.push(`${nodeId} seed ${seed}: no stem (needed for speech and print)`);
+        if (!item.grade) failures.push(`${nodeId} seed ${seed}: no grader named`);
+        if (item.answer === undefined || item.answer === null) {
+            failures.push(`${nodeId} seed ${seed}: no answer`);
+            continue;
+        }
+        if (node.types && node.types.indexOf(item.type) === -1) {
+            failures.push(`${nodeId} seed ${seed}: emits "${item.type}" but the node declares [${node.types}]`);
+        }
+
+        const grader = GRADERS[item.grade];
+        if (!grader) { failures.push(`${nodeId} seed ${seed}: unknown grader "${item.grade}"`); continue; }
+
+        // THE check: the item's own answer must grade correct.
+        const verdict = grader(item.answer, item);
+        if (!verdict.correct) {
+            failures.push(`${nodeId} seed ${seed}: its own answer (${JSON.stringify(item.answer)}) grades WRONG`);
+        }
+
+        // Determinism: same seed, same item.
+        const again = entry.fn(makeRng(seed), node.params || {});
+        if (JSON.stringify(again) !== JSON.stringify(item)) {
+            failures.push(`${nodeId} seed ${seed}: not deterministic for a fixed seed`);
+        }
+
+        if (item.type === 'mc' || item.type === 'multi') {
+            if (!Array.isArray(item.choices) || item.choices.length < 2) {
+                failures.push(`${nodeId} seed ${seed}: needs at least two choices`);
+            } else {
+                const labels = item.choices.map((c) => (typeof c === 'string' ? c : c.text));
+                if (new Set(labels).size !== labels.length) {
+                    failures.push(`${nodeId} seed ${seed}: duplicate choices — ${JSON.stringify(labels)}`);
+                }
+                if (item.type === 'mc') {
+                    const key = nodeId;
+                    if (!mcPositions.has(key)) mcPositions.set(key, []);
+                    mcPositions.get(key).push(Number(item.answer) / Math.max(1, item.choices.length - 1));
+                }
+            }
+        }
+
+        // A wrong answer must actually grade wrong, or the node measures nothing.
+        if (item.type === 'mc' && Array.isArray(item.choices) && item.choices.length > 1) {
+            const other = (Number(item.answer) + 1) % item.choices.length;
+            if (grader(other, item).correct) {
+                failures.push(`${nodeId} seed ${seed}: a different choice also grades correct`);
+            }
+        }
+    }
+});
+
+// A correct option that never moves is answerable without reading the question.
+mcPositions.forEach((positions, nodeId) => {
+    if (positions.length < 10) return;
+    if (new Set(positions).size === 1) {
+        failures.push(`${nodeId}: the correct choice is always in the same position — shuffle it`);
+    }
+});
+
+// ---- regenerate the manifest ------------------------------------------------
+/*
+ * gen/manifest.js is a committed artifact, written from the packs themselves so
+ * it cannot drift from what they actually generate. The ladder needs to know
+ * which nodes are buildable WITHOUT fetching every pack — otherwise drawing it
+ * would download the whole generator layer, which is the cost lazy loading
+ * exists to avoid.
+ */
+const byPackIds = {};
+generators.forEach((entry, nodeId) => {
+    const pack = entry.pack.replace(/\.js$/, '').replace(/^gen-/, '');
+    (byPackIds[pack] = byPackIds[pack] || []).push(nodeId);
+});
+
+const manifestPath = path.join(genDir, 'manifest.js');
+const manifestBody =
+    '/*\n'
+    + ' * GENERATED FILE — do not edit by hand.\n'
+    + ' *   node tools/smoke-generators.js\n'
+    + ' *\n'
+    + ' * Declares which nodes each pack can generate, so the ladder can show what\n'
+    + ' * is built without fetching every pack. Written from the packs themselves,\n'
+    + ' * so it cannot disagree with them.\n'
+    + ' */\n'
+    + '(function () {\n'
+    + "    'use strict';\n"
+    + '    const MANIFEST = {\n'
+    + Object.keys(byPackIds).sort().map((p) =>
+        `        '${p}': [\n`
+        + byPackIds[p].sort().map((id) => `            '${id}',`).join('\n')
+        + '\n        ],').join('\n')
+    + '\n    };\n\n'
+    + '    if (typeof CUR !== \'undefined\') {\n'
+    + '        Object.keys(MANIFEST).forEach((p) => CUR.declareBuilt(p, MANIFEST[p]));\n'
+    + '    }\n'
+    + '    if (typeof module !== \'undefined\' && module.exports) module.exports = MANIFEST;\n'
+    + '})();\n';
+
+const previous = fs.existsSync(manifestPath) ? fs.readFileSync(manifestPath, 'utf8') : '';
+if (previous !== manifestBody) {
+    fs.writeFileSync(manifestPath, manifestBody);
+    console.log('\nRewrote gen/manifest.js — commit it.');
+}
+
+// ---- report ----------------------------------------------------------------
+const missing = nodes.filter((n) => n.tier === 1 && !generators.has(n.id));
+const byPack = {};
+missing.forEach((n) => { (byPack[n.pack] = byPack[n.pack] || []).push(n.id); });
+
+console.log(`\nDrew ${drawn} items across ${generators.size} generators (${DRAWS} per node).`);
+console.log(`Tier-1 nodes still without a generator: ${missing.length} of ${nodes.filter((n) => n.tier === 1).length}`);
+Object.keys(byPack).sort().forEach((p) => {
+    console.log(`  ${p.padEnd(12)} ${byPack[p].length}`);
+});
+
+if (failures.length) {
+    console.log(`\n${failures.length} failure(s):`);
+    failures.slice(0, 40).forEach((f) => console.log(`  x ${f}`));
+    if (failures.length > 40) console.log(`  … and ${failures.length - 40} more`);
+    console.log('');
+    process.exit(1);
+}
+
+console.log('\nOK — every generated item grades its own answer correct.\n');

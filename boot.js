@@ -37,10 +37,18 @@
         'curriculum.js',
         'curriculum/nodes-math.js',
         'curriculum/nodes-english.js',
+        'gen/manifest.js',      // which nodes are buildable, without fetching the packs
         'parser.js',
         'physics.js',
         'animator.js',
         'app.js',
+        // Learn. These come after app.js because they read TAB_ENTRY, SCREEN_TAB
+        // and showScreen when they boot, and item-draw adapts app.js's renderers.
+        'item-draw.js',
+        'item-types.js',
+        'progress.js',
+        'item-runner.js',
+        'library.js',
     ];
 
     // Each entry owns its tabs. `tabs` is [tabId, label] in display order; the

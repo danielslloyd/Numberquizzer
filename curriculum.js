@@ -25,6 +25,7 @@
     const NODES = new Map();      // id -> node
     const GENS = new Map();       // nodeId -> generator fn
     const PACKS = new Map();      // packName -> {state, promise}
+    const DECLARED = new Set();   // node ids a pack promises to generate (see manifest)
     const gatesIdx = new Map();   // id -> [ids that depend on it]
     let ladders = null;           // strand -> [node], built lazily, invalidated on register
 
@@ -65,12 +66,19 @@
     }
 
     // ---- registration ----------------------------------------------------
+    // Subject is derived from the pack prefix rather than stored on every node,
+    // so it cannot disagree with which file the node lives in.
+    function subjectOf(node) {
+        return /^ela-/.test(node.pack || '') ? 'english' : 'math';
+    }
+
     function registerNodes(defs) {
         (defs || []).forEach((n) => {
             if (NODES.has(n.id)) {
                 console.warn('curriculum: duplicate node id ' + n.id + ' — keeping the first');
                 return;
             }
+            n.subject = subjectOf(n);
             NODES.set(n.id, n);
         });
         ladders = null;
@@ -124,15 +132,28 @@
         return [...ladders.keys()].map((k) => ({
             strand: k,
             label: ladders.get(k)[0].strandLabel || k,
+            subject: ladders.get(k)[0].subject,
             count: ladders.get(k).length,
-            built: ladders.get(k).filter((n) => n.tier === 1).length,
+            tier1: ladders.get(k).filter((n) => n.tier === 1).length,
+            built: ladders.get(k).filter((n) => isBuilt(n.id)).length,
         }));
     }
 
     /* True once a node can actually be practised. Tier alone is not enough —
-     * tier 1 states intent, a registered generator states capability, and the
-     * ladder UI needs to distinguish "not built yet" from "ready". */
-    function isBuilt(id) { return GENS.has(id); }
+     * tier 1 states intent, a generator states capability, and the ladder has to
+     * distinguish "not built yet" from "ready".
+     *
+     * It cannot answer that by looking for a loaded generator, because packs are
+     * lazy: drawing the ladder would have to fetch every pack to find out what is
+     * in them, which is the exact cost lazy loading exists to avoid. So packs
+     * declare their contents up front in gen/manifest.js — a few hundred bytes,
+     * eager — and tools/smoke-generators.js regenerates that file from the packs
+     * themselves so the declaration cannot drift from the truth. */
+    function declareBuilt(pack, ids) {
+        (ids || []).forEach((id) => DECLARED.add(id));
+    }
+
+    function isBuilt(id) { return DECLARED.has(id) || GENS.has(id); }
 
     // ---- lazy pack loading -----------------------------------------------
     function ensurePack(pack) {
@@ -143,7 +164,7 @@
         const promise = new Promise((resolve, reject) => {
             const s = document.createElement('script');
             const v = (typeof window !== 'undefined' && window.ASSET_V) || '1';
-            s.src = 'gen/' + pack + '.js?v=' + v;
+            s.src = 'gen/gen-' + pack + '.js?v=' + v;
             s.async = false;
             s.onload = function () { resolve(pack); };
             s.onerror = function () {
@@ -222,6 +243,7 @@
     const CUR = {
         registerNodes: registerNodes,
         registerGens: registerGens,
+        declareBuilt: declareBuilt,
         get: get,
         all: all,
         gates: gates,

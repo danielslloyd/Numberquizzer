@@ -1,0 +1,298 @@
+/*
+ * The Learn browser.  Prefix: lb
+ *
+ * Three screens: subjects and their strands, one strand's ladder, and a node.
+ *
+ * There are no grade levels anywhere in here, and that is the point. A learner
+ * who is years ahead in fractions and behind in decoding has two positions, not
+ * one, and bucketing by grade would force a single wrong answer to "where are
+ * you". Position is per-strand: a strand plus a rung.
+ *
+ * Nothing is gated. Every rung is openable from a cold profile, including the
+ * top one. The ladder shows what has been done and suggests what is next; it
+ * never locks anything, because a learner who is ready for rung 9 should not
+ * have to grind rungs 1 through 8 to prove it.
+ *
+ * Routing is by hash — #/frac, #/frac/frac.numberline — so back and forward
+ * work and a rung can be linked to directly. No other mode needs to know.
+ */
+(function () {
+    'use strict';
+
+    const SCREENS = ['lb-strands', 'lb-ladder', 'lb-node'];
+    let currentStrand = null;
+
+    function $(id) { return document.getElementById(id); }
+    const esc = (s) => window.idrEscape(s);
+
+    // ---- level presentation ---------------------------------------------
+    const LEVEL_LABEL = ['Not started', 'Tried', 'Practising', 'Proficient', 'Mastered'];
+
+    function levelDot(lvl, built) {
+        if (!built) return '<span class="lb-dot lb-dot-unbuilt" title="Not built yet"></span>';
+        return `<span class="lb-dot lb-dot-${lvl}" title="${LEVEL_LABEL[lvl]}"></span>`;
+    }
+
+    // ---- screens ---------------------------------------------------------
+    function lbRenderStrands() {
+        const groups = { math: [], english: [] };
+        CUR.strands().forEach((s) => { (groups[s.subject] || groups.math).push(s); });
+
+        const due = prDue().filter((id) => CUR.isBuilt(id));
+        const next = prNextUp(4);
+
+        let html = '';
+
+        if (due.length) {
+            html += `<div class="lb-banner"><strong>${due.length}</strong> ready for review`
+                + ` <button class="btn btn-primary lb-small" data-review="1">Review now</button></div>`;
+        }
+
+        if (next.length) {
+            html += '<div class="lb-next"><div class="lb-next-title">Maybe next</div><div class="lb-next-row">'
+                + next.map((n) => {
+                    const node = CUR.get(n.id);
+                    return `<button class="lb-chip" data-node="${esc(n.id)}">${esc(node.label)}</button>`;
+                }).join('') + '</div></div>';
+        }
+
+        [['math', 'Maths'], ['english', 'English']].forEach(([key, label]) => {
+            if (!groups[key].length) return;
+            html += `<h2 class="lb-subject">${label}</h2><div class="lb-grid">`;
+            html += groups[key].map((s) => {
+                const p = prStrandProgress(s.strand);
+                const pct = p.built ? Math.round((p.proficient / p.built) * 100) : 0;
+                const sub = p.built
+                    ? `${p.proficient} of ${p.built} ready`
+                    : `${s.count} steps &middot; not built yet`;
+                return `<button class="lb-card${p.built ? '' : ' lb-card-empty'}" data-strand="${esc(s.strand)}">`
+                    + `<span class="lb-card-title">${esc(s.label)}</span>`
+                    + `<span class="lb-card-sub">${sub}</span>`
+                    + `<span class="lb-bar"><span class="lb-bar-fill" style="width:${pct}%"></span></span>`
+                    + '</button>';
+            }).join('');
+            html += '</div>';
+        });
+
+        $('lb-strands-body').innerHTML = html;
+    }
+
+    function lbRenderLadder(strand) {
+        currentStrand = strand;
+        const rungs = CUR.ladder(strand);
+        if (!rungs.length) return lbGo('');
+
+        $('lb-ladder-title').textContent = rungs[0].strandLabel || strand;
+
+        const built = rungs.filter((n) => CUR.isBuilt(n.id));
+        $('lb-ladder-sub').textContent = built.length
+            ? `${built.filter((n) => prLevel(n.id) >= 3).length} of ${built.length} ready`
+            : 'Nothing built here yet';
+
+        $('lb-ladder-body').innerHTML = rungs.map((n) => {
+            const isBuilt = CUR.isBuilt(n.id);
+            const lvl = prLevel(n.id);
+            const rec = prGet(n.id);
+            const isDue = isBuilt && rec.n > 0 && rec.due && rec.due <= Date.now() && lvl < 4;
+            return `<button class="lb-rung${isBuilt ? '' : ' lb-rung-unbuilt'}" data-node="${esc(n.id)}">`
+                + `<span class="lb-rung-n">${n.rung}</span>`
+                + levelDot(lvl, isBuilt)
+                + `<span class="lb-rung-label">${esc(n.label)}</span>`
+                + (isDue ? '<span class="lb-due" title="Due for review">&#9679;</span>' : '')
+                + (n.automaticity ? '<span class="lb-speed" title="Timed">&#9201;</span>' : '')
+                + (isBuilt ? '' : '<span class="lb-soon">not built yet</span>')
+                + '</button>';
+        }).join('');
+    }
+
+    function lbRenderNode(nodeId) {
+        const n = CUR.get(nodeId);
+        if (!n) return lbGo('');
+        currentStrand = n.strand;
+
+        const isBuilt = CUR.isBuilt(nodeId);
+        const rec = prGet(nodeId);
+        const lvl = rec.lvl;
+        const blocked = prBlockedBy(nodeId);
+
+        $('lb-node-title').textContent = n.label;
+        $('lb-node-strand').textContent = (n.strandLabel || n.strand) + ' · step ' + n.rung;
+
+        let html = '';
+
+        html += `<div class="lb-node-status">${levelDot(lvl, isBuilt)}<span>${isBuilt ? LEVEL_LABEL[lvl] : 'Not built yet'}</span>`;
+        if (rec.n) html += `<span class="lb-node-tally">${rec.c} right out of ${rec.n}</span>`;
+        html += '</div>';
+
+        if (blocked && blocked.reason === 'speed') {
+            html += `<p class="lb-note">Accurate — now for speed. Typical answer ${(blocked.p50 / 1000).toFixed(1)}s, aiming for ${(blocked.target / 1000).toFixed(1)}s.</p>`;
+        } else if (blocked && blocked.reason === 'comeBack') {
+            html += '<p class="lb-note">Going well. Come back on another day and it will count as proficient.</p>';
+        }
+
+        if (n.prereq && n.prereq.length) {
+            html += '<div class="lb-prereq"><span class="lb-prereq-label">Builds on</span>'
+                + n.prereq.map((p) => {
+                    const pn = CUR.get(p);
+                    if (!pn) return '';
+                    return `<button class="lb-chip" data-node="${esc(p)}">${levelDot(prLevel(p), CUR.isBuilt(p))}${esc(pn.label)}</button>`;
+                }).join('') + '</div>';
+        }
+
+        const gated = CUR.gates(nodeId);
+        if (gated.length) {
+            html += '<div class="lb-prereq"><span class="lb-prereq-label">Leads to</span>'
+                + gated.map((g) => {
+                    const gn = CUR.get(g);
+                    return gn ? `<button class="lb-chip" data-node="${esc(g)}">${esc(gn.label)}</button>` : '';
+                }).join('') + '</div>';
+        }
+
+        // Naming the usual wrong answer is worth showing: it tells a parent what
+        // to listen for, and it is why several of these nodes exist at all.
+        if (n.misconceptions && n.misconceptions.length) {
+            html += '<div class="lb-misc"><span class="lb-prereq-label">Easy to get wrong</span><ul>'
+                + n.misconceptions.map((m) => `<li>${esc(m)}</li>`).join('') + '</ul></div>';
+        }
+
+        const practice = (n.practice || []).filter((t) => typeof TAB_ENTRY !== 'undefined' && TAB_ENTRY[t]);
+        html += '<div class="lb-actions">';
+        if (isBuilt) {
+            html += '<button class="btn btn-primary" data-act="check">Check</button>';
+        } else {
+            html += '<button class="btn btn-primary" disabled>Not built yet</button>';
+        }
+        practice.forEach((t) => {
+            const btn = document.querySelector(`.tab-btn[data-tab="${t}"]`);
+            const label = btn ? btn.textContent : t;
+            html += `<button class="btn btn-secondary" data-practice="${esc(t)}">Practise in ${esc(label)}</button>`;
+        });
+        html += '</div>';
+
+        $('lb-node-body').innerHTML = html;
+    }
+
+    // ---- routing ---------------------------------------------------------
+    function lbGo(path) { location.hash = '#/' + path; }
+
+    function lbBack() {
+        if (currentStrand) lbGo(currentStrand);
+        else lbGo('');
+    }
+
+    function lbRoute() {
+        const raw = (location.hash || '').replace(/^#\/?/, '');
+        const parts = raw.split('/').filter(Boolean);
+
+        if (!parts.length) { showScreen('lb-strands'); lbRenderStrands(); return; }
+        if (parts.length === 1) { showScreen('lb-ladder'); lbRenderLadder(parts[0]); return; }
+        showScreen('lb-node');
+        lbRenderNode(parts[1]);
+    }
+
+    // ---- markup ----------------------------------------------------------
+    const STRANDS_HTML =
+        '<div class="lb-container">'
+        + '  <h1 class="lb-title">Learn</h1>'
+        + '  <div id="lb-strands-body"></div>'
+        + '</div>';
+
+    const LADDER_HTML =
+        '<div class="lb-container">'
+        + '  <button class="lb-back" data-back="strands">&larr; All topics</button>'
+        + '  <h1 id="lb-ladder-title" class="lb-title"></h1>'
+        + '  <p id="lb-ladder-sub" class="lb-sub"></p>'
+        + '  <div id="lb-ladder-body" class="lb-ladder"></div>'
+        + '</div>';
+
+    const NODE_HTML =
+        '<div class="lb-container">'
+        + '  <button class="lb-back" data-back="ladder">&larr; Back</button>'
+        + '  <h1 id="lb-node-title" class="lb-title"></h1>'
+        + '  <p id="lb-node-strand" class="lb-sub"></p>'
+        + '  <div id="lb-node-body"></div>'
+        + '</div>';
+
+    function injectScreens() {
+        const anchor = document.getElementById('sprite-layer');
+        [['lb-strands', STRANDS_HTML], ['lb-ladder', LADDER_HTML], ['lb-node', NODE_HTML]]
+            .forEach(([name, html]) => {
+                if (document.getElementById(name + '-screen')) return;
+                const div = document.createElement('div');
+                div.id = name + '-screen';
+                div.className = 'screen';
+                div.innerHTML = html;
+                if (anchor) document.body.insertBefore(div, anchor);
+                else document.body.appendChild(div);
+            });
+    }
+
+    function injectTab() {
+        const bar = document.getElementById('tab-bar');
+        if (!bar || bar.querySelector('.tab-btn[data-tab="learn"]')) return;
+        const btn = document.createElement('button');
+        btn.className = 'tab-btn';
+        btn.dataset.tab = 'learn';
+        btn.textContent = 'Learn';
+        bar.insertBefore(btn, bar.firstChild);   // the point of the app goes first
+    }
+
+    function wire() {
+        document.addEventListener('click', (e) => {
+            const strandBtn = e.target.closest('[data-strand]');
+            if (strandBtn) { lbGo(strandBtn.dataset.strand); return; }
+
+            const nodeBtn = e.target.closest('[data-node]');
+            if (nodeBtn) {
+                const n = CUR.get(nodeBtn.dataset.node);
+                lbGo((n ? n.strand : '') + '/' + nodeBtn.dataset.node);
+                return;
+            }
+
+            const back = e.target.closest('[data-back]');
+            if (back) { back.dataset.back === 'strands' ? lbGo('') : lbBack(); return; }
+
+            const review = e.target.closest('[data-review]');
+            if (review) {
+                const due = prDue().filter((id) => CUR.isBuilt(id)).slice(0, 4);
+                if (due.length) irStart({ nodeIds: due, count: 10, mode: 'review' });
+                return;
+            }
+
+            const act = e.target.closest('[data-act]');
+            if (act && act.dataset.act === 'check') {
+                const id = (location.hash.split('/')[2] || '').trim();
+                if (id) irStart({ nodeIds: [id], count: 10, mode: 'assess' });
+                return;
+            }
+
+            const prac = e.target.closest('[data-practice]');
+            if (prac && typeof TAB_ENTRY !== 'undefined' && TAB_ENTRY[prac.dataset.practice]) {
+                TAB_ENTRY[prac.dataset.practice]();
+            }
+        });
+
+        window.addEventListener('hashchange', () => {
+            // Only drive navigation while the learner is actually in Learn.
+            const active = document.querySelector('.screen.active');
+            if (!active || !/^(lb-|ir-)/.test(active.id)) return;
+            lbRoute();
+        });
+    }
+
+    function boot() {
+        if (typeof TAB_ENTRY === 'undefined' || typeof SCREEN_TAB === 'undefined') return;
+        injectScreens();
+        injectTab();
+        SCREENS.forEach((n) => { SCREEN_TAB[n] = 'learn'; });
+        TAB_ENTRY.learn = () => { lbRoute(); };
+        wire();
+    }
+
+    window.lbBack = lbBack;
+    window.lbGo = lbGo;
+    window.lbRoute = lbRoute;
+
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+    else boot();
+})();

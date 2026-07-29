@@ -74,7 +74,7 @@ function check(name, ok, detail) {
 
     // ---- tab bar ------------------------------------------------------
     const tabs = await page.$$eval('#tab-bar .tab-btn', (els) => els.map((e) => e.dataset.tab));
-    check('all 17 tabs present', tabs.length === 17, 'got ' + tabs.length + ': ' + tabs.join(','));
+    check('all 18 tabs present', tabs.length === 18, 'got ' + tabs.length + ': ' + tabs.join(','));
     check('no duplicate tab buttons', new Set(tabs).size === tabs.length);
     check('lazy tabs in place', LAZY_TABS.every((t) => tabs.includes(t)));
 
@@ -110,7 +110,7 @@ function check(name, ok, detail) {
     }));
     check('proofs screen opened after lazy load', gpState.screen === 'geo-proofs-screen', JSON.stringify(gpState));
     check('proofs tab highlighted', gpState.highlighted);
-    check('lazy load did not duplicate the tab', gpState.gpTabs === 1 && gpState.tabCount === 17,
+    check('lazy load did not duplicate the tab', gpState.gpTabs === 1 && gpState.tabCount === 18,
         JSON.stringify(gpState));
 
     await page.click('#tab-bar .tab-btn[data-tab="la-vocab"]');
@@ -120,7 +120,117 @@ function check(name, ok, detail) {
         tabCount: document.querySelectorAll('#tab-bar .tab-btn').length,
     }));
     check('language-arts lazy load works', laState.screen === 'la-vocab-screen', JSON.stringify(laState));
-    check('language-arts did not duplicate tabs', laState.tabCount === 17, JSON.stringify(laState));
+    check('language-arts did not duplicate tabs', laState.tabCount === 18, JSON.stringify(laState));
+
+    // ---- Learn: browse a ladder and run an assessment -------------------
+    await page.click('#tab-bar .tab-btn[data-tab="learn"]');
+    await page.waitForTimeout(250);
+    check('Learn tab opens the strand list',
+        await page.evaluate(() => (document.querySelector('.screen.active') || {}).id === 'lb-strands-screen'));
+
+    const strandCards = await page.$$eval('[data-strand]', (els) => els.map((e) => e.dataset.strand));
+    check('all 18 strands listed', strandCards.length === 18, 'got ' + strandCards.length);
+
+    await page.click('[data-strand="frac"]');
+    await page.waitForTimeout(250);
+    const ladder = await page.evaluate(() => ({
+        screen: (document.querySelector('.screen.active') || {}).id,
+        rungs: document.querySelectorAll('.lb-rung').length,
+        unbuilt: document.querySelectorAll('.lb-rung-unbuilt').length,
+        hash: location.hash,
+    }));
+    check('fractions ladder shows 26 rungs, 2 unbuilt',
+        ladder.rungs === 26 && ladder.unbuilt === 2, JSON.stringify(ladder));
+    check('ladder deep-links by hash', ladder.hash === '#/frac', ladder.hash);
+
+    // Nothing is gated: the top rung must be openable from a cold profile.
+    await page.evaluate(() => { location.hash = '#/frac/frac.div.wholeByUnit'; });
+    await page.waitForTimeout(250);
+    const topRung = await page.evaluate(() => ({
+        screen: (document.querySelector('.screen.active') || {}).id,
+        checkEnabled: !!document.querySelector('[data-act="check"]:not([disabled])'),
+    }));
+    check('top rung openable with no prior progress (nothing gated)',
+        topRung.screen === 'lb-node-screen' && topRung.checkEnabled, JSON.stringify(topRung));
+
+    // Run an assessment and answer everything correctly by reading the item.
+    await page.click('[data-act="check"]');
+    await page.waitForFunction(() => document.querySelectorAll('#ir-response-host .ir-input').length > 0,
+        { timeout: 10000 }).catch(() => {});
+    check('runner started', await page.evaluate(() =>
+        (document.querySelector('.screen.active') || {}).id === 'ir-run-screen'));
+
+    let answered = 0;
+    for (let i = 0; i < 10; i++) {
+        const done = await page.evaluate(() => (document.querySelector('.screen.active') || {}).id === 'ir-results-screen');
+        if (done) break;
+        const ok = await page.evaluate(() => {
+            const S = window.__IR;
+            const item = S.items[S.idx];
+            if (!item) return false;
+            const input = document.querySelector('#ir-response-host .ir-input');
+            if (!input) return false;
+            input.value = String(item.answer);
+            return true;
+        });
+        if (!ok) break;
+        const before = await page.evaluate(() => window.__IR.idx);
+        answered++;
+        // Pause past the anti-mash floor. Answering instantly is not a thing a
+        // human does, and progress.js deliberately discards responses that fast —
+        // so a test that submits immediately would exercise the wrong path.
+        await page.waitForTimeout(500);
+        await page.click('#ir-submit');
+        // A correct answer advances itself after a beat, so wait for the state to
+        // move rather than racing the auto-advance by clicking Next.
+        await page.waitForFunction((prev) =>
+            window.__IR.idx !== prev
+            || (document.querySelector('.screen.active') || {}).id === 'ir-results-screen',
+        before, { timeout: 5000 }).catch(async () => {
+            const nextBtn = await page.$('#ir-next:not(.hidden)');
+            if (nextBtn) await nextBtn.click().catch(() => {});
+        });
+        await page.waitForTimeout(120);
+    }
+    check('answered a full run of items', answered >= 8, 'answered ' + answered);
+
+    await page.waitForTimeout(500);
+    const res = await page.evaluate(() => ({
+        screen: (document.querySelector('.screen.active') || {}).id,
+        score: (document.getElementById('ir-res-score') || {}).textContent,
+        rec: window.__PR.raw().nodes['frac.div.wholeByUnit'] || null,
+    }));
+    check('results screen reached', res.screen === 'ir-results-screen', JSON.stringify(res));
+    check('every answer graded correct', /^(\d+) \/ \1$/.test((res.score || '').trim()), res.score);
+    check('progress recorded for the node', res.rec && res.rec.n >= 8, JSON.stringify(res.rec));
+    check('latency captured', res.rec && res.rec.times && res.rec.times.length > 0);
+
+    // The two-day rule: perfect accuracy on day one must NOT reach proficient.
+    check('perfect run on one day stops at level 2, not proficient',
+        res.rec && res.rec.lvl === 2, 'lvl=' + (res.rec && res.rec.lvl));
+
+    const blocked = await page.evaluate(() => prBlockedBy('frac.div.wholeByUnit'));
+    check('reason given is "come back another day"',
+        blocked && blocked.reason === 'comeBack', JSON.stringify(blocked));
+
+    // Same node, backdated a day: now it should promote.
+    const promoted = await page.evaluate(() => {
+        const r = window.__PR.raw().nodes['frac.div.wholeByUnit'];
+        r.days = ['2020-01-01', '2020-01-02'];
+        prRecord('frac.div.wholeByUnit', { correct: true, partial: 1, ms: 2000 });
+        return window.__PR.raw().nodes['frac.div.wholeByUnit'].lvl;
+    });
+    check('promotes to proficient once two distinct days are seen', promoted === 3, 'lvl=' + promoted);
+
+    // Mashing must not promote: 40 instant correct answers are evidence of
+    // nothing, and the fastest route to "proficient" must never be to not read.
+    const mashed = await page.evaluate(() => {
+        for (let i = 0; i < 40; i++) prRecord('frac.scaling', { correct: true, partial: 1, ms: 60 });
+        const r = window.__PR.raw().nodes['frac.scaling'];
+        return { n: r.n, sn: r.sn, m: r.m, lvl: r.lvl };
+    });
+    check('40 instant correct answers do not reach proficient',
+        mashed.lvl < 3 && mashed.sn === 0, JSON.stringify(mashed));
 
     // ---- storage helper -------------------------------------------------
     const stOk = await page.evaluate(() => {

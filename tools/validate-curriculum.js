@@ -33,7 +33,7 @@ if (!nodes.length) {
 
 const byId = new Map();
 const VALID_TYPES = new Set(['numeric', 'mc', 'multi', 'text', 'tap-token', 'tap-region',
-    'order', 'match', 'numberline', 'build', 'sort-bins', 'cloze']);
+    'order', 'match', 'numberline', 'build', 'sort-bins', 'cloze', 'fraction']);
 
 // ---- shape + uniqueness -------------------------------------------------
 nodes.forEach((n) => {

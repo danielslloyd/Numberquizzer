@@ -1,0 +1,348 @@
+/*
+ * Generic assessment runner.  Prefix: ir
+ *
+ * One screen that can present any item type, grade it, explain it, and record
+ * the result — so adding a proficiency needs a generator and nothing else. No
+ * per-node UI, no per-node grading code.
+ *
+ * This is the *assessment* half of the app. The eighteen bespoke activity modes
+ * are the *practice* half and are not replaced by it: they are richer than a
+ * generic runner will ever be, and they are the reason a child stays engaged.
+ * A node links to both.
+ *
+ * Two things here are requirements rather than niceties:
+ *
+ *   Latency capture. Nodes with an automaticity target are graded on speed as
+ *   well as accuracy, so every item is timed from the moment it is shown.
+ *
+ *   Text-to-speech. The early word-recognition nodes ask a learner to work with
+ *   sounds; their prompts are meaningless as text, and a learner who cannot yet
+ *   read cannot use the app at all without this. It is wired in from the start
+ *   rather than added later.
+ */
+(function () {
+    'use strict';
+
+    const SCREENS = ['ir-run', 'ir-results'];
+
+    const S = {
+        items: [], idx: 0, results: [],
+        mode: 'practice', nodeIds: [], onDone: null,
+        shownAt: 0, startedAt: 0, locked: false, type: null,
+    };
+
+    function $(id) { return document.getElementById(id); }
+
+    // ---- speech ----------------------------------------------------------
+    // Mirrors the en-GB voice preference pvSpeak already uses, so the app has
+    // one voice rather than two.
+    function irSpeak(text) {
+        if (!text || typeof speechSynthesis === 'undefined') return;
+        try {
+            speechSynthesis.cancel();
+            const u = new SpeechSynthesisUtterance(text);
+            const voices = speechSynthesis.getVoices();
+            const gb = voices.find((v) => v.lang === 'en-GB') || voices.find((v) => /^en/.test(v.lang));
+            if (gb) u.voice = gb;
+            u.rate = 0.95;
+            speechSynthesis.speak(u);
+        } catch (e) { /* speech is an enhancement; never let it break a run */ }
+    }
+
+    // ---- lifecycle -------------------------------------------------------
+    /*
+     * opts: {nodeIds, count, mode, seed, onDone}
+     *   mode 'practice' — explanations shown, no session record
+     *   mode 'assess'   — explanations shown, session recorded
+     *   mode 'review'   — drawn from the due queue
+     */
+    function irStart(opts) {
+        const o = opts || {};
+        S.nodeIds = (o.nodeIds || []).slice();
+        S.mode = o.mode || 'practice';
+        S.onDone = o.onDone || null;
+        S.items = [];
+        S.idx = 0;
+        S.results = [];
+        S.locked = false;
+        S.startedAt = Date.now();
+
+        if (!S.nodeIds.length) { console.error('irStart: no nodes'); return; }
+
+        showScreen('ir-run');
+        $('ir-body').innerHTML = '<p class="ir-loading">Getting your questions ready…</p>';
+        $('ir-response-host').innerHTML = '';
+        $('ir-feedback').textContent = '';
+        $('ir-feedback').className = 'ir-feedback';
+
+        const perNode = Math.max(1, Math.ceil((o.count || 10) / S.nodeIds.length));
+        const draws = S.nodeIds.map((id) => CUR.generate(id, perNode, o.seed).catch((err) => {
+            console.error(err);
+            return [];
+        }));
+
+        Promise.all(draws).then((batches) => {
+            let all = [];
+            batches.forEach((b) => { all = all.concat(b); });
+
+            if (!all.length) {
+                $('ir-body').innerHTML =
+                    '<p class="ir-loading">This one isn\'t built yet. Try another rung.</p>';
+                return;
+            }
+
+            // Interleave rather than block by node when several are in play, so a
+            // mixed review actually mixes.
+            if (S.nodeIds.length > 1) {
+                const rng = CUR.rng((o.seed || Date.now()) & 0x7fffffff);
+                all = rng.shuffle(all);
+            }
+            S.items = all.slice(0, o.count || all.length);
+            irRender();
+        });
+    }
+
+    function current() { return S.items[S.idx]; }
+
+    function irRender() {
+        const item = current();
+        if (!item) return irEnd();
+
+        const node = CUR.get(item.node);
+        S.type = ITEM_TYPES[item.type];
+        if (!S.type) {
+            console.error('item-runner: unknown item type "' + item.type + '"');
+            return irNext();
+        }
+
+        $('ir-node-label').textContent = node ? node.label : '';
+        $('ir-count').textContent = (S.idx + 1) + ' / ' + S.items.length;
+        $('ir-progress-fill').style.width = ((S.idx / S.items.length) * 100).toFixed(1) + '%';
+
+        $('ir-body').innerHTML = idrRenderPrompt(item.prompt);
+
+        const host = $('ir-response-host');
+        host.dataset.locked = '0';
+        S.type.render(host, item, { submit: irSubmit });
+        if (S.type.focus) S.type.focus(host);
+
+        $('ir-feedback').textContent = '';
+        $('ir-feedback').className = 'ir-feedback';
+        $('ir-submit').classList.toggle('hidden', !!S.type.autoSubmit);
+        $('ir-next').classList.add('hidden');
+        $('ir-hint').classList.toggle('hidden', !item.hint);
+
+        S.locked = false;
+        S.shownAt = Date.now();
+
+        // Nodes about sounds must be spoken; everything else is speakable on
+        // demand via the button.
+        if (node && node.params && node.params.audio) irSpeak(idrSpeakable(item));
+    }
+
+    function irSubmit() {
+        if (S.locked) return;
+        const item = current();
+        const host = $('ir-response-host');
+        const response = S.type.collect(host);
+
+        if (response === null || response === undefined
+            || (Array.isArray(response) && !response.length)) {
+            $('ir-feedback').textContent = 'Have a go first.';
+            $('ir-feedback').className = 'ir-feedback ir-fb-nudge';
+            return;
+        }
+
+        const ms = Date.now() - S.shownAt;
+        const verdict = irGrade(response, item);
+
+        S.locked = true;
+        host.dataset.locked = '1';
+        if (S.type.reveal) S.type.reveal(host, item);
+
+        prRecord(item.node, {
+            correct: verdict.correct,
+            partial: verdict.partial,
+            ms: ms,
+            src: 'runner',
+        });
+        S.results.push({ node: item.node, correct: verdict.correct, partial: verdict.partial, ms: ms });
+
+        const fb = $('ir-feedback');
+        if (verdict.correct) {
+            fb.textContent = pickPraise();
+            fb.className = 'ir-feedback ir-fb-correct';
+        } else {
+            fb.innerHTML = '<strong>Not quite.</strong> ' + idrEscape(answerText(item))
+                + (item.explain ? '<br><span class="ir-explain">' + idrEscape(item.explain) + '</span>' : '')
+                + (verdict.detail ? '<br><span class="ir-explain">' + idrEscape(verdict.detail) + '</span>' : '');
+            fb.className = 'ir-feedback ir-fb-wrong';
+        }
+
+        $('ir-submit').classList.add('hidden');
+        $('ir-next').classList.remove('hidden');
+        $('ir-next').focus();
+
+        // A correct answer moves on by itself; a wrong one waits, because the
+        // correct answer sitting next to your own is most of the value.
+        if (verdict.correct) setTimeout(() => { if (S.locked) irNext(); }, 700);
+    }
+
+    function answerText(item) {
+        const a = item.answer;
+        if (a && typeof a === 'object' && a.num !== undefined) return 'The answer is ' + a.num + '/' + a.den + '.';
+        if (item.type === 'mc' && item.choices) {
+            const c = item.choices[Number(a)];
+            const label = typeof c === 'string' ? c : (c && c.text);
+            return label ? 'The answer is ' + label + '.' : '';
+        }
+        if (item.type === 'numberline') return 'It goes here.';
+        return 'The answer is ' + a + '.';
+    }
+
+    const PRAISE = ['Yes!', 'Correct.', 'Got it.', 'That\'s right.', 'Nice.'];
+    let praiseAt = 0;
+    function pickPraise() { return PRAISE[praiseAt++ % PRAISE.length]; }
+
+    function irNext() {
+        S.locked = false;
+        S.idx++;
+        irRender();
+    }
+
+    function irEnd() {
+        const total = S.results.length;
+        const right = S.results.filter((r) => r.correct).length;
+        const secs = Math.round((Date.now() - S.startedAt) / 1000);
+
+        if (S.mode !== 'practice' && total) {
+            prSession({ mode: S.mode, nodes: S.nodeIds.slice(), n: total, c: right, secs: secs });
+        }
+        prFlush();
+
+        showScreen('ir-results');
+        $('ir-res-score').textContent = right + ' / ' + total;
+        $('ir-res-time').textContent = secs + 's';
+
+        // Per-node outcome, including why a node that was answered perfectly may
+        // still not count as proficient yet.
+        const byNode = {};
+        S.results.forEach((r) => {
+            const b = byNode[r.node] || (byNode[r.node] = { n: 0, c: 0, ms: [] });
+            b.n++; if (r.correct) b.c++; b.ms.push(r.ms);
+        });
+
+        $('ir-res-nodes').innerHTML = Object.keys(byNode).map((id) => {
+            const node = CUR.get(id);
+            const b = byNode[id];
+            const lvl = prLevel(id);
+            const blocked = prBlockedBy(id);
+            let note = '';
+            if (blocked && blocked.reason === 'speed') {
+                note = `<span class="ir-res-note">All correct — now for speed. Typical ${(blocked.p50 / 1000).toFixed(1)}s, aiming for ${(blocked.target / 1000).toFixed(1)}s.</span>`;
+            } else if (blocked && blocked.reason === 'comeBack') {
+                note = '<span class="ir-res-note">Looking good. Come back another day to lock it in.</span>';
+            } else if (lvl >= 3) {
+                note = '<span class="ir-res-note ir-res-good">Proficient.</span>';
+            }
+            return `<div class="ir-res-node"><span class="ir-res-name">${idrEscape(node ? node.label : id)}</span>`
+                + `<span class="ir-res-tally">${b.c}/${b.n}</span>${note}</div>`;
+        }).join('');
+
+        if (S.onDone) S.onDone({ total: total, correct: right, secs: secs });
+    }
+
+    // ---- screens ---------------------------------------------------------
+    const RUN_HTML =
+        '<div class="ir-topbar">'
+        + '  <button id="ir-quit" class="ir-icon-btn" aria-label="Back">&larr;</button>'
+        + '  <span id="ir-node-label" class="ir-node-label"></span>'
+        + '  <span id="ir-count" class="ir-count"></span>'
+        + '</div>'
+        + '<div class="ir-progress"><div id="ir-progress-fill" class="ir-progress-fill"></div></div>'
+        + '<div class="ir-stage">'
+        + '  <div id="ir-body" class="ir-body"></div>'
+        + '  <div id="ir-response-host"></div>'
+        + '  <div id="ir-feedback" class="ir-feedback"></div>'
+        + '  <div class="ir-actions">'
+        + '    <button id="ir-speak" class="btn btn-secondary ir-small" aria-label="Read the question aloud">Hear it</button>'
+        + '    <button id="ir-hint" class="btn btn-secondary ir-small hidden">Hint</button>'
+        + '    <button id="ir-submit" class="btn btn-primary">Check</button>'
+        + '    <button id="ir-next" class="btn btn-primary hidden">Next</button>'
+        + '  </div>'
+        + '</div>';
+
+    const RESULTS_HTML =
+        '<div class="container">'
+        + '  <h1 class="results-title">Done</h1>'
+        + '  <div class="results-stats">'
+        + '    <div class="stat"><div class="stat-label">Score</div><div id="ir-res-score" class="stat-value">0 / 0</div></div>'
+        + '    <div class="stat"><div class="stat-label">Time</div><div id="ir-res-time" class="stat-value">0s</div></div>'
+        + '  </div>'
+        + '  <div id="ir-res-nodes" class="ir-res-nodes"></div>'
+        + '  <button id="ir-res-again" class="btn btn-primary">Again</button>'
+        + '  <button id="ir-res-back" class="btn btn-secondary">Back to the ladder</button>'
+        + '</div>';
+
+    function injectStylesheet() {
+        if (document.querySelector('link[data-learn-css]')) return;
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = 'learn.css?v=' + (window.ASSET_V || '1');
+        link.dataset.learnCss = '1';
+        document.head.appendChild(link);
+    }
+
+    function injectScreens() {
+        const anchor = document.getElementById('sprite-layer');
+        [['ir-run', RUN_HTML], ['ir-results', RESULTS_HTML]].forEach(([name, html]) => {
+            if (document.getElementById(name + '-screen')) return;
+            const div = document.createElement('div');
+            div.id = name + '-screen';
+            div.className = 'screen';
+            div.innerHTML = html;
+            if (anchor) document.body.insertBefore(div, anchor);
+            else document.body.appendChild(div);
+        });
+    }
+
+    function wire() {
+        $('ir-submit').addEventListener('click', irSubmit);
+        $('ir-next').addEventListener('click', irNext);
+        $('ir-speak').addEventListener('click', () => { const i = current(); if (i) irSpeak(idrSpeakable(i)); });
+        $('ir-hint').addEventListener('click', () => {
+            const i = current();
+            if (!i || !i.hint) return;
+            const fb = $('ir-feedback');
+            fb.textContent = i.hint;
+            fb.className = 'ir-feedback ir-fb-nudge';
+        });
+        $('ir-quit').addEventListener('click', () => {
+            prFlush();
+            if (window.lbBack) lbBack(); else showScreen('home');
+        });
+        $('ir-res-again').addEventListener('click', () => {
+            irStart({ nodeIds: S.nodeIds, count: S.items.length, mode: S.mode });
+        });
+        $('ir-res-back').addEventListener('click', () => {
+            if (window.lbBack) lbBack(); else showScreen('home');
+        });
+    }
+
+    function boot() {
+        if (typeof SCREEN_TAB === 'undefined') return;
+        injectStylesheet();
+        injectScreens();
+        // Both screens belong to the Learn tab, the same "several screens, one
+        // tab" arrangement as home/quiz/results under flashcards.
+        SCREENS.forEach((n) => { SCREEN_TAB[n] = 'learn'; });
+        wire();
+    }
+
+    window.irStart = irStart;
+    window.irSpeak = irSpeak;
+    window.__IR = S;
+
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
+    else boot();
+})();
