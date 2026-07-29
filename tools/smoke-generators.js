@@ -254,6 +254,31 @@ if (setsNode) {
 
 if (dotsChecked) console.log(`\nChecked ${dotsChecked} pictures against their answers.`);
 
+// ---- "which part of this word" items ------------------------------------------
+/*
+ * When an item quotes a word and asks which PART of it does something, every
+ * option has to be a part of that word. Options borrowed from other entries are
+ * eliminable without reading the question, and one of them can easily turn out
+ * to be part of this word as well — which makes a correct answer wrong.
+ */
+[['phon.schwa', /In "(\w+)"/], ['omap.heartWords', /word "(\w+)"/]].forEach(([nodeId, re]) => {
+    const entry = generators.get(nodeId);
+    const node = byId.get(nodeId);
+    if (!entry || !node) return;
+    for (let i = 0; i < 150; i++) {
+        let item;
+        try { item = entry.fn(makeRng(80000 + i * 7919), node.params || {}); } catch (e) { continue; }
+        if (!item || !item.choices) continue;
+        const m = re.exec(item.stem || '');
+        if (!m) { failures.push(`${nodeId}: stem does not name a word`); continue; }
+        item.choices.forEach((c) => {
+            if (String(m[1]).indexOf(String(c)) === -1) {
+                failures.push(`${nodeId}: offers "${c}", which is not part of "${m[1]}"`);
+            }
+        });
+    }
+});
+
 // ---- item variety -------------------------------------------------------------
 /*
  * How many distinct questions can each generator actually produce? A node backed
