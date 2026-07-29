@@ -167,6 +167,41 @@ mcPositions.forEach((positions, nodeId) => {
     }
 });
 
+// ---- item variety -------------------------------------------------------------
+/*
+ * How many distinct questions can each generator actually produce? A node backed
+ * by six hand-authored entries will repeat itself inside a single ten-item run,
+ * and once a learner remembers the answers it stops measuring anything.
+ *
+ * Reported rather than failed: some nodes legitimately have a small space (there
+ * are only eleven ways to make ten), and the runner's own de-duplication handles
+ * a short run. It is the ones well under a session's length that need more
+ * content.
+ */
+const VARIETY_DRAWS = Number(process.env.VARIETY_DRAWS || 300);
+const variety = [];
+generators.forEach((entry, nodeId) => {
+    const node = byId.get(nodeId);
+    if (!node) return;
+    const seen = new Set();
+    for (let i = 0; i < VARIETY_DRAWS; i++) {
+        try {
+            const item = entry.fn(makeRng(500000 + i * 104729), node.params || {});
+            if (item) seen.add(item.sig || (item.stem + '|' + JSON.stringify(item.answer)));
+        } catch (e) { /* already reported above */ }
+    }
+    variety.push({ id: nodeId, n: seen.size });
+});
+
+const thin = variety.filter((v) => v.n < 20).sort((a, b) => a.n - b.n);
+console.log(`\nItem variety (${VARIETY_DRAWS} draws each): median ${
+    variety.map((v) => v.n).sort((a, b) => a - b)[Math.floor(variety.length / 2)]} distinct.`);
+if (thin.length) {
+    console.log(`${thin.length} generator(s) produce fewer than 20 distinct items:`);
+    thin.slice(0, 25).forEach((v) => console.log(`  ${String(v.n).padStart(3)}  ${v.id}`));
+    if (thin.length > 25) console.log(`  … and ${thin.length - 25} more`);
+}
+
 // ---- passage integrity -------------------------------------------------------
 /*
  * Passages are hand-authored, and the failure modes are quiet: a pronoun that

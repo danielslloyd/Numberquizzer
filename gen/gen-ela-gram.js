@@ -93,6 +93,12 @@
             { s: 'Give the book to Anna. It belongs to ___ .', right: 'her', wrong: ['she', 'hers', 'they'] },
             { s: 'The cat washed ___ paws.', right: 'its', wrong: ["it's", 'their', 'his'] },
             { s: 'Jack and I are ready. Wait for ___ .', right: 'us', wrong: ['we', 'them', 'our'] },
+            { s: 'The teachers marked the books, then ___ went home.', right: 'they', wrong: ['them', 'their', 'he'] },
+            { s: 'This coat is mine and that one is ___ .', right: 'hers', wrong: ['her', 'she', 'their'] },
+            { s: 'Between you and ___ , I think it will rain.', right: 'me', wrong: ['I', 'my', 'mine'] },
+            { s: 'The birds built ___ nest in the hedge.', right: 'their', wrong: ["they're", 'there', 'its'] },
+            { s: 'Nobody knew where ___ had gone.', right: 'he', wrong: ['him', 'his', 'them'] },
+            { s: 'My sister and ___ walked to school.', right: 'I', wrong: ['me', 'my', 'mine'] },
         ];
         const c = rng.pick(CASES);
         return genMc(rng, {
@@ -198,6 +204,14 @@
               why: 'the question mark belongs to the spoken words, so it goes inside' },
             { right: '"Wait for me!" shouted Ravi.', wrong: '"Wait for me"! shouted Ravi.',
               why: 'the exclamation mark belongs to the spoken words' },
+            { right: '"Come inside," called Mum, "it is freezing."', wrong: '"Come inside" called Mum "it is freezing."',
+              why: 'each part of the speech needs its own speech marks, with commas inside' },
+            { right: 'The sign read, "No entry."', wrong: 'The sign read "No entry".',
+              why: 'the full stop belongs to the quoted words' },
+            { right: '"Did you hear that?" whispered Jo.', wrong: '"Did you hear that"? whispered Jo.',
+              why: 'the question mark belongs to the spoken words' },
+            { right: 'Ben said, "I will be there by six."', wrong: 'Ben said "I will be there by six".',
+              why: 'a comma introduces the speech and the full stop goes inside' },
         ];
         const c = rng.pick(CASES);
         return genMc(rng, {

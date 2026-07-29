@@ -91,6 +91,14 @@
               a: 'cause and effect', w: ['sequence', 'compare and contrast', 'problem and solution'] },
             { s: 'The bees were disappearing. To help them, the school planted a meadow of wild flowers.',
               a: 'problem and solution', w: ['sequence', 'compare and contrast', 'cause and effect'] },
+            { s: 'A frog has smooth, damp skin. A toad, by contrast, has dry, bumpy skin and shorter legs.',
+              a: 'compare and contrast', w: ['sequence', 'cause and effect', 'problem and solution'] },
+            { s: 'Boil the kettle. While it heats, warm the pot. Then pour the water over the leaves.',
+              a: 'sequence — steps in order', w: ['cause and effect', 'compare and contrast', 'problem and solution'] },
+            { s: 'The path kept flooding, so the council laid gravel and dug a shallow ditch beside it.',
+              a: 'problem and solution', w: ['sequence', 'compare and contrast', 'cause and effect'] },
+            { s: 'Since the factory closed, the river has run clear and the fish have returned.',
+              a: 'cause and effect', w: ['sequence', 'compare and contrast', 'problem and solution'] },
         ];
         const c = rng.pick(CASES);
         return genMc(rng, {
@@ -99,7 +107,9 @@
             correct: c.a,
             distractors: c.w,
             hint: 'Look at the joining words.',
-            sig: 'struct:' + c.a,
+            // Keyed on the passage, not the structure type — there are only four
+            // types, so keying on those would collapse eight passages into four.
+            sig: 'struct:' + c.s.slice(0, 24),
         });
     };
 

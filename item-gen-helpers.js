@@ -13,6 +13,19 @@
     'use strict';
 
     /*
+     * Signatures identify an item for de-duplication inside a run. A generator's
+     * explicit `sig` is treated as a CATEGORY, and the answer is appended to it
+     * — because a signature coarser than the item makes the runner throw away
+     * perfectly good questions as repeats. Several packs had signatures naming
+     * only the pattern being tested, which capped a whole node at two or three
+     * distinct questions per session however large its word bank was.
+     */
+    function sigOf(opts, answerPart) {
+        const base = opts.sig || opts.stem || '';
+        return base + '#' + String(answerPart);
+    }
+
+    /*
      * opts: {stem, prompt, correct, distractors, hint, explain, sig}
      *
      * `correct` and each distractor are labels. The returned item's `answer` is
@@ -37,7 +50,7 @@
             grade: 'exact',
             hint: opts.hint,
             explain: opts.explain,
-            sig: opts.sig || (opts.stem + '|' + opts.correct),
+            sig: sigOf(opts, opts.correct),
         };
     };
 
@@ -51,7 +64,7 @@
             gradeOpts: opts.tol ? { tol: opts.tol } : {},
             hint: opts.hint,
             explain: opts.explain,
-            sig: opts.sig,
+            sig: sigOf(opts, opts.answer),
         };
     };
 
@@ -65,7 +78,7 @@
             gradeOpts: opts.accept ? { accept: opts.accept } : {},
             hint: opts.hint,
             explain: opts.explain,
-            sig: opts.sig,
+            sig: sigOf(opts, opts.answer),
         };
     };
 
@@ -88,7 +101,7 @@
             grade: 'set',
             hint: opts.hint,
             explain: opts.explain,
-            sig: opts.sig,
+            sig: sigOf(opts, mixed.map((x) => x.l).join('|')),
         };
     };
 
@@ -106,7 +119,7 @@
             gradeOpts: { tol: opts.tol === undefined ? span / 20 : opts.tol },
             hint: opts.hint,
             explain: opts.explain,
-            sig: opts.sig,
+            sig: sigOf(opts, opts.answer),
         };
     };
 
@@ -120,7 +133,7 @@
             gradeOpts: opts.lowest ? { lowest: true } : {},
             hint: opts.hint,
             explain: opts.explain,
-            sig: opts.sig,
+            sig: sigOf(opts, opts.num + '/' + opts.den),
         };
     };
 

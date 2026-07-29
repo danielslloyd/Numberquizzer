@@ -311,6 +311,20 @@
           noun: 'sister', verb: 'sang', adj: 'little', adv: 'beautifully' },
         { s: 'The hungry cat waited patiently by the door.',
           noun: 'cat', verb: 'waited', adj: 'hungry', adv: 'patiently' },
+        { s: 'The noisy crows woke us early.',
+          noun: 'crows', verb: 'woke', adj: 'noisy', adv: 'early' },
+        { s: 'A brave firefighter climbed the ladder quickly.',
+          noun: 'firefighter', verb: 'climbed', adj: 'brave', adv: 'quickly' },
+        { s: 'The heavy rain fell steadily all night.',
+          noun: 'rain', verb: 'fell', adj: 'heavy', adv: 'steadily' },
+        { s: 'Our new teacher explained the rules clearly.',
+          noun: 'teacher', verb: 'explained', adj: 'new', adv: 'clearly' },
+        { s: 'The tiny mouse crept silently across the floor.',
+          noun: 'mouse', verb: 'crept', adj: 'tiny', adv: 'silently' },
+        { s: 'A young cyclist pedalled furiously up the hill.',
+          noun: 'cyclist', verb: 'pedalled', adj: 'young', adv: 'furiously' },
+        { s: 'The ancient clock chimed loudly at midnight.',
+          noun: 'clock', verb: 'chimed', adj: 'ancient', adv: 'loudly' },
     ];
 
     L.fragments = [
@@ -322,6 +336,17 @@
         { text: 'She finished her book last night.', kind: 'sentence' },
         { text: 'I like apples they are sweet and crunchy.', kind: 'runon' },
         { text: 'The bell rang we all went outside.', kind: 'runon' },
+        { text: 'When the bell finally rang.', kind: 'fragment' },
+        { text: 'A crowd of noisy seagulls.', kind: 'fragment' },
+        { text: 'Although she tried her best.', kind: 'fragment' },
+        { text: 'Waiting by the door all afternoon.', kind: 'fragment' },
+        { text: 'The rain stopped at last.', kind: 'sentence' },
+        { text: 'Our team won the match.', kind: 'sentence' },
+        { text: 'Birds nest in the old oak.', kind: 'sentence' },
+        { text: 'He fixed the puncture quickly.', kind: 'sentence' },
+        { text: 'It was late we walked home in the dark.', kind: 'runon' },
+        { text: 'She loves painting her brother prefers music.', kind: 'runon' },
+        { text: 'The kettle boiled I made the tea.', kind: 'runon' },
     ];
 
     L.agreement = [
@@ -331,6 +356,14 @@
         { subj: 'My friends', right: 'were', wrong: 'was' },
         { subj: 'She', right: 'has', wrong: 'have' },
         { subj: 'They', right: 'have', wrong: 'has' },
+        { subj: 'The child', right: 'plays', wrong: 'play' },
+        { subj: 'The children', right: 'play', wrong: 'plays' },
+        { subj: 'My brother', right: 'does', wrong: 'do' },
+        { subj: 'My brothers', right: 'do', wrong: 'does' },
+        { subj: 'That box', right: 'is', wrong: 'are' },
+        { subj: 'Those boxes', right: 'are', wrong: 'is' },
+        { subj: 'Everyone', right: 'was', wrong: 'were' },
+        { subj: 'The dogs in the garden', right: 'bark', wrong: 'barks' },
     ];
 
     L.tense = [
@@ -340,6 +373,12 @@
         { base: 'run', past: 'ran', present: 'runs', future: 'will run' },
         { base: 'see', past: 'saw', present: 'sees', future: 'will see' },
         { base: 'write', past: 'wrote', present: 'writes', future: 'will write' },
+        { base: 'take', past: 'took', present: 'takes', future: 'will take' },
+        { base: 'bring', past: 'brought', present: 'brings', future: 'will bring' },
+        { base: 'catch', past: 'caught', present: 'catches', future: 'will catch' },
+        { base: 'swim', past: 'swam', present: 'swims', future: 'will swim' },
+        { base: 'think', past: 'thought', present: 'thinks', future: 'will think' },
+        { base: 'buy', past: 'bought', present: 'buys', future: 'will buy' },
     ];
 
     L.apostrophe = [
@@ -348,6 +387,12 @@
         { right: "they're", wrong: 'their', clue: 'short for "they are"', s: '___ coming to tea.' },
         { right: "don't", wrong: 'dont', clue: 'short for "do not"', s: 'Please ___ touch that.' },
         { right: "dog's", wrong: 'dogs', clue: 'the bowl belonging to one dog', s: "The ___ bowl was empty." },
+        { right: "we're", wrong: 'were', clue: 'short for "we are"', s: '___ going to be late.' },
+        { right: 'were', wrong: "we're", clue: 'the past tense of are', s: 'They ___ waiting outside.' },
+        { right: "you're", wrong: 'your', clue: 'short for "you are"', s: '___ standing on my foot.' },
+        { right: 'your', wrong: "you're", clue: 'belonging to you', s: 'Is this ___ coat?' },
+        { right: "can't", wrong: 'cant', clue: 'short for "cannot"', s: 'I ___ reach the shelf.' },
+        { right: "girls'", wrong: 'girls', clue: 'the changing room belonging to several girls', s: "The ___ changing room was locked." },
     ];
 
     L.commas = [
@@ -355,6 +400,12 @@
         { right: 'After the film, we walked home.', wrong: 'After the film we walked home.', why: 'after an opening phrase' },
         { right: 'Is that you, Steve?', wrong: 'Is that you Steve?', why: 'before naming who you are speaking to' },
         { right: 'It was cold, but we went anyway.', wrong: 'It was cold but, we went anyway.', why: 'before the joining word in a compound sentence' },
+        { right: 'We packed sandwiches, apples and a flask.', wrong: 'We packed sandwiches apples and a flask.', why: 'items in a list' },
+        { right: 'Before the bell rang, we lined up.', wrong: 'Before the bell rang we lined up.', why: 'after an opening phrase' },
+        { right: 'Come here, Amira.', wrong: 'Come here Amira.', why: 'before naming who you are speaking to' },
+        { right: 'It was late, so we went home.', wrong: 'It was late so, we went home.', why: 'before the joining word in a compound sentence' },
+        { right: 'Yes, I remember him.', wrong: 'Yes I remember him.', why: 'after yes or no at the start' },
+        { right: 'My uncle, who lives in Leeds, is visiting.', wrong: 'My uncle who lives in Leeds is visiting.', why: 'around extra information in the middle' },
     ];
 
     L.conjunctions = [
@@ -362,12 +413,23 @@
         { s: 'I wanted to go ___ I was too tired.', right: 'but', wrong: ['so', 'and', 'or'] },
         { s: 'We stayed inside ___ it was raining.', right: 'because', wrong: ['so', 'or', 'but'] },
         { s: 'You can have an apple ___ a pear.', right: 'or', wrong: ['because', 'so', 'but'] },
+        { s: 'She practised every day ___ she got better.', right: 'until', wrong: ['but', 'or', 'so'] },
+        { s: 'I will come ___ I finish my homework.', right: 'when', wrong: ['or', 'but', 'so'] },
+        { s: 'The soup was cold ___ salty.', right: 'and', wrong: ['because', 'so', 'until'] },
+        { s: 'He ran fast ___ he still missed the bus.', right: 'but', wrong: ['and', 'so', 'because'] },
+        { s: 'We waited ___ the rain stopped.', right: 'until', wrong: ['and', 'or', 'but'] },
+        { s: '___ it was snowing, the match went ahead.', right: 'Although', wrong: ['Because', 'So', 'Until'] },
     ];
 
     L.capitals = [
         { right: 'On Monday we visited London.', wrong: 'on monday we visited london.', why: 'sentence start, day, place' },
         { right: 'My friend Ravi lives in France.', wrong: 'my friend ravi lives in france.', why: 'sentence start, name, country' },
         { right: 'We read a book called The Iron Man.', wrong: 'we read a book called the iron man.', why: 'sentence start and title' },
+        { right: 'In September, Aisha started at Oakfield School.', wrong: 'in september, aisha started at oakfield school.', why: 'sentence start, month, name, school name' },
+        { right: 'We drove through Wales on a Tuesday.', wrong: 'we drove through wales on a tuesday.', why: 'sentence start, country, day' },
+        { right: 'Doctor Bell speaks French and Arabic.', wrong: 'doctor bell speaks french and arabic.', why: 'sentence start, title and name, languages' },
+        { right: 'My birthday is in March, just after Easter.', wrong: 'my birthday is in march, just after easter.', why: 'sentence start, month, festival' },
+        { right: 'The River Thames flows through London.', wrong: 'the river thames flows through london.', why: 'sentence start, river name, city' },
     ];
 
     window.LANG = L;

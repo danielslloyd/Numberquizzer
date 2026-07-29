@@ -179,6 +179,17 @@
               wrong: ['a very small telescope', 'a small picture', 'a machine that makes things small'] },
             { w: 'biography', means: 'writing about a life', from: 'bio (life) + graph (write)',
               wrong: ['a drawing of a person', 'the study of living things', 'a very long book'] },
+            { w: 'unstructured', means: 'not built to a plan', from: 'un (not) + struct (build) + ure + ed',
+              wrong: ['built very carefully', 'built more than once', 'able to be built'] },
+            { w: 'retractable', means: 'able to be pulled back in', from: 're (back) + tract (pull) + able (can be)',
+              wrong: ['pulled very hard', 'impossible to move', 'pulled by a tractor'] },
+            { w: 'visibility', means: 'how well things can be seen', from: 'vis (see) + ible (can be) + ity (the state of)',
+              wrong: ['a machine for seeing', 'someone who watches', 'the act of hiding'] },
+            { w: 'geothermal', means: 'to do with heat from the earth', from: 'geo (earth) + thermal (heat)',
+              wrong: ['a very cold place', 'measuring the earth', 'a kind of map'] },
+            { w: 'autobiography', means: 'the story of a life written by that person',
+              from: 'auto (self) + bio (life) + graph (write)',
+              wrong: ['a story about cars', 'a book about many lives', 'a drawing of a person'] },
         ];
         const c = rng.pick(CASES);
         return genMc(rng, {

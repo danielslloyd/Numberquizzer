@@ -107,12 +107,16 @@
     function patternItem(rng, table, label, sig) {
         const key = rng.pick(Object.keys(table));
         const foils = flat(table, key).concat(flat(W.cvc));
+        const correct = rng.pick(table[key]);
         return genMc(rng, {
             stem: 'Which word has the "' + key + '" ' + label + '?',
-            correct: rng.pick(table[key]),
+            correct: correct,
             distractors: rng.sample(foils.filter((w) => table[key].indexOf(w) === -1), 3),
             explain: 'Look for the letters "' + key + '" making one sound.',
-            sig: sig + ':' + key,
+            // The chosen word belongs in the signature, not just the pattern.
+            // The runner de-duplicates on sig, so a signature coarser than the
+            // item makes it discard perfectly good questions as repeats.
+            sig: sig + ':' + key + ':' + correct,
         });
     }
 
@@ -298,23 +302,25 @@
         const letter = rng.bool() ? 'c' : 'g';
         const softList = letter === 'c' ? W.softC : W.softG;
         const hardList = letter === 'c' ? W.hardC : W.hardG;
+        let cgWord;
         return genMc(rng, {
             stem: 'In which word does the "' + letter + '" make its ' + (soft ? 'soft' : 'hard') + ' sound?',
-            correct: rng.pick(soft ? softList : hardList),
+            correct: (function () { cgWord = rng.pick(soft ? softList : hardList); return cgWord; })(),
             distractors: rng.sample(soft ? hardList : softList, 3),
             hint: 'c and g go soft before e, i and y.',
-            sig: 'softcg:' + letter + ':' + (soft ? 's' : 'h'),
+            sig: 'softcg:' + letter + ':' + (soft ? 's' : 'h') + ':' + cgWord,
         });
     };
 
     G['phon.tchDge'] = function (rng) {
         const key = rng.bool() ? 'tch' : 'dge';
+        let tchWord;
         return genMc(rng, {
             stem: 'Which word uses "' + key + '"?',
-            correct: rng.pick(W.tchDge[key]),
+            correct: (function () { tchWord = rng.pick(W.tchDge[key]); return tchWord; })(),
             distractors: rng.sample(W.tchDge[key === 'tch' ? 'dge' : 'tch'].concat(flat(W.cvc)), 3),
             explain: '"' + key + '" is used straight after a short vowel.',
-            sig: 'tchdge:' + key,
+            sig: 'tchdge:' + key + ':' + tchWord,
         });
     };
 
@@ -333,12 +339,13 @@
 
     G['phon.yAsVowel'] = function (rng) {
         const longI = rng.bool();
+        let yWord;
         return genMc(rng, {
             stem: 'In which word does the "y" sound like a long ' + (longI ? 'i' : 'e') + '?',
-            correct: rng.pick(W.yVowel[longI ? 'long i' : 'long e']),
+            correct: (function () { yWord = rng.pick(W.yVowel[longI ? 'long i' : 'long e']); return yWord; })(),
             distractors: rng.sample(W.yVowel[longI ? 'long e' : 'long i'], 3),
             hint: 'A y at the end of a one-syllable word usually says long i; at the end of a longer word it usually says long e.',
-            sig: 'yv:' + (longI ? 'i' : 'e'),
+            sig: 'yv:' + (longI ? 'i' : 'e') + ':' + yWord,
         });
     };
 

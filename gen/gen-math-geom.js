@@ -115,6 +115,10 @@
             { made: 'a square', from: 'two triangles', wrong: ['two circles', 'three circles', 'one triangle'] },
             { made: 'a rectangle', from: 'two squares', wrong: ['two circles', 'three triangles', 'one circle'] },
             { made: 'a hexagon', from: 'six triangles', wrong: ['two squares', 'four circles', 'one square'] },
+            { made: 'a bigger triangle', from: 'four smaller triangles', wrong: ['two circles', 'three squares', 'one hexagon'] },
+            { made: 'a cube', from: 'six squares', wrong: ['four triangles', 'two circles', 'three rectangles'] },
+            { made: 'a rhombus', from: 'two equilateral triangles', wrong: ['two circles', 'four squares', 'one pentagon'] },
+            { made: 'an octagon', from: 'eight triangles', wrong: ['two squares', 'three circles', 'one triangle'] },
         ];
         const c = rng.pick(CASES);
         return genMc(rng, {
@@ -135,6 +139,16 @@
               a: 'a line segment', w: ['a ray', 'a point', 'an angle'] },
             { q: 'A part of a line with one endpoint that goes on forever the other way is called…',
               a: 'a ray', w: ['a line segment', 'a point', 'a vertex'] },
+            { q: 'Lines that meet or cross at a point are called…',
+              a: 'intersecting', w: ['parallel', 'perpendicular', 'symmetrical'] },
+            { q: 'The point where two sides of a shape meet is called…',
+              a: 'a vertex', w: ['an edge', 'a face', 'a ray'] },
+            { q: 'An angle smaller than a right angle is called…',
+              a: 'acute', w: ['obtuse', 'reflex', 'straight'] },
+            { q: 'An angle bigger than a right angle but less than a straight line is called…',
+              a: 'obtuse', w: ['acute', 'reflex', 'right'] },
+            { q: 'A line that goes on forever in both directions is called…',
+              a: 'a line', w: ['a line segment', 'a ray', 'a vertex'] },
         ];
         const c = rng.pick(CASES);
         return genMc(rng, {
@@ -161,6 +175,18 @@
             { q: 'Is a square also a rhombus?', a: 'Yes, always',
               w: ['No, never', 'Only sometimes', 'Only if it is tilted'],
               why: 'a rhombus needs four equal sides, and a square has them.' },
+            { q: 'Is a rhombus also a square?', a: 'Only sometimes',
+              w: ['Yes, always', 'No, never', 'Only if it is large'],
+              why: 'a square also needs four right angles, and most rhombuses do not have them.' },
+            { q: 'Is a square also a quadrilateral?', a: 'Yes, always',
+              w: ['No, never', 'Only sometimes', 'Only if it is tilted'],
+              why: 'a quadrilateral is any four-sided shape, and a square has four sides.' },
+            { q: 'Is a rectangle also a parallelogram?', a: 'Yes, always',
+              w: ['No, never', 'Only sometimes', 'Only if it is long'],
+              why: 'a parallelogram needs two pairs of parallel sides, and a rectangle has them.' },
+            { q: 'Is a trapezium also a rectangle?', a: 'No, never',
+              w: ['Yes, always', 'Only sometimes', 'Only if it is right-angled'],
+              why: 'a rectangle needs two pairs of parallel sides; a trapezium has only one.' },
         ];
         const c = rng.pick(CASES);
         return genMc(rng, {

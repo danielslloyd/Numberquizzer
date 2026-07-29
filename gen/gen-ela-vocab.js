@@ -156,6 +156,14 @@
               why: 'said "teer" in one and "tair" in the other' },
             { w: 'wind', a: 'The wind blew hard.', b: 'Wind the string round the stick.',
               why: 'the vowel changes' },
+            { w: 'bow', a: 'She tied a bow in her hair.', b: 'The actors bow at the end.',
+              why: 'said "boh" in one and "bau" in the other' },
+            { w: 'close', a: 'Please close the gate.', b: 'The shop is close to the park.',
+              why: 'the s sounds different in each' },
+            { w: 'lead', a: 'She will lead the way.', b: 'The pipes were made of lead.',
+              why: 'said "leed" in one and "led" in the other' },
+            { w: 'minute', a: 'Wait one minute.', b: 'A minute speck of dust.',
+              why: 'the stress and the vowels change' },
         ];
         const c = rng.pick(CASES);
         return genMc(rng, {
@@ -198,6 +206,12 @@
             { s: 'a piece of cake', m: 'very easy' },
             { s: 'bite your tongue', m: 'stop yourself from saying something' },
             { s: 'the last straw', m: 'the final thing that makes it too much' },
+            { s: 'once in a blue moon', m: 'very rarely' },
+            { s: 'hit the nail on the head', m: 'say exactly the right thing' },
+            { s: 'let sleeping dogs lie', m: 'leave a problem alone rather than stir it up' },
+            { s: 'a blessing in disguise', m: 'something that seems bad but turns out well' },
+            { s: 'burn the midnight oil', m: 'stay up late working' },
+            { s: 'jump on the bandwagon', m: 'join something because it has become popular' },
         ];
         const c = rng.pick(IDIOMS);
         return genMc(rng, {
