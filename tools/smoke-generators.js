@@ -167,6 +167,36 @@ mcPositions.forEach((positions, nodeId) => {
     }
 });
 
+// ---- pictures must agree with their answers -----------------------------------
+/*
+ * The counting items place their dots by rejection sampling, which gives up after
+ * a bounded number of tries. If it ever gave up early the picture would show
+ * fewer dots than the stated answer — a child counting correctly would be marked
+ * wrong, and nothing else in the suite would notice.
+ */
+const DOT_NODES = ['count.oneToOne', 'count.subitize.small'];
+let dotsChecked = 0;
+DOT_NODES.forEach((nodeId) => {
+    const entry = generators.get(nodeId);
+    const node = byId.get(nodeId);
+    if (!entry || !node) return;
+    for (let i = 0; i < 200; i++) {
+        let item;
+        try { item = entry.fn(makeRng(90000 + i * 7919), node.params || {}); } catch (e) { continue; }
+        if (!item) continue;
+        const svg = (item.prompt || []).find((b) => b.t === 'svg' && b.draw === 'dots');
+        if (!svg) continue;
+        dotsChecked++;
+        // For multiple choice the answer is an index, so read the chosen label.
+        const stated = item.type === 'mc' ? Number(item.choices[Number(item.answer)]) : Number(item.answer);
+        const drawn = (svg.args.points || []).length;
+        if (drawn !== stated) {
+            failures.push(`${nodeId}: picture shows ${drawn} dots but the answer says ${stated}`);
+        }
+    }
+});
+if (dotsChecked) console.log(`\nChecked ${dotsChecked} dot pictures against their answers.`);
+
 // ---- item variety -------------------------------------------------------------
 /*
  * How many distinct questions can each generator actually produce? A node backed
