@@ -176,7 +176,11 @@
                 return v;
             }
             if (matchSpoken(heard, item)) return ok(true);
-            return ok(false, 0, 'I heard “' + heard + '”.');
+            // `names` lets a node answer in codes and report in something a
+            // child recognises — the vowel classifier deals in 'short-a', which
+            // is no use at all as feedback.
+            const names = (item.gradeOpts && item.gradeOpts.names) || null;
+            return ok(false, 0, 'I heard “' + ((names && names[heard]) || heard) + '”.');
         },
 
         // Unordered selection. Partial = Jaccard, so near-misses score honestly.
@@ -489,6 +493,220 @@
                 // Nothing left to say into the microphone once it has been
                 // graded, and leaving live-looking buttons there invites a tap
                 // that does nothing.
+                const acts = host.querySelector('.ir-speech-actions');
+                if (acts) acts.remove();
+            },
+        },
+
+        // ---- make the sound ------------------------------------------------
+        /*
+         * A vowel, heard as a shape rather than as a word. audio.js explains why
+         * this needs its own instrument; what matters here is the interaction.
+         *
+         * It is a MIRROR, not a verdict. The child's voice is a dot moving in
+         * vowel space with a ring to steer into, and getting the dot into the
+         * ring IS the item. That framing is doing real work: a formant estimate
+         * from a five-year-old in a kitchen is an uncertain measurement, and an
+         * uncertain measurement rendered as a live position degrades into "keep
+         * trying" where the same measurement rendered as a verdict degrades into
+         * telling a child they said their own name wrong.
+         *
+         * It is also simply a better toy than a tap target, which is the other
+         * half of why it exists.
+         */
+        sound: {
+            autoSubmit: true,
+            render: function (host, item, api) {
+                host.innerHTML =
+                    '<div class="ir-response ir-sound">'
+                    + '  <canvas class="ir-sound-space" width="440" height="380"'
+                    + '          aria-label="Your voice, as a dot to steer"></canvas>'
+                    + '  <p class="ir-speech-state ir-sound-state" aria-live="polite">'
+                    + '    <span class="ir-speech-dot"></span>'
+                    + '    <span class="ir-speech-msg">Getting the microphone…</span></p>'
+                    + '  <div class="ir-speech-actions">'
+                    + '    <button type="button" class="btn btn-secondary ir-small" data-act="again">Try again</button>'
+                    + '    <button type="button" class="btn btn-secondary ir-small" data-act="skip">Move on</button>'
+                    + '  </div>'
+                    + '</div>';
+
+                const wrap = host.querySelector('.ir-sound');
+                const msg = host.querySelector('.ir-speech-msg');
+                const state = host.querySelector('.ir-sound-state');
+                const cv = host.querySelector('.ir-sound-space');
+                const g = cv.getContext('2d');
+
+                const st = { heard: null, best: null, done: false, raf: null,
+                             hold: null, calStep: -1, anchors: null };
+                host.__sound = st;
+
+                function say(text, live) {
+                    msg.textContent = text;
+                    state.classList.toggle('is-live', !!live);
+                }
+
+                function finish() {
+                    if (st.done) return;
+                    st.done = true;
+                    cancelAnimationFrame(st.raf);
+                    api.submit();
+                }
+
+                host.querySelector('[data-act="again"]').addEventListener('click', () => {
+                    if (st.done || !st.hold) return;
+                    st.hold.reset(); st.heard = null; st.best = null;
+                });
+                host.querySelector('[data-act="skip"]').addEventListener('click', () => {
+                    if (host.dataset.locked !== '1') finish();
+                });
+
+                if (typeof auStart !== 'function') { say('This needs a microphone.'); return; }
+
+                st.anchors = window.irVoiceAnchors || null;
+                st.calStep = auAnchorsValid(st.anchors) ? -1 : 0;
+
+                auStart().then(() => {
+                    st.hold = auHold({ frames: 10 });
+                    tick();
+                }).catch(() => { say('The microphone did not open — press Move on.'); });
+
+                function tick() {
+                    st.raf = requestAnimationFrame(tick);
+                    const a = auFrame();
+                    if (!a) return;
+                    if (st.calStep >= 0) return calibrate(a);
+                    listen(a);
+                    draw(a);
+                }
+
+                // A three-sound warm-up, run once per learner, that anchors the
+                // vowel space to this actual voice. Not a refinement: a child's
+                // formants sit half again above the adult figures every table
+                // quotes, so uncalibrated thresholds misclassify every child.
+                function calibrate(a) {
+                    const step = auCalibrationSteps[st.calStep];
+                    const s = st.hold.push(a);
+                    say('Warming up — say “' + step.say + '”, like ' + step.as
+                        + ' (' + s.held + '/' + s.needed + ')', s.held > 0);
+                    if (!s.done) return;
+                    const r = st.hold.result();
+                    st.anchors = st.anchors || {};
+                    st.anchors[step.key] = { f1: r.f1, f2: r.f2 };
+                    st.calStep++;
+                    st.hold = auHold({ frames: 10 });
+                    if (st.calStep < auCalibrationSteps.length) return;
+                    st.calStep = -1;
+                    if (auAnchorsValid(st.anchors)) {
+                        window.irVoiceAnchors = st.anchors;
+                        if (typeof stSetJSON === 'function') stSetJSON('voice.v1', st.anchors);
+                    } else {
+                        st.anchors = null;      // degenerate; carry on uncalibrated
+                    }
+                }
+
+                /*
+                 * How close counts as in the ring, in normalised units.
+                 *
+                 * Nearest-target-wins is the wrong rule for a mirror: it would
+                 * mark a child right while their dot sat visibly outside the
+                 * circle, which makes the picture a lie and teaches them the
+                 * picture is not worth watching. So acceptance is a radius, the
+                 * ring is DRAWN at that radius, and the two cannot drift.
+                 *
+                 * Never more than a bit under halfway to the nearest other
+                 * target, so two rings can never overlap and no position is
+                 * inside both.
+                 */
+                const radius = (function () {
+                    let gap = 2;
+                    (item.among || []).forEach((id) => {
+                        if (id === item.answer) return;
+                        const t = auTarget(id), me = auTarget(item.answer);
+                        if (t && me) gap = Math.min(gap, Math.hypot(t.x - me.x, t.y - me.y));
+                    });
+                    return Math.min(0.22, gap * 0.45);
+                }());
+
+                function listen(a) {
+                    if (!a.voiced || a.rms < 0.012) { say('Make the sound…', false); return; }
+                    const v = auClassifyVowel(a.f1, a.f2, st.anchors, item.among);
+                    if (!v.vowel) return;
+                    const me = auTarget(item.answer);
+                    const here = auNormalise(a.f1, a.f2, st.anchors);
+                    const inRing = me && Math.hypot(here.x - me.x, here.y - me.y) <= radius;
+                    if (v.vowel === item.answer && !inRing) {
+                        say('Nearly — a bit more like that…', true);
+                        return;
+                    }
+                    if (v.vowel === item.answer) {
+                        const s = st.hold.push(a);
+                        say('Hold it… ' + s.held + '/' + s.needed, true);
+                        if (s.done) { st.heard = v.vowel; finish(); }
+                    } else {
+                        // Somebody else's vowel, held steadily, is evidence — but
+                        // only the LAST thing held, so a wander through the space
+                        // on the way to the right answer is not held against them.
+                        st.best = { vowel: v.vowel, confidence: v.confidence };
+                        st.heard = v.vowel;
+                        say('I hear “' + labelOf(v.vowel) + '”…', true);
+                    }
+                }
+
+                function labelOf(id) {
+                    const v = (window.auVowels || []).find((x) => x.id === id);
+                    return v ? v.say : id;
+                }
+
+                function draw(a) {
+                    const W = cv.width, H = cv.height, PAD = 46;
+                    g.clearRect(0, 0, W, H);
+                    // One scale for both axes. Stretching x and y separately
+                    // would draw the acceptance radius as an ellipse while the
+                    // rule stayed a circle, so the picture would disagree with
+                    // the grading in exactly the corners a child aims for.
+                    const span = Math.min(W - 2 * PAD, H - 2 * PAD);
+                    const ox = (W - span) / 2, oy = (H - span) / 2;
+                    const px = (p) => ox + p.x * span;
+                    const py = (p) => oy + p.y * span;
+
+                    // The ring is drawn at exactly the radius that counts, so
+                    // "get the dot inside" is literally the rule being applied.
+                    const rPx = radius * span;
+                    (item.among || []).forEach((id) => {
+                        const t = auTarget(id);
+                        if (!t) return;
+                        const isTarget = id === item.answer;
+                        g.strokeStyle = isTarget ? '#1565c0' : '#e2e2e2';
+                        g.lineWidth = isTarget ? 3 : 2;
+                        g.beginPath(); g.arc(px(t), py(t), rPx, 0, Math.PI * 2); g.stroke();
+                        g.fillStyle = isTarget ? '#1565c0' : '#bbb';
+                        g.textAlign = 'center'; g.font = '600 17px system-ui, sans-serif';
+                        g.fillText(t.say, px(t), py(t) + 6);
+                    });
+
+                    if (a.voiced && a.f1 && a.f2) {
+                        const here = auNormalise(a.f1, a.f2, st.anchors);
+                        g.fillStyle = '#c62828';
+                        g.beginPath(); g.arc(px(here), py(here), 10, 0, Math.PI * 2); g.fill();
+                    }
+                }
+            },
+            collect: function (host) {
+                return { heard: (host.__sound && host.__sound.heard) || null };
+            },
+            teardown: function (host) {
+                const st = host.__sound;
+                if (!st) return;
+                st.done = true;
+                cancelAnimationFrame(st.raf);
+                if (typeof auStop === 'function') auStop();
+            },
+            reveal: function (host, item) {
+                const msg = host.querySelector('.ir-speech-msg');
+                if (msg) {
+                    const v = (window.auVowels || []).find((x) => x.id === item.answer);
+                    msg.textContent = v ? 'That one is “' + v.say + '”, as in ' + v.as + '.' : '';
+                }
                 const acts = host.querySelector('.ir-speech-actions');
                 if (acts) acts.remove();
             },

@@ -17,6 +17,8 @@ item-gen-helpers.js           shared item constructors
 item-draw.js                  display blocks + the DRAW table
 item-types.js                 response types + GRADERS
 item-runner.js                the assessment screen
+speech.js                     the page's one SpeechRecognition (prefix sp)
+audio.js                      on-device vowel and sibilant analysis (prefix au)
 progress.js                   mastery and review scheduling
 library.js                    the ladder browser + section bar
 storage.js                    shared localStorage helper
@@ -166,6 +168,71 @@ nobody expected gets dismissed once and stays dismissed.
 Speech recognition is a network service on most browsers, so the audio leaves
 the device. The node screen says so.
 
+## Making the sound
+
+A recogniser is trained on words. Ask a child for a bare /sh/ and it returns
+*she*, *shh*, *sha*, or nothing — so isolated sounds need a different instrument
+entirely, and `audio.js` is it. Nothing about it touches the network: a vowel is
+almost entirely its first two resonances, and those are visible in a spectrum.
+
+| | `speech.js` | `audio.js` |
+|---|---|---|
+| Asks | a recogniser, over the network | the signal, on the device |
+| Understands | whole words | vowel quality, frication, voicing |
+| Node opts in with | `'speech'` in `types` | `'sound'` in `types` |
+| Runner switch | `irStart({mic:true})` | `irStart({sound:true})` |
+
+**Calibration is compulsory, not a refinement.** A child's vocal tract is short,
+so their formants sit around half again above every published table. A
+three-sound warm-up (`auCalibrationSteps`) anchors the space to the voice in the
+room; everything downstream then works in normalised coordinates. On a
+child-sized voice `tools/smoke-audio.js` gets 7 of 7 calibrated and 1 of 7
+uncalibrated, and asserts that gap stays.
+
+**The capture constraints must be off.** `echoCancellation`, `noiseSuppression`
+and `autoGainControl` are tuned to make speech intelligible over a wire and each
+destroys what is being measured — noise suppression treats sustained frication as
+noise and gates /s/ away entirely. Left on, this reads as a broken classifier.
+
+**It is a mirror, not a verdict.** The voice is a dot to steer into a ring. That
+framing is load-bearing: a formant estimate from a five-year-old in a kitchen is
+an uncertain measurement, and an uncertain measurement drawn as a position
+degrades into "keep trying" where the same measurement stated as a verdict
+degrades into telling a child they said their own name wrong. The acceptance
+radius and the drawn ring are the same number, so the picture cannot disagree
+with the grading.
+
+### What works, and what does not
+
+Works: a sustained isolated vowel; /s/ against /ʃ/ by spectral centroid; voicing
+(/s/ against /z/). Does not: a vowel inside a spoken word (needs segmentation,
+and coarticulation drags the formants around), stop consonants, or any of it at
+arm's length in a noisy room.
+
+There is also a hard physical limit. Harmonics spaced F0 apart can only sample so
+much of the envelope between them, so two formants closer than about one and a
+half harmonics merge and cannot be separated at all. /o/ is where F1 and F2 sit
+closest; `smoke-audio` prints the pitch at which each vowel goes. This is why
+`smoke-generators` refuses a sound item whose targets are under 0.18 apart in
+vowel space — an item asking a child to choose between two vowels the classifier
+cannot separate is unanswerable however well they say it.
+
+### Testing it
+
+`node tools/smoke-audio.js` synthesises vowels — a glottal pulse train through
+resonators at chosen frequencies — and checks the frequencies come back out.
+Synthesis rather than recordings, because it lets pitch and vocal-tract size be
+varied independently, and children are the hard case every formant tracker
+fails on.
+
+`tools/mic-tuner.html` is a bench instrument: live spectrum, envelope, F1/F2 and
+the vowel space. Not part of the app, and a formant tracker cannot be built or
+believed without it.
+
+What none of that proves is that a real microphone in a real room with a real
+child behaves like this. Synthetic vowels have no room, no noise and no breath.
+The arithmetic is right; only a child can show the feature works.
+
 ## Adding a proficiency
 
 1. Add it to `curriculum/PROFICIENCIES.md` first — that document is the source of
@@ -197,6 +264,7 @@ as a separate node is the most common way lists like this bloat.
 |---|---|
 | `node tools/validate-curriculum.js` | Graph integrity, tier-1 closure, doc/data agreement, no `provenance` in UI code |
 | `node tools/smoke-generators.js` | Draws 10,000+ items, grades each against its own grader, checks passage integrity, reports item variety, regenerates `gen/manifest.js` |
+| `node tools/smoke-audio.js` | Synthesises vowels and checks audio.js finds their formants; prints the resolution limit |
 | `NODE_PATH=/opt/node22/lib/node_modules node tools/smoke-browser.js` | Full in-browser run; needs `python3 -m http.server 8765` first |
 
 None of them is a build gate. This repo has no build step and is not getting one.

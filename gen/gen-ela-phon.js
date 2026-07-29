@@ -76,7 +76,40 @@
         });
     };
 
-    G['phon.shortVowels'] = function (rng) {
+    /*
+     * The five short vowels are where a microphone earns its keep, because they
+     * are the one thing on this ladder that is purely a sound. Every written
+     * item about them is a proxy; making the sound is the skill itself.
+     *
+     * Offered as a choice between two or three neighbours rather than all five —
+     * partly because that is the question ("is that the a in cat or in day"),
+     * and partly because the classifier is markedly steadier over a few
+     * well-separated targets than over the whole vowel space.
+     */
+    const VOWEL_SAY = { 'short-a': 'a as in cat', 'short-e': 'e as in bed',
+        'short-i': 'i as in sit', 'short-o': 'o as in hop', 'short-u': 'u as in cup',
+        'long-e': 'ee as in feet', 'long-oo': 'oo as in moon', 'long-a': 'ay as in day' };
+    const VOWEL_SETS = [
+        ['short-a', 'long-a'], ['short-e', 'long-e'], ['short-i', 'long-e'],
+        ['short-o', 'long-oo'], ['short-u', 'long-oo'],
+        ['short-a', 'short-o'], ['short-i', 'short-u'],
+        ['short-a', 'short-e', 'short-o'],
+    ];
+
+    G['phon.shortVowels'] = function (rng, params) {
+        if (params && params.sound) {
+            const set = rng.pick(VOWEL_SETS);
+            const want = rng.pick(set.filter((id) => id.indexOf('short-') === 0)) || set[0];
+            return genSound({
+                vowel: want,
+                among: set,
+                stem: 'Make the sound "' + VOWEL_SAY[want].split(' as in ')[0]
+                    + '", the one in "' + VOWEL_SAY[want].split(' as in ')[1] + '". Hold it.',
+                names: VOWEL_SAY,
+                explain: 'That is the ' + VOWEL_SAY[want] + ' sound.',
+                sig: 'shortV:sound',
+            });
+        }
         const v = rng.pick(['a', 'e', 'i', 'o', 'u']);
         return sameSound(rng, {
             what: 'middle sound',

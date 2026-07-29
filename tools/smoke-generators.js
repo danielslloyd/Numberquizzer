@@ -463,6 +463,7 @@ if (phonicsPack && window.WORDS && window.WORDS.soundClassIn) {
  * nothing at all.
  */
 const NO_SPEECH_RE = /^(spell\.|vocab\.homophone|vocab\.homograph|gram\.apostrophe)/;
+const AUDIO = require(path.join(__dirname, '..', 'audio.js'));
 // Enough draws to see a node's whole read-aloud vocabulary rather than a sample
 // of it — the accept-list collision check compares against that vocabulary, and
 // a half-populated bank turns a real failure into a coin toss.
@@ -473,7 +474,10 @@ const speechNodes = new Set();
 generators.forEach((entry, nodeId) => {
     const node = byId.get(nodeId);
     if (!node) return;
-    const params = Object.assign({}, node.params || {}, { mic: true });
+    // Both microphone routes at once — a recogniser for words, on-device
+    // analysis for sounds. Neither appears without being asked for, so the main
+    // loop above has never seen either.
+    const params = Object.assign({}, node.params || {}, { mic: true, sound: true });
 
     const drawn = [];
     for (let i = 0; i < MIC_DRAWS; i++) {
@@ -483,7 +487,7 @@ generators.forEach((entry, nodeId) => {
             failures.push(`${nodeId} seed ${seed} (mic): threw — ${e.message}`);
             continue;
         }
-        if (it && it.type === 'speech') drawn.push({ item: it, seed: seed });
+        if (it && (it.type === 'speech' || it.type === 'sound')) drawn.push({ item: it, seed: seed });
     }
     if (!drawn.length) return;
 
@@ -497,11 +501,48 @@ generators.forEach((entry, nodeId) => {
             failures.push(`${nodeId}: emits a read-aloud item, but a microphone cannot`
                 + ' hear the distinction this node assesses');
         }
-        if (!node.types || node.types.indexOf('speech') === -1) {
-            failures.push(`${nodeId}: emits "speech" but the node does not declare it`);
+        if (!node.types || node.types.indexOf(item.type) === -1) {
+            failures.push(`${nodeId}: emits "${item.type}" but the node does not declare it`);
         }
         if (item.grade !== 'spoken') {
-            failures.push(`${nodeId} seed ${seed}: read-aloud item graded by "${item.grade}"`);
+            failures.push(`${nodeId} seed ${seed}: microphone item graded by "${item.grade}"`);
+        }
+
+        // A sound item draws a set of targets and expects one of them. An answer
+        // that is not among the options it shows is unanswerable — and would
+        // still pass every other check here, since it grades its own answer
+        // perfectly well.
+        if (item.type === 'sound') {
+            if (!Array.isArray(item.among) || item.among.length < 2) {
+                failures.push(`${nodeId} seed ${seed}: a sound item needs at least two targets`);
+            } else if (item.among.indexOf(item.answer) === -1) {
+                failures.push(`${nodeId} seed ${seed}: answer "${item.answer}" is not among the `
+                    + `targets it shows [${item.among}]`);
+            } else {
+                const known = new Set(AUDIO.auVowels.map((v) => v.id));
+                item.among.forEach((id) => {
+                    if (!known.has(id)) {
+                        failures.push(`${nodeId} seed ${seed}: target "${id}" is not a vowel audio.js knows`);
+                    }
+                });
+                // Two targets the classifier cannot tell apart make an item that
+                // cannot be answered reliably however well the child says it.
+                for (let a = 0; a < item.among.length; a++) {
+                    for (let b = a + 1; b < item.among.length; b++) {
+                        const va = AUDIO.auVowels.find((v) => v.id === item.among[a]);
+                        const vb = AUDIO.auVowels.find((v) => v.id === item.among[b]);
+                        if (!va || !vb) continue;
+                        const pa = AUDIO.auNormalise(va.f1, va.f2, AUDIO.auCorners);
+                        const pb = AUDIO.auNormalise(vb.f1, vb.f2, AUDIO.auCorners);
+                        const gap = Math.hypot(pa.x - pb.x, pa.y - pb.y);
+                        if (gap < 0.18) {
+                            failures.push(`${nodeId} seed ${seed}: "${item.among[a]}" and `
+                                + `"${item.among[b]}" are ${gap.toFixed(2)} apart in vowel space `
+                                + '— too close to ask a child to choose between');
+                        }
+                    }
+                }
+            }
         }
 
         const answer = String(item.answer);

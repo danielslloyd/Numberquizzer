@@ -766,6 +766,84 @@ function check(name, ok, detail) {
     check('leaving the runner gives the microphone back',
         await page.evaluate(() => spActive() === null));
 
+    // ---- making the sound ------------------------------------------------
+    // This container has no /dev/snd at all, so getUserMedia fails outright —
+    // which is the one thing worth testing here and cannot be tested anywhere a
+    // microphone exists. A child on a device with no working microphone must
+    // get a sentence, not a dead screen and a run that will not advance.
+    const dspInBrowser = await page.evaluate(() => {
+        // Synthesise /ah/ at a child's pitch and run it through the same code
+        // that would see a microphone frame. audio.js uses Float64Array and a
+        // hand-rolled FFT, so "it worked in Node" is not the same claim.
+        const SR = 48000, n = 24000, out = new Float32Array(n);
+        const period = SR / 300; let next = 0, seed = 12345;
+        const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+        for (let i = 0; i < n; i++) if (i >= next) { out[i] = 1; next += period * (1 + 0.02 * (rnd() - 0.5)); }
+        let prev = 0;
+        for (let i = 0; i < n; i++) { prev = out[i] + 0.97 * prev; out[i] = prev * 0.02; }
+        [[1058, 60], [1580, 90], [4200, 120], [5200, 150]].forEach(([F, bw]) => {
+            const r = Math.exp(-Math.PI * bw / SR), th = 2 * Math.PI * F / SR;
+            const a1 = 2 * r * Math.cos(th), a2 = -r * r, g = (1 - 2 * r * Math.cos(th) + r * r);
+            let y1 = 0, y2 = 0;
+            for (let i = 0; i < n; i++) { const y = g * out[i] + a1 * y1 + a2 * y2; y2 = y1; y1 = y; out[i] = y; }
+        });
+        let pk = 0; for (let i = 0; i < n; i++) pk = Math.max(pk, Math.abs(out[i]));
+        for (let i = 0; i < n; i++) out[i] /= pk * 1.2;
+        const a = auAnalyse(out.subarray(11000, 13048), SR);
+        return { f0: Math.round(a.f0), f1: Math.round(a.f1), f2: Math.round(a.f2), voiced: a.voiced };
+    });
+    check('the vowel analysis gives the same answers in a browser as in node',
+        Math.abs(dspInBrowser.f0 - 300) < 12 && Math.abs(dspInBrowser.f1 - 1058) < 120
+            && Math.abs(dspInBrowser.f2 - 1580) < 200 && dspInBrowser.voiced,
+        JSON.stringify(dspInBrowser));
+
+    const micGone = await page.evaluate(async () => {
+        let err = null;
+        try { await auStart(); } catch (e) { err = e.name; }
+        return { err: err, running: auRunning(), frame: auFrame() };
+    });
+    check('with no microphone at all, opening it fails cleanly rather than throwing',
+        micGone.err === 'NotFoundError' && !micGone.running && micGone.frame === null,
+        JSON.stringify(micGone));
+
+    await page.evaluate(() => { location.hash = '#/phon/phon.shortVowels'; TAB_ENTRY.learn(); });
+    await page.waitForTimeout(300);
+    check('a vowel-sound node offers to be spoken into',
+        await page.evaluate(() => !!document.querySelector('[data-act="make"]')));
+    check('and says the audio stays on the device',
+        await page.evaluate(() => /never leaves this device/i.test(
+            (document.querySelector('.lb-mic-note') || {}).textContent || '')));
+
+    await page.evaluate(() => irStart({
+        nodeIds: ['phon.shortVowels'], count: 6, mode: 'assess', sound: true, seed: 3,
+    }));
+    await page.waitForFunction(() => window.__IR.items.length > 0, { timeout: 10000 }).catch(() => {});
+    const soundRun = await page.evaluate(() => ({
+        sound: window.__IR.items.filter((i) => i.type === 'sound').length,
+        reserve: window.__IR.reserve.length,
+    }));
+    check('a sound run contains sound items and spare tap ones',
+        soundRun.sound > 0 && soundRun.reserve > 0, JSON.stringify(soundRun));
+
+    await page.waitForFunction(() => document.querySelector('.ir-sound'), { timeout: 5000 })
+        .catch(() => {});
+    await page.waitForTimeout(400);
+    const soundUi = await page.evaluate(() => ({
+        canvas: !!document.querySelector('.ir-sound-space'),
+        msg: (document.querySelector('.ir-sound .ir-speech-msg') || {}).textContent || '',
+    }));
+    check('the sound mirror explains itself instead of hanging when the microphone fails',
+        soundUi.canvas && /did not open/i.test(soundUi.msg), JSON.stringify(soundUi));
+
+    const beforeSound = await page.evaluate(() => JSON.stringify(prGet('phon.shortVowels')));
+    await page.click('.ir-sound [data-act="skip"]');
+    await page.waitForTimeout(250);
+    check('and a run with no microphone records nothing against the node',
+        await page.evaluate((b) => JSON.stringify(prGet('phon.shortVowels')) === b, beforeSound));
+
+    await page.evaluate(() => { const b = document.getElementById('ir-quit'); if (b) b.click(); });
+    await page.waitForTimeout(150);
+
     // ---- saying a number -------------------------------------------------
     // A different contract from reading aloud, and the difference is the point:
     // the keyboard is right there, so a misheard number must cost nothing. The

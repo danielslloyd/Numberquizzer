@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>Mic tuner — what audio.js is hearing</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+    body { font: 16px/1.5 system-ui, sans-serif; margin: 0; padding: 1.5rem;
+           max-width: 900px; margin-inline: auto; color: #222; }
+    h1 { font-size: 1.4rem; margin: 0 0 .3rem; }
+    p.lede { color: #666; margin: 0 0 1.2rem; }
+    button { font: inherit; padding: .5rem 1.1rem; border: 2px solid #222;
+             background: #fff; border-radius: 10px; cursor: pointer; }
+    button.go { background: #222; color: #fff; }
+    .row { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; margin-bottom: 1rem; }
+    canvas { width: 100%; border: 1px solid #ddd; border-radius: 8px; display: block; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: .5rem; margin: 1rem 0; }
+    .stat { border: 1px solid #eee; border-radius: 8px; padding: .5rem .7rem; }
+    .stat b { display: block; font-size: 1.3rem; font-variant-numeric: tabular-nums; }
+    .stat span { color: #777; font-size: .8rem; }
+    .cal { border: 1px solid #eee; border-radius: 10px; padding: .8rem 1rem; margin: 1rem 0; }
+    .cal ol { margin: .4rem 0 0; padding-left: 1.2rem; }
+    .cal li.done { color: #2e7d32; }
+    .cal li.now { font-weight: 700; }
+    code { background: #f4f4f4; padding: .1rem .3rem; border-radius: 4px; }
+    .note { color: #777; font-size: .9rem; }
+</style>
+
+<h1>Mic tuner</h1>
+<p class="lede">What <code>audio.js</code> is actually hearing. Not part of the app —
+   a bench instrument, because a formant tracker cannot be built or believed
+   without watching it work on a real voice.</p>
+
+<div class="row">
+    <button id="go" class="go">Open the microphone</button>
+    <button id="stop">Stop</button>
+    <button id="cal">Calibrate</button>
+    <span class="note" id="state">idle</span>
+</div>
+
+<div class="grid">
+    <div class="stat"><b id="s-f0">–</b><span>F0 (pitch)</span></div>
+    <div class="stat"><b id="s-f1">–</b><span>F1</span></div>
+    <div class="stat"><b id="s-f2">–</b><span>F2</span></div>
+    <div class="stat"><b id="s-cen">–</b><span>centroid</span></div>
+    <div class="stat"><b id="s-rms">–</b><span>level</span></div>
+    <div class="stat"><b id="s-vow">–</b><span>vowel</span></div>
+</div>
+
+<div class="cal" id="cal-panel" hidden>
+    <strong>Calibration</strong> — hold each sound for about a second.
+    <ol id="cal-steps"></ol>
+</div>
+
+<p class="note">Spectrum in grey, cepstrally-smoothed envelope in black, F1 and F2 marked.
+   If the envelope has one hump where you expect two, that is the resolution limit —
+   see the table <code>tools/smoke-audio.js</code> prints.</p>
+<canvas id="spec" width="880" height="260"></canvas>
+
+<p class="note" style="margin-top:1rem">Vowel space: front ⟶ right, open ⟶ down.
+   Circles are the target vowels for the calibrated voice; the dot is you.</p>
+<canvas id="space" width="880" height="330"></canvas>
+
+<script src="../audio.js"></script>
+<script>
+(function () {
+    'use strict';
+    const $ = (id) => document.getElementById(id);
+    const spec = $('spec').getContext('2d');
+    const space = $('space').getContext('2d');
+
+    let raf = null;
+    let anchors = null;
+    let calIdx = -1, hold = null;
+
+    function setState(t) { $('state').textContent = t; }
+
+    $('go').addEventListener('click', () => {
+        auStart().then(() => {
+            setState('listening at ' + auSampleRate() + ' Hz');
+            loop();
+        }).catch((e) => setState('failed: ' + e.message));
+    });
+
+    $('stop').addEventListener('click', () => {
+        cancelAnimationFrame(raf); raf = null; auStop(); setState('stopped');
+    });
+
+    $('cal').addEventListener('click', () => {
+        if (!auRunning()) { setState('open the microphone first'); return; }
+        anchors = {}; calIdx = 0; hold = auHold({ frames: 15 });
+        $('cal-panel').hidden = false;
+        drawCalSteps();
+    });
+
+    function drawCalSteps() {
+        $('cal-steps').innerHTML = auCalibrationSteps.map((s, i) =>
+            `<li class="${i < calIdx ? 'done' : (i === calIdx ? 'now' : '')}">`
+            + `Say <strong>${s.say}</strong> — ${s.as}`
+            + (i === calIdx && hold ? ` (${hold.push(null).held}/${hold.push(null).needed})` : '')
+            + '</li>').join('');
+    }
+
+    function stepCalibration(a) {
+        if (calIdx < 0 || calIdx >= auCalibrationSteps.length) return;
+        const st = hold.push(a);
+        if (!st.done) { drawCalSteps(); return; }
+        const r = hold.result();
+        anchors[auCalibrationSteps[calIdx].key] = { f1: r.f1, f2: r.f2 };
+        calIdx++;
+        if (calIdx >= auCalibrationSteps.length) {
+            setState(auAnchorsValid(anchors)
+                ? 'calibrated: ' + JSON.stringify(anchors, (k, v) => typeof v === 'number' ? Math.round(v) : v)
+                : 'calibration looks degenerate — the three sounds were too alike');
+            if (!auAnchorsValid(anchors)) anchors = null;
+            calIdx = -1;
+        } else {
+            hold = auHold({ frames: 15 });
+        }
+        drawCalSteps();
+    }
+
+    function loop() {
+        raf = requestAnimationFrame(loop);
+        const a = auFrame();
+        if (!a) return;
+        if (calIdx >= 0) stepCalibration(a);
+
+        $('s-f0').textContent = a.f0 ? a.f0.toFixed(0) : '–';
+        $('s-f1').textContent = a.f1 ? a.f1.toFixed(0) : '–';
+        $('s-f2').textContent = a.f2 ? a.f2.toFixed(0) : '–';
+        $('s-cen').textContent = a.centroid ? a.centroid.toFixed(0) : '–';
+        $('s-rms').textContent = a.rms.toFixed(3);
+
+        const v = auClassifyVowel(a.f1, a.f2, anchors);
+        const sib = auClassifySibilant(a);
+        $('s-vow').textContent = a.voiced
+            ? (v.vowel ? v.vowel + ' (' + v.confidence.toFixed(2) + ')' : '–')
+            : (sib.sound || '–');
+
+        drawSpectrum(a);
+        drawSpace(a, v);
+    }
+
+    function drawSpectrum(a) {
+        const W = 880, H = 260, MAXHZ = 5000;
+        const sr = auSampleRate();
+        const binHz = sr / (a.mag.length * 2);
+        const bins = Math.min(a.mag.length, Math.floor(MAXHZ / binHz));
+        spec.clearRect(0, 0, W, H);
+
+        let top = 0;
+        for (let i = 1; i < bins; i++) top = Math.max(top, a.mag[i], a.env[i]);
+        if (top <= 0) return;
+        const y = (v) => H - 10 - (Math.log(v + 1e-9) - Math.log(top * 1e-4)) /
+            (Math.log(top) - Math.log(top * 1e-4)) * (H - 20);
+
+        spec.strokeStyle = '#ccc'; spec.beginPath();
+        for (let i = 1; i < bins; i++) {
+            const x = (i / bins) * W;
+            if (i === 1) spec.moveTo(x, y(a.mag[i])); else spec.lineTo(x, y(a.mag[i]));
+        }
+        spec.stroke();
+
+        spec.strokeStyle = '#111'; spec.lineWidth = 2; spec.beginPath();
+        for (let i = 1; i < bins; i++) {
+            const x = (i / bins) * W;
+            if (i === 1) spec.moveTo(x, y(a.env[i])); else spec.lineTo(x, y(a.env[i]));
+        }
+        spec.stroke(); spec.lineWidth = 1;
+
+        [[a.f1, '#c62828', 'F1'], [a.f2, '#1565c0', 'F2']].forEach(([hz, col, label]) => {
+            if (!hz) return;
+            const x = (hz / (bins * binHz)) * W;
+            spec.strokeStyle = col; spec.beginPath();
+            spec.moveTo(x, 8); spec.lineTo(x, H - 8); spec.stroke();
+            spec.fillStyle = col; spec.fillText(label + ' ' + hz.toFixed(0), x + 4, 18);
+        });
+        spec.fillStyle = '#999';
+        for (let k = 1000; k < MAXHZ; k += 1000) {
+            spec.fillText((k / 1000) + 'k', (k / (bins * binHz)) * W, H - 2);
+        }
+    }
+
+    function drawSpace(a, v) {
+        const W = 880, H = 330, PAD = 40;
+        space.clearRect(0, 0, W, H);
+        const px = (p) => PAD + p.x * (W - 2 * PAD);
+        const py = (p) => PAD + p.y * (H - 2 * PAD);
+
+        space.strokeStyle = '#eee';
+        space.strokeRect(PAD, PAD, W - 2 * PAD, H - 2 * PAD);
+
+        auVowels.forEach((vw) => {
+            const t = auNormalise(vw.f1, vw.f2, auCorners);
+            space.strokeStyle = v.vowel === vw.id ? '#1565c0' : '#bbb';
+            space.lineWidth = v.vowel === vw.id ? 3 : 1;
+            space.beginPath(); space.arc(px(t), py(t), 26, 0, Math.PI * 2); space.stroke();
+            space.fillStyle = '#555'; space.textAlign = 'center';
+            space.fillText(vw.say, px(t), py(t) + 4);
+            space.fillStyle = '#aaa';
+            space.fillText(vw.as, px(t), py(t) + 40);
+        });
+        space.lineWidth = 1; space.textAlign = 'left';
+
+        if (a.voiced && a.f1 && a.f2) {
+            const here = auNormalise(a.f1, a.f2, anchors);
+            space.fillStyle = '#c62828';
+            space.beginPath(); space.arc(px(here), py(here), 9, 0, Math.PI * 2); space.fill();
+        }
+    }
+})();
+</script>

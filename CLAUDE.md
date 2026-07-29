@@ -28,6 +28,7 @@ content/                      word and language banks
 item-draw.js item-types.js item-gen-helpers.js item-runner.js
 progress.js library.js learn.css storage.js
 speech.js                     THE page's one SpeechRecognition, claimed by token
+audio.js                      on-device vowel/sibilant analysis (no network)
 
 parser.js animator.js physics.js physics-worker.js   visualizer
 language-arts.js + .css       lazily loaded plug-in
@@ -120,7 +121,7 @@ each plug-in's `injectTab` skips a button that already exists.
 
 Every module namespaces its globals. Taken: `ws tg tt fr mn pv pg viz la gp sb`
 (activities), `cur ir lb pr st idr gen` (Learn), and `sp` (the shared
-recogniser). Pick a free one.
+recogniser) and `au` (on-device audio analysis). Pick a free one.
 
 ## Storage
 

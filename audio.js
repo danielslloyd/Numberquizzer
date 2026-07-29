@@ -393,7 +393,138 @@
         return { sound: null, confidence: 0 };
     }
 
+    // =====================================================================
+    // Capture
+    // =====================================================================
+    let ctx = null, stream = null, analyser = null, buf = null;
+
+    function auAvailable() {
+        return typeof navigator !== 'undefined'
+            && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)
+            && !!(typeof window !== 'undefined' && (window.AudioContext || window.webkitAudioContext));
+    }
+
+    /*
+     * Open the microphone.
+     *
+     * The three constraints turned off here are the difference between this
+     * working and not, and none of them is optional. Every one is tuned to make
+     * speech intelligible over a wire rather than measurable — automatic gain
+     * destroys the loudness comparison, echo cancellation filters in ways that
+     * move spectral energy, and noise suppression is the worst of the three: it
+     * classifies sustained frication AS noise, so it gates /s/ away entirely and
+     * leaves what looks exactly like a broken classifier.
+     *
+     * Called only from a user gesture. A permission dialog nobody expected gets
+     * dismissed once and stays dismissed.
+     */
+    function auStart() {
+        if (!auAvailable()) return Promise.reject(new Error('no microphone here'));
+        if (ctx) return Promise.resolve(true);
+        return navigator.mediaDevices.getUserMedia({
+            audio: {
+                echoCancellation: false,
+                noiseSuppression: false,
+                autoGainControl: false,
+                channelCount: 1,
+            },
+        }).then(function (s) {
+            stream = s;
+            const AC = window.AudioContext || window.webkitAudioContext;
+            ctx = new AC();
+            analyser = ctx.createAnalyser();
+            analyser.fftSize = 4096;          // ~85ms at 48k: long enough to see
+            analyser.smoothingTimeConstant = 0;   // we do our own smoothing
+            ctx.createMediaStreamSource(stream).connect(analyser);
+            buf = new Float32Array(analyser.fftSize);
+            return true;
+        });
+    }
+
+    function auStop() {
+        if (stream) stream.getTracks().forEach(function (t) { t.stop(); });
+        if (ctx && ctx.close) ctx.close();
+        ctx = null; stream = null; analyser = null; buf = null;
+    }
+
+    function auRunning() { return !!ctx; }
+    function auSampleRate() { return ctx ? ctx.sampleRate : 0; }
+
+    /** Analyse whatever the microphone is hearing right now, or null if it is shut. */
+    function auFrame() {
+        if (!analyser) return null;
+        analyser.getFloatTimeDomainData(buf);
+        return auAnalyse(buf.subarray(0, 2048), ctx.sampleRate);
+    }
+
+    /*
+     * Watch for a sustained voiced sound and report its formants.
+     *
+     * Medians, not means: one frame caught on the way into the vowel, or a cough,
+     * would drag a mean somewhere the voice never was. And only frames that are
+     * both loud enough and voiced count, so the silence before a child works up
+     * to it contributes nothing.
+     */
+    function auHold(opts) {
+        const o = opts || {};
+        const needed = o.frames || 12;
+        const minRms = o.minRms === undefined ? 0.012 : o.minRms;
+        const f1s = [], f2s = [], f0s = [];
+        let done = false;
+
+        return {
+            /** Feed one frame. Returns the running state for a live display. */
+            push: function (a) {
+                if (done || !a) return { held: f1s.length, needed: needed, done: done };
+                if (a.voiced && a.rms >= minRms && a.f1 > 0 && a.f2 > 0) {
+                    f1s.push(a.f1); f2s.push(a.f2); f0s.push(a.f0);
+                    if (f1s.length >= needed) done = true;
+                }
+                return { held: f1s.length, needed: needed, done: done };
+            },
+            reset: function () { f1s.length = 0; f2s.length = 0; f0s.length = 0; done = false; },
+            result: function () {
+                if (!f1s.length) return null;
+                const mid = (arr) => arr.slice().sort((a, b) => a - b)[Math.floor(arr.length / 2)];
+                return { f1: mid(f1s), f2: mid(f2s), f0: mid(f0s), frames: f1s.length };
+            },
+        };
+    }
+
+    /*
+     * The three corners of the vowel triangle, measured from the voice in the
+     * room. /iː/ is high and front, /ɑː/ low and back, /uː/ high and back;
+     * three points is the smallest set that pins an affine space down, and
+     * asking a child for more than three noises before the game starts is
+     * asking too much.
+     */
+    const CALIBRATION_STEPS = [
+        { key: 'i', say: 'eee', as: 'the sound in feet' },
+        { key: 'a', say: 'ahh', as: 'the sound in hop' },
+        { key: 'u', say: 'ooo', as: 'the sound in moon' },
+    ];
+
+    function auAnchorsValid(anchors) {
+        if (!anchors || !anchors.i || !anchors.a || !anchors.u) return false;
+        const ok = (p) => p && p.f1 > 150 && p.f1 < 1600 && p.f2 > 500 && p.f2 < 4200 && p.f2 > p.f1;
+        if (!ok(anchors.i) || !ok(anchors.a) || !ok(anchors.u)) return false;
+        // The corners must actually be corners. If /ee/ and /oo/ came back with
+        // the same F2 the child said the same thing three times, or the room is
+        // too noisy — either way the space would be degenerate and every later
+        // reading meaningless.
+        return anchors.i.f2 > anchors.u.f2 * 1.35 && anchors.a.f1 > anchors.i.f1 * 1.25;
+    }
+
     return {
+        auAvailable: auAvailable,
+        auStart: auStart,
+        auStop: auStop,
+        auRunning: auRunning,
+        auSampleRate: auSampleRate,
+        auFrame: auFrame,
+        auHold: auHold,
+        auAnchorsValid: auAnchorsValid,
+        auCalibrationSteps: CALIBRATION_STEPS,
         auSpectrum: auSpectrum,
         auEnvelope: auEnvelope,
         auFormants: auFormants,

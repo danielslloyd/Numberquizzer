@@ -113,6 +113,31 @@
     };
 
     /*
+     * Make the sound.  opts: {vowel, among, stem, hint, explain, sig, names}
+     *
+     * `answer` is a vowel id from audio.js, and `among` is the small set the
+     * mirror draws — a drill asks "is that the a in cat or the a in day", which
+     * is a decision between two or three, not among every vowel in the language.
+     * Narrowing it is not a shortcut: the classifier is markedly more reliable
+     * over a handful of well-separated targets, and that is also the question a
+     * phonics ladder actually asks.
+     */
+    window.genSound = function (opts) {
+        return {
+            type: 'sound',
+            stem: opts.stem,
+            prompt: opts.prompt || [{ t: 'text', s: opts.stem }],
+            among: (opts.among || []).slice(),
+            answer: opts.vowel,
+            grade: 'spoken',
+            gradeOpts: opts.names ? { names: opts.names } : {},
+            hint: opts.hint,
+            explain: opts.explain,
+            sig: sigOf({ sig: opts.sig || 'sound' }, opts.vowel + '|' + (opts.among || []).join(',')),
+        };
+    };
+
+    /*
      * opts: {stem, prompt, right:[labels], wrong:[labels], ...}
      * Shuffled together; `answer` is the list of correct indices.
      */

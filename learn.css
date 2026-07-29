@@ -188,6 +188,14 @@
 /* The same chip under a typed-answer box, where the keyboard is the main route
  * and the microphone is the shortcut. */
 .ir-numeric-mic { justify-content: center; font-size: .95rem; }
+
+/* The sound mirror. The canvas is the item, so it gets the room. */
+.ir-sound { flex-direction: column; align-items: center; gap: .5rem; }
+.ir-sound-space {
+    width: 100%; max-width: 440px; height: auto; aspect-ratio: 44 / 38;
+    border: 1px solid #eee; border-radius: 12px; touch-action: none;
+}
+.ir-sound-state { justify-content: center; margin: 0; }
 .ir-speech-actions { display: flex; gap: .6rem; flex-wrap: wrap; justify-content: center; }
 
 @keyframes ir-mic-pulse {

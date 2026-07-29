@@ -33,7 +33,7 @@ if (!nodes.length) {
 
 const byId = new Map();
 const VALID_TYPES = new Set(['numeric', 'mc', 'multi', 'text', 'tap-token', 'tap-region',
-    'order', 'match', 'numberline', 'build', 'sort-bins', 'cloze', 'fraction', 'speech']);
+    'order', 'match', 'numberline', 'build', 'sort-bins', 'cloze', 'fraction', 'speech', 'sound']);
 
 /*
  * Nodes barred from ever asking to be read aloud. A microphone hears sounds, so

@@ -80,6 +80,10 @@
         S.reserve = [];
         S.startedAt = Date.now();
         S.mic = !!o.mic && typeof spSupported === 'function' && spSupported();
+        // A separate switch from `mic`, because it is a separate instrument:
+        // `mic` asks a recogniser for words, `sound` measures the signal here on
+        // the device. A browser can have one and not the other.
+        S.sound = !!o.sound && typeof auAvailable === 'function' && auAvailable();
 
         if (!S.nodeIds.length) { console.error('irStart: no nodes'); return; }
 
@@ -93,22 +97,27 @@
         const draw = (extra, seed) => S.nodeIds.map((id) => CUR.generate(id, perNode, seed, extra)
             .catch((err) => { console.error(err); return []; }));
 
-        const draws = draw(S.mic ? { mic: true } : undefined, o.seed);
+        const extra = {};
+        if (S.mic) extra.mic = true;
+        if (S.sound) extra.sound = true;
+        const draws = draw(Object.keys(extra).length ? extra : undefined, o.seed);
 
         // A parallel set of tap items, drawn up front so they are there the
         // instant they are needed. An item the microphone could not hear yields
         // no evidence, so the run has to be one item longer to have asked the
         // same number of real questions — and if the microphone turns out to be
         // useless, the rest of the run switches to these rather than stalling.
-        const spares = S.mic
-            ? Promise.all(draw({ mic: false }, o.seed === undefined ? undefined : o.seed + 7919))
+        const spares = (S.mic || S.sound)
+            ? Promise.all(draw({ mic: false, sound: false },
+                o.seed === undefined ? undefined : o.seed + 7919))
             : Promise.resolve([]);
 
         Promise.all([Promise.all(draws), spares]).then(([batches, spareBatches]) => {
             let all = [];
             batches.forEach((b) => { all = all.concat(b); });
             spareBatches.forEach((b) => {
-                S.reserve = S.reserve.concat(b.filter((i) => i.type !== 'speech'));
+                S.reserve = S.reserve.concat(
+                    b.filter((i) => i.type !== 'speech' && i.type !== 'sound'));
             });
 
             if (!all.length) {
@@ -170,7 +179,7 @@
         // Speaking the prompt of a read-aloud item would say the word, turning
         // decoding into repetition. Hidden while the question is live, offered
         // again once it has been graded — which is exactly when hearing it helps.
-        $('ir-speak').classList.toggle('hidden', item.type === 'speech');
+        $('ir-speak').classList.toggle('hidden', item.type === 'speech' || item.type === 'sound');
 
         S.locked = false;
         S.shownAt = Date.now();
@@ -209,7 +218,7 @@
             correct: verdict.correct,
             partial: verdict.partial,
             ms: ms,
-            src: item.type === 'speech' ? 'runner-mic' : 'runner',
+            src: (item.type === 'speech' || item.type === 'sound') ? 'runner-mic' : 'runner',
         });
         S.results.push({ node: item.node, correct: verdict.correct, partial: verdict.partial, ms: ms });
 
@@ -247,14 +256,16 @@
         S.unheard++;
         if (S.reserve.length) S.items.push(S.reserve.shift());
 
-        const giveUp = S.mic && S.unheard >= UNHEARD_LIMIT;
+        const giveUp = (S.mic || S.sound) && S.unheard >= UNHEARD_LIMIT;
         if (giveUp) {
             S.mic = false;
-            // Swap every read-aloud item still ahead of us for a tap one.
+            S.sound = false;
+            // Swap every item that needs the microphone for a tap one.
+            const needsMic = (t) => t === 'speech' || t === 'sound';
             for (let i = S.idx + 1; i < S.items.length; i++) {
-                if (S.items[i].type === 'speech' && S.reserve.length) S.items[i] = S.reserve.shift();
+                if (needsMic(S.items[i].type) && S.reserve.length) S.items[i] = S.reserve.shift();
             }
-            S.items = S.items.filter((it, i) => i <= S.idx || it.type !== 'speech');
+            S.items = S.items.filter((it, i) => i <= S.idx || !needsMic(it.type));
         }
 
         $('ir-speak').classList.remove('hidden');

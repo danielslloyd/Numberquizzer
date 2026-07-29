@@ -74,7 +74,7 @@
 
         { id: 'phon.shortVowels', label: 'The five short vowel sounds',
           prereq: ['phon.letterNames', 'pa.isolate'], automaticity: { targetMs: 2500 },
-          types: ['mc'], params: { audio: true },
+          types: ['mc', 'sound'], params: { audio: true },
           misconceptions: ['confuses short e and short i'],
           provenance: { ccss: ['RF.K.3b'] } },
 
