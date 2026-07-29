@@ -359,6 +359,41 @@ function check(name, ok, detail) {
     });
     check('storage helper round-trips and namespaces', stOk);
 
+    // ---- phone viewport ---------------------------------------------------
+    // Two stacked nav rows and 19 activities is exactly the shape that overflows
+    // a narrow screen, so this is checked rather than assumed.
+    await page.setViewportSize({ width: 375, height: 700 });
+    await page.waitForTimeout(250);
+
+    const screensToCheck = [
+        ['#/', 'Learn home'],
+        ['#/frac', 'a ladder'],
+        ['#/frac/frac.numberline', 'a node'],
+    ];
+    for (const [hash, label] of screensToCheck) {
+        await page.evaluate((h) => { location.hash = h; }, hash);
+        await page.waitForTimeout(200);
+        const overflow = await page.evaluate(() => ({
+            doc: document.documentElement.scrollWidth,
+            win: window.innerWidth,
+        }));
+        check(`375px: ${label} does not scroll sideways`,
+            overflow.doc <= overflow.win + 1, JSON.stringify(overflow));
+    }
+
+    // Both nav rows must wrap rather than push the page wide.
+    await page.evaluate(() => lbApplySection('maths'));
+    await page.waitForTimeout(150);
+    const navFit = await page.evaluate(() => ({
+        doc: document.documentElement.scrollWidth,
+        win: window.innerWidth,
+        sectionH: document.getElementById('section-bar').getBoundingClientRect().height,
+    }));
+    check('375px: both nav rows wrap without widening the page',
+        navFit.doc <= navFit.win + 1 && navFit.sectionH > 0, JSON.stringify(navFit));
+
+    await page.setViewportSize({ width: 1280, height: 900 });
+
     // ---- console --------------------------------------------------------
     // The three CDN libraries are unreachable in a sandbox with no outbound
     // network. That takes THREE/CANNON/jsPDF down with it, which is a property of

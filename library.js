@@ -62,8 +62,13 @@
             html += groups[key].map((s) => {
                 const p = prStrandProgress(s.strand);
                 const pct = p.built ? Math.round((p.proficient / p.built) * 100) : 0;
+                // Say both numbers. "0 of 3 ready" alone reads as though the
+                // strand only contains three things, when it may hold fifteen
+                // with the rest still on the backlog.
+                const more = s.count - p.built;
                 const sub = p.built
                     ? `${p.proficient} of ${p.built} ready`
+                        + (more > 0 ? ` &middot; ${more} more to come` : '')
                     : `${s.count} steps &middot; not built yet`;
                 return `<button class="lb-card${p.built ? '' : ' lb-card-empty'}" data-strand="${esc(s.strand)}">`
                     + `<span class="lb-card-title">${esc(s.label)}</span>`
