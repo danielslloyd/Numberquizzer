@@ -186,3 +186,34 @@
     .idr-expr { font-size: 1.8rem; }
     .lb-grid { grid-template-columns: 1fr; }
 }
+
+/* ---------------------------------------------------------- section bar */
+/* The top level of a two-level nav. Nineteen activities do not fit on one
+   row; this groups them without touching the tab bar's contract. */
+.section-bar {
+    display: flex;
+    gap: .25rem;
+    padding: .4rem .6rem 0;
+    justify-content: center;
+    flex-wrap: wrap;
+    background: #fafafa;
+    border-bottom: 1px solid #e6e6e6;
+}
+.section-btn {
+    font: inherit;
+    font-weight: 600;
+    font-size: .98rem;
+    padding: .5rem 1.1rem;
+    border: none;
+    background: none;
+    color: #777;
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    border-radius: 6px 6px 0 0;
+}
+.section-btn:hover { color: #333; background: #f0f0f0; }
+.section-btn.active { color: #1565c0; border-bottom-color: #1565c0; }
+
+@media (max-width: 420px) {
+    .section-btn { padding: .45rem .7rem; font-size: .9rem; }
+}

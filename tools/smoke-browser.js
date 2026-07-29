@@ -78,8 +78,35 @@ function check(name, ok, detail) {
     check('no duplicate tab buttons', new Set(tabs).size === tabs.length);
     check('lazy tabs in place', LAZY_TABS.every((t) => tabs.includes(t)));
 
+    // ---- section bar groups the tabs -----------------------------------
+    const sections = await page.$$eval('.section-btn', (els) => els.map((e) => e.dataset.section));
+    check('section bar has four sections',
+        JSON.stringify(sections) === JSON.stringify(['learn', 'maths', 'english', 'tools']),
+        JSON.stringify(sections));
+    check('app opens on Learn',
+        await page.evaluate(() => (document.querySelector('.screen.active') || {}).id === 'lb-strands-screen'));
+    check('Learn hides the activity row entirely',
+        await page.evaluate(() => document.getElementById('tab-bar').classList.contains('hidden')));
+
+    // Every tab must be reachable through exactly one section, and an unlisted
+    // tab must still land somewhere rather than vanishing.
+    const coverage = await page.evaluate(() => {
+        const out = {};
+        document.querySelectorAll('#tab-bar .tab-btn').forEach((b) => {
+            const s = window.ACTIVITY_SECTION[b.dataset.tab] || 'tools';
+            (out[s] = out[s] || []).push(b.dataset.tab);
+        });
+        return out;
+    });
+    const covered = Object.keys(coverage).reduce((n, k) => n + coverage[k].length, 0);
+    check('every tab belongs to a section', covered === 18, JSON.stringify(coverage));
+
     // ---- every eager tab opens and highlights --------------------------
     for (const tab of EAGER_TABS) {
+        // Select the tab's section first — the row is filtered now, so a tab
+        // outside the active section is genuinely not on screen.
+        await page.evaluate((t) => lbApplySection(window.ACTIVITY_SECTION[t] || 'tools'), tab);
+        await page.waitForTimeout(60);
         await page.click(`#tab-bar .tab-btn[data-tab="${tab}"]`);
         await page.waitForTimeout(120);
         const state = await page.evaluate((t) => {
@@ -97,6 +124,8 @@ function check(name, ok, detail) {
     }
 
     // ---- lazy tab actually loads on click ------------------------------
+    await page.evaluate((t) => lbApplySection(window.ACTIVITY_SECTION[t] || 'tools'), 'geo-proofs');
+    await page.waitForTimeout(60);
     await page.click('#tab-bar .tab-btn[data-tab="geo-proofs"]');
     await page.waitForFunction(() => !!document.getElementById('geo-proofs-screen'), { timeout: 15000 })
         .catch(() => {});
@@ -113,6 +142,8 @@ function check(name, ok, detail) {
     check('lazy load did not duplicate the tab', gpState.gpTabs === 1 && gpState.tabCount === 18,
         JSON.stringify(gpState));
 
+    await page.evaluate((t) => lbApplySection(window.ACTIVITY_SECTION[t] || 'tools'), 'la-vocab');
+    await page.waitForTimeout(60);
     await page.click('#tab-bar .tab-btn[data-tab="la-vocab"]');
     await page.waitForTimeout(800);
     const laState = await page.evaluate(() => ({
@@ -123,7 +154,7 @@ function check(name, ok, detail) {
     check('language-arts did not duplicate tabs', laState.tabCount === 18, JSON.stringify(laState));
 
     // ---- Learn: browse a ladder and run an assessment -------------------
-    await page.click('#tab-bar .tab-btn[data-tab="learn"]');
+    await page.evaluate(() => lbApplySection('learn', { enter: true }));
     await page.waitForTimeout(250);
     check('Learn tab opens the strand list',
         await page.evaluate(() => (document.querySelector('.screen.active') || {}).id === 'lb-strands-screen'));

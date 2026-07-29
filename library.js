@@ -237,7 +237,100 @@
         bar.insertBefore(btn, bar.firstChild);   // the point of the app goes first
     }
 
+    /* ====================================================================
+     * SECTION BAR
+     *
+     * Nineteen activities do not fit on one row, least of all on a phone. A
+     * second level above the tab bar groups them, and the tab bar itself is
+     * filtered rather than rebuilt — so the contract the two plug-ins rely on
+     * (append a .tab-btn to #tab-bar and it works) is completely untouched.
+     *
+     * Anything not listed falls into Tools, which means a future plug-in that
+     * injects a tab still appears somewhere sensible without having to know this
+     * file exists.
+     * ==================================================================== */
+    const SECTIONS = [
+        ['learn', 'Learn'],
+        ['maths', 'Maths'],
+        ['english', 'English'],
+        ['tools', 'Tools'],
+    ];
+
+    const ACTIVITY_SECTION = {
+        learn: 'learn',
+        flashcards: 'maths', 'make-ten': 'maths', 'ten-frame': 'maths', 'times-grid': 'maths',
+        fractions: 'maths', money: 'maths', visualizer: 'maths', worksheets: 'maths',
+        'geo-proofs': 'maths',
+        sorting: 'english', 'la-vocab': 'english', 'la-cap': 'english', 'la-punct': 'english',
+        'la-subj': 'english', 'la-diag': 'english',
+        ciphers: 'tools', sudoku: 'tools',
+    };
+
+    function sectionOf(tab) { return ACTIVITY_SECTION[tab] || 'tools'; }
+
+    let activeSection = 'learn';
+
+    function injectSectionBar() {
+        const tabBar = document.getElementById('tab-bar');
+        if (!tabBar || document.getElementById('section-bar')) return;
+        const nav = document.createElement('nav');
+        nav.className = 'section-bar';
+        nav.id = 'section-bar';
+        nav.innerHTML = SECTIONS.map(([id, label]) =>
+            `<button class="section-btn" data-section="${id}">${label}</button>`).join('');
+        tabBar.parentNode.insertBefore(nav, tabBar);
+    }
+
+    function lbApplySection(name, opts) {
+        activeSection = name;
+        const tabBar = document.getElementById('tab-bar');
+        if (!tabBar) return;
+
+        document.querySelectorAll('.section-btn').forEach((b) => {
+            b.classList.toggle('active', b.dataset.section === name);
+        });
+
+        // Learn has its own screens and no activity tabs, so the row goes away
+        // entirely rather than showing a single lonely button.
+        tabBar.classList.toggle('hidden', name === 'learn');
+
+        let first = null;
+        [...tabBar.querySelectorAll('.tab-btn')].forEach((btn) => {
+            const mine = sectionOf(btn.dataset.tab) === name;
+            btn.classList.toggle('hidden', !mine);
+            if (mine && !first) first = btn;
+        });
+
+        if (opts && opts.enter) {
+            if (name === 'learn') { if (TAB_ENTRY.learn) TAB_ENTRY.learn(); }
+            else if (first && TAB_ENTRY[first.dataset.tab]) TAB_ENTRY[first.dataset.tab]();
+        }
+    }
+
+    /* Keep the section row in step when something else changes screens — a
+     * practice link from a node jumps straight to an activity tab, and the
+     * section above it has to follow rather than lying about where you are. */
+    function lbSyncSection() {
+        const active = document.querySelector('.tab-btn.active');
+        if (!active) return;
+        const want = sectionOf(active.dataset.tab);
+        if (want !== activeSection) lbApplySection(want);
+    }
+
     function wire() {
+        const sectionBar = document.getElementById('section-bar');
+        if (sectionBar) {
+            sectionBar.addEventListener('click', (e) => {
+                const btn = e.target.closest('.section-btn');
+                if (btn) lbApplySection(btn.dataset.section, { enter: true });
+            });
+        }
+
+        // The tab bar's own clicks are handled by app.js; this only keeps the
+        // section row honest about where the learner ended up.
+        const tabBar = document.getElementById('tab-bar');
+        if (tabBar) tabBar.addEventListener('click', () => setTimeout(lbSyncSection, 0));
+
         document.addEventListener('click', (e) => {
             const strandBtn = e.target.closest('[data-strand]');
             if (strandBtn) { lbGo(strandBtn.dataset.strand); return; }
@@ -284,11 +377,18 @@
         if (typeof TAB_ENTRY === 'undefined' || typeof SCREEN_TAB === 'undefined') return;
         injectScreens();
         injectTab();
+        injectSectionBar();
         SCREENS.forEach((n) => { SCREEN_TAB[n] = 'learn'; });
         TAB_ENTRY.learn = () => { lbRoute(); };
         wire();
+        // Open on Learn — it is the point of the app, and it is the only screen
+        // that answers "what should we do next".
+        lbApplySection('learn', { enter: true });
     }
 
+    window.lbApplySection = lbApplySection;
+    window.lbSyncSection = lbSyncSection;
+    window.ACTIVITY_SECTION = ACTIVITY_SECTION;
     window.lbBack = lbBack;
     window.lbGo = lbGo;
     window.lbRoute = lbRoute;
