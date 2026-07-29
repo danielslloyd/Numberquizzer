@@ -232,6 +232,43 @@ function check(name, ok, detail) {
     check('40 instant correct answers do not reach proficient',
         mashed.lvl < 3 && mashed.sn === 0, JSON.stringify(mashed));
 
+    // ---- an English node, end to end, on a multiple-choice type ---------
+    await page.evaluate(() => { location.hash = '#/morph/morph.inferMeaning'; });
+    await page.waitForTimeout(250);
+    await page.click('[data-act="check"]');
+    await page.waitForFunction(() => document.querySelectorAll('.ir-choice').length > 0, { timeout: 10000 })
+        .catch(() => {});
+
+    const mcRun = await page.evaluate(async () => {
+        const S = window.__IR;
+        const item = S.items[S.idx];
+        const btns = [...document.querySelectorAll('.ir-choice')];
+        return {
+            choices: btns.length,
+            hasStem: !!(item && item.stem),
+            speakable: typeof idrSpeakable(item) === 'string' && idrSpeakable(item).length > 10,
+        };
+    });
+    check('English multiple-choice item renders its options', mcRun.choices >= 2, JSON.stringify(mcRun));
+    check('item is speakable for a learner who cannot read it', mcRun.speakable);
+
+    // Choosing the wrong option must mark wrong and reveal the right one, since
+    // seeing the correct answer beside your own is most of the teaching.
+    const wrongFlow = await page.evaluate(async () => {
+        const S = window.__IR;
+        const item = S.items[S.idx];
+        const wrongIdx = (Number(item.answer) + 1) % item.choices.length;
+        document.querySelectorAll('.ir-choice')[wrongIdx].click();
+        await new Promise((r) => setTimeout(r, 300));
+        return {
+            marked: !!document.querySelector('.ir-feedback.ir-fb-wrong'),
+            revealed: !!document.querySelector('.ir-choice.is-correct'),
+            waitsForNext: !document.getElementById('ir-next').classList.contains('hidden'),
+        };
+    });
+    check('a wrong answer is marked, the right one revealed, and it waits',
+        wrongFlow.marked && wrongFlow.revealed && wrongFlow.waitsForNext, JSON.stringify(wrongFlow));
+
     // ---- practice modes feed the same mastery record --------------------
     const practice = await page.evaluate(() => {
         const before = (window.__PR.raw().nodes['mult.facts'] || {}).n || 0;

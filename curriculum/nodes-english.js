@@ -260,7 +260,7 @@
           provenance: { ccss: ['L.3.4c', 'L.5.4b'] } },
 
         { id: 'morph.decomposeLong', label: 'Break a long word into its parts to read it',
-          prereq: ['morph.roots.latin', 'phon.multisyllable'], types: ['tap-token'],
+          prereq: ['morph.roots.latin', 'phon.multisyllable'], types: ['tap-token', 'mc'],
           provenance: { ccss: ['RF.4.3a', 'RF.5.3a'] } },
 
         { id: 'morph.inferMeaning', label: 'Work out a new word from its parts',
@@ -379,7 +379,7 @@
           provenance: { ccss: ['L.2.1b', 'L.3.2e'] } },
 
         { id: 'spell.suffixRules', label: 'Doubling, dropping e, and y to i',
-          prereq: ['spell.vceVowelTeams', 'morph.suffix.common'], types: ['text'],
+          prereq: ['spell.vceVowelTeams', 'morph.suffix.common'], types: ['text', 'mc'],
           misconceptions: ['adds the suffix without adjusting the base — "hoping"/"hopping" confusion'],
           provenance: { ccss: ['L.3.2e', 'L.3.2f'] } },
 
@@ -401,7 +401,7 @@
           provenance: { ccss: ['L.1.1j', 'RF.1.1a'] } },
 
         { id: 'gram.partsOfSpeech', label: 'Nouns, verbs, adjectives, adverbs',
-          prereq: ['gram.sentence'], types: ['tap-token', 'sort-bins'], practice: ['la-diag'],
+          prereq: ['gram.sentence'], types: ['tap-token', 'sort-bins', 'mc'], practice: ['la-diag'],
           misconceptions: ['classifies by meaning rather than by the word\'s job in the sentence'],
           provenance: { ccss: ['L.3.1a'] } },
 

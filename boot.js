@@ -38,6 +38,10 @@
         'curriculum/nodes-math.js',
         'curriculum/nodes-english.js',
         'gen/manifest.js',      // which nodes are buildable, without fetching the packs
+        // Small (~12 KB) and shared by five packs, so eager beats five lazy
+        // fetches. Larger banks — reading passages especially — stay lazy.
+        'content/words-phonics.js',
+        'content/words-language.js',
         'parser.js',
         'physics.js',
         'animator.js',

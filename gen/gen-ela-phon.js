@@ -1,0 +1,271 @@
+/*
+ * Item generators for phonics and decoding.
+ *
+ * The awkward constraint here is that decoding is an *oral* skill and this is a
+ * silent medium. "Read this word" cannot be graded without audio capture, so
+ * these items test decoding indirectly but honestly: matching a vowel sound
+ * across two written words requires decoding both, and there is no way to answer
+ * "which word has the same vowel sound as rain" by looking at letter shapes,
+ * because the foils are chosen so the spelling never gives it away.
+ *
+ * Every foil is drawn from a different pattern group than the answer. A foil
+ * that secretly contains the target pattern turns a correct answer into a marked
+ * mistake, which is the failure mode this whole layer is built to avoid.
+ */
+(function () {
+    'use strict';
+
+    const G = {};
+    const W = (typeof WORDS !== 'undefined') ? WORDS : (typeof require === 'function' ? require('../content/words-phonics.js') : {});
+
+    const ALPHA = 'abcdefghijklmnopqrstuvwxyz'.split('');
+
+    function flat(obj, except) {
+        return Object.keys(obj).filter((k) => k !== except)
+            .reduce((acc, k) => acc.concat(obj[k]), []);
+    }
+
+    /* "Which word has the same X as <example>?" — the workhorse shape. */
+    function sameSound(rng, opts) {
+        const target = rng.pick(opts.group);
+        const example = rng.pick(opts.group.filter((w) => w !== target)) || target;
+        return genMc(rng, {
+            stem: 'Which word has the same ' + opts.what + ' as "' + example + '"?',
+            correct: target,
+            distractors: rng.sample(opts.foils.filter((w) => opts.group.indexOf(w) === -1), 3),
+            explain: '"' + target + '" and "' + example + '" both have ' + opts.because + '.',
+            sig: opts.sig + ':' + example + ':' + target,
+        });
+    }
+
+    G['phon.letterNames'] = function (rng) {
+        const i = rng.int(0, 24);
+        if (rng.bool()) {
+            return genMc(rng, {
+                stem: 'Which letter comes straight after ' + ALPHA[i].toUpperCase() + '?',
+                correct: ALPHA[i + 1].toUpperCase(),
+                distractors: [ALPHA[i].toUpperCase(), ALPHA[Math.max(0, i - 1)].toUpperCase(),
+                    ALPHA[Math.min(25, i + 2)].toUpperCase()],
+                sig: 'after:' + ALPHA[i],
+            });
+        }
+        const j = rng.int(0, 25);
+        return genMc(rng, {
+            stem: 'Which is the small letter that matches ' + ALPHA[j].toUpperCase() + '?',
+            correct: ALPHA[j],
+            distractors: rng.sample(ALPHA.filter((c) => c !== ALPHA[j]), 3),
+            sig: 'case:' + ALPHA[j],
+        });
+    };
+
+    G['phon.consonants'] = function (rng) {
+        const all = flat(W.cvc);
+        const word = rng.pick(all);
+        const first = word[0];
+        const others = all.filter((w) => w[0] !== first);
+        return genMc(rng, {
+            stem: 'Which word starts with the same sound as "' + word + '"?',
+            correct: rng.pick(all.filter((w) => w[0] === first && w !== word)) || word,
+            distractors: rng.sample(others, 3),
+            explain: 'Both start with the sound of the letter ' + first + '.',
+            sig: 'cons:' + word,
+        });
+    };
+
+    G['phon.shortVowels'] = function (rng) {
+        const v = rng.pick(['a', 'e', 'i', 'o', 'u']);
+        return sameSound(rng, {
+            what: 'middle sound',
+            group: W.cvc[v],
+            foils: flat(W.cvc, v),
+            because: 'the short ' + v + ' sound in the middle',
+            sig: 'shortV:' + v,
+        });
+    };
+
+    G['phon.cvc'] = function (rng) {
+        const v = rng.pick(['a', 'e', 'i', 'o', 'u']);
+        const word = rng.pick(W.cvc[v]);
+        const rhymes = W.cvc[v].filter((w) => w !== word && w.slice(1) === word.slice(1));
+        if (rhymes.length) {
+            return genMc(rng, {
+                stem: 'Which word rhymes with "' + word + '"?',
+                correct: rng.pick(rhymes),
+                distractors: rng.sample(flat(W.cvc, v), 3),
+                sig: 'cvcRhyme:' + word,
+            });
+        }
+        return sameSound(rng, {
+            what: 'vowel sound',
+            group: W.cvc[v],
+            foils: flat(W.cvc, v),
+            because: 'the short ' + v + ' sound',
+            sig: 'cvc:' + v,
+        });
+    };
+
+    function patternItem(rng, table, label, sig) {
+        const key = rng.pick(Object.keys(table));
+        const foils = flat(table, key).concat(flat(W.cvc));
+        return genMc(rng, {
+            stem: 'Which word has the "' + key + '" ' + label + '?',
+            correct: rng.pick(table[key]),
+            distractors: rng.sample(foils.filter((w) => table[key].indexOf(w) === -1), 3),
+            explain: 'Look for the letters "' + key + '" making one sound.',
+            sig: sig + ':' + key,
+        });
+    }
+
+    G['phon.digraphs'] = function (rng) { return patternItem(rng, W.digraph, 'sound', 'dig'); };
+    G['phon.rControlled'] = function (rng) { return patternItem(rng, W.rControlled, 'sound', 'rc'); };
+    G['phon.diphthongs'] = function (rng) { return patternItem(rng, W.diphthong, 'sound', 'dip'); };
+    G['phon.vowelTeams.long'] = function (rng) { return patternItem(rng, W.vowelTeamLong, 'vowel team', 'vtl'); };
+    G['phon.vowelTeams.more'] = function (rng) { return patternItem(rng, W.vowelTeamMore, 'vowel sound', 'vtm'); };
+
+    G['phon.blends.initial'] = function (rng) {
+        const word = rng.pick(W.blendInitial);
+        return genMc(rng, {
+            stem: 'Which word begins with two consonants blended together, like "' + word + '"?',
+            correct: rng.pick(W.blendInitial.filter((w) => w !== word)),
+            distractors: rng.sample(flat(W.cvc), 3),
+            explain: 'A blend is two consonants you can still hear separately, as in "' + word + '".',
+            sig: 'bi:' + word,
+        });
+    };
+
+    G['phon.blends.final'] = function (rng) {
+        const word = rng.pick(W.blendFinal);
+        return genMc(rng, {
+            stem: 'Which word ends with two consonants blended together, like "' + word + '"?',
+            correct: rng.pick(W.blendFinal.filter((w) => w !== word)),
+            distractors: rng.sample(flat(W.cvc), 3),
+            sig: 'bf:' + word,
+        });
+    };
+
+    /*
+     * Silent e is tested by the change it makes: the same letters with and
+     * without the e are two different words, which is the only thing that
+     * matters about the pattern.
+     */
+    G['phon.vce'] = function (rng) {
+        const pair = rng.pick(W.vcePairs);
+        if (rng.bool()) {
+            return genText({
+                stem: 'Add a silent e to the end of "' + pair[0] + '". What word do you get?',
+                answer: pair[1],
+                hint: 'The e is not said, but it changes the vowel.',
+                explain: '"' + pair[0] + '" becomes "' + pair[1] + '" — the e makes the vowel say its name.',
+                sig: 'vceAdd:' + pair[0],
+            });
+        }
+        return genMc(rng, {
+            stem: 'In "' + pair[1] + '", what does the e at the end do?',
+            correct: 'It makes the vowel say its name',
+            distractors: ['It is said as an extra sound', 'It makes the word plural',
+                'It makes the vowel short'],
+            explain: '"' + pair[0] + '" has a short vowel; "' + pair[1] + '" has a long one. '
+                + 'The e is silent and does the changing.',
+            sig: 'vceWhy:' + pair[1],
+        });
+    };
+
+    G['phon.inflections'] = function (rng) {
+        const e = rng.pick(W.inflect.filter((x) => x.ed));
+        const which = rng.pick(['s', 'ed', 'ing']);
+        return genText({
+            stem: 'Add "-' + which + '" to the word "' + e.base + '".',
+            answer: e[which],
+            hint: e.rule === 'double' ? 'You may need to double the last letter.'
+                : e.rule === 'dropE' ? 'You may need to drop the silent e.'
+                    : e.rule === 'yToI' ? 'You may need to change the y.' : null,
+            explain: '"' + e.base + '" + "-' + which + '" is "' + e[which] + '".',
+            sig: 'infl:' + e.base + ':' + which,
+        });
+    };
+
+    G['phon.syllableTypes'] = function (rng) {
+        const closed = rng.pick(['nap', 'cat', 'pic', 'mag', 'ten']);
+        const open = rng.pick(['me', 'go', 'hi', 'she', 'no']);
+        if (rng.bool()) {
+            return genMc(rng, {
+                stem: 'The syllable "' + closed + '" ends in a consonant, so the vowel is short. '
+                    + 'What kind of syllable is that?',
+                correct: 'A closed syllable',
+                distractors: ['An open syllable', 'A silent-e syllable', 'A vowel-team syllable'],
+                explain: 'A consonant closes the syllable in and keeps the vowel short.',
+                sig: 'sylClosed:' + closed,
+            });
+        }
+        return genMc(rng, {
+            stem: 'The syllable "' + open + '" ends in a vowel, and the vowel says its name. '
+                + 'What kind of syllable is that?',
+            correct: 'An open syllable',
+            distractors: ['A closed syllable', 'An r-controlled syllable', 'A silent-e syllable'],
+            explain: 'Nothing closes it in, so the vowel is free to say its name.',
+            sig: 'sylOpen:' + open,
+        });
+    };
+
+    G['phon.syllableDivision'] = function (rng) {
+        const SPLITS = [
+            { w: 'rabbit', right: 'rab/bit', wrong: ['ra/bbit', 'rabb/it', 'r/abbit'] },
+            { w: 'napkin', right: 'nap/kin', wrong: ['na/pkin', 'napk/in', 'n/apkin'] },
+            { w: 'basket', right: 'bas/ket', wrong: ['ba/sket', 'bask/et', 'b/asket'] },
+            { w: 'muffin', right: 'muf/fin', wrong: ['mu/ffin', 'muff/in', 'm/uffin'] },
+            { w: 'sunset', right: 'sun/set', wrong: ['su/nset', 'suns/et', 's/unset'] },
+            { w: 'magnet', right: 'mag/net', wrong: ['ma/gnet', 'magn/et', 'm/agnet'] },
+        ];
+        const s = rng.pick(SPLITS);
+        return genMc(rng, {
+            stem: 'Where does "' + s.w + '" split into syllables?',
+            correct: s.right,
+            distractors: s.wrong,
+            hint: 'Every syllable needs a vowel sound.',
+            explain: '"' + s.w + '" splits between the two consonants in the middle: ' + s.right + '.',
+            sig: 'sylDiv:' + s.w,
+        });
+    };
+
+    G['phon.twoSyllable'] = function (rng) {
+        const two = rng.pick(W.twoSyllable);
+        return genMc(rng, {
+            stem: 'Which of these words has two syllables?',
+            correct: two,
+            distractors: rng.sample(flat(W.cvc), 3),
+            hint: 'Count the vowel sounds you hear.',
+            explain: '"' + two + '" has two vowel sounds, so two syllables.',
+            sig: 'two:' + two,
+        });
+    };
+
+    G['phon.schwa'] = function (rng) {
+        const e = rng.pick(W.schwa);
+        const parts = [e.syl].concat(
+            rng.sample(W.schwa.filter((x) => x.w !== e.w).map((x) => x.syl), 3));
+        return genMc(rng, {
+            stem: 'In "' + e.w + '", which part has the lazy "uh" sound?',
+            correct: e.syl,
+            distractors: parts.slice(1),
+            explain: 'In "' + e.w + '" the "' + e.syl + '" part is unstressed, so its vowel '
+                + 'flattens to "uh". That is what makes long words hard to read even when you '
+                + 'know every letter.',
+            sig: 'schwa:' + e.w,
+        });
+    };
+
+    G['phon.multisyllable'] = function (rng) {
+        const long = rng.pick(W.multisyllable);
+        return genMc(rng, {
+            stem: 'Which of these is the longest word by number of syllables?',
+            correct: long,
+            distractors: rng.sample(W.twoSyllable, 2).concat(rng.sample(flat(W.cvc), 1)),
+            hint: 'Count the vowel sounds.',
+            explain: '"' + long + '" has the most vowel sounds, so the most syllables.',
+            sig: 'multi:' + long,
+        });
+    };
+
+    if (typeof CUR !== 'undefined') CUR.registerGens('ela-phon', G);
+    if (typeof module !== 'undefined' && module.exports) module.exports = G;
+})();

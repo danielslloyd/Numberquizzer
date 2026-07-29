@@ -1,0 +1,216 @@
+/*
+ * Word bank for the phonics, spelling and word-recognition strands.
+ *
+ * Authored here rather than copied. Ordered phonics scope-and-sequences are
+ * mostly proprietary (UFLI, Wilson, Reading Universe); what is not copyrightable
+ * is which graphemes exist and roughly what order they are taught in, so the
+ * ordering follows the consensus of several published sequences and the words
+ * themselves are chosen fresh.
+ *
+ * Two things to preserve if you edit this:
+ *
+ *   Every word must actually contain the pattern it is filed under, and — for
+ *   the contrast lists — must NOT contain the pattern it is a foil for. A foil
+ *   that secretly matches turns a right answer into a wrong one.
+ *
+ *   Spelling entries carry a `clue`. Speech is an enhancement, not a guarantee:
+ *   on a browser without speechSynthesis a "spell the word you hear" item would
+ *   be unanswerable, so every spelling item is also solvable from its clue.
+ */
+(function () {
+    'use strict';
+
+    const W = {};
+
+    // ---- short vowels, CVC ------------------------------------------------
+    W.cvc = {
+        a: ['cat', 'map', 'bag', 'hat', 'ran', 'sad', 'tap', 'jam', 'pan', 'rat', 'wag', 'lap'],
+        e: ['bed', 'net', 'leg', 'pen', 'wet', 'hen', 'jet', 'red', 'ten', 'get'],
+        i: ['pig', 'sit', 'lid', 'win', 'fin', 'dig', 'hit', 'rib', 'zip', 'kid'],
+        o: ['dog', 'hop', 'pot', 'top', 'mop', 'rod', 'log', 'box', 'fox', 'job'],
+        u: ['cup', 'bug', 'sun', 'rug', 'mud', 'hut', 'bun', 'tub', 'gum', 'nut'],
+    };
+
+    // ---- consonant digraphs ------------------------------------------------
+    W.digraph = {
+        sh: ['ship', 'shop', 'fish', 'wish', 'shed', 'cash', 'shell', 'brush'],
+        ch: ['chip', 'chin', 'much', 'rich', 'chest', 'lunch', 'bench', 'chop'],
+        th: ['thin', 'that', 'with', 'bath', 'moth', 'path', 'them', 'cloth'],
+        ck: ['duck', 'rock', 'sick', 'back', 'lock', 'pick', 'neck', 'truck'],
+        ng: ['ring', 'song', 'king', 'long', 'wing', 'bang', 'sting', 'strong'],
+        wh: ['when', 'whip', 'whale', 'wheel', 'white', 'which'],
+    };
+
+    // ---- blends ------------------------------------------------------------
+    W.blendInitial = ['stop', 'flag', 'trip', 'clap', 'grin', 'sled', 'swim', 'plan',
+        'drum', 'skip', 'spin', 'brag', 'crab', 'frog', 'glad', 'snap'];
+    W.blendFinal = ['hand', 'nest', 'lamp', 'jump', 'milk', 'belt', 'gift', 'sand',
+        'best', 'wind', 'bank', 'desk', 'cold', 'help'];
+
+    // ---- silent e ----------------------------------------------------------
+    // Paired with the short-vowel word the silent e changes, which is the whole
+    // point of the pattern and the clearest way to test it.
+    W.vcePairs = [
+        ['cap', 'cape'], ['tap', 'tape'], ['hat', 'hate'], ['man', 'mane'], ['can', 'cane'],
+        ['pin', 'pine'], ['kit', 'kite'], ['rid', 'ride'], ['bit', 'bite'], ['din', 'dine'],
+        ['hop', 'hope'], ['not', 'note'], ['rob', 'robe'], ['cod', 'code'], ['dot', 'dote'],
+        ['cub', 'cube'], ['tub', 'tube'], ['us', 'use'], ['cut', 'cute'],
+    ];
+    W.vce = W.vcePairs.map((p) => p[1]);
+
+    // ---- vowel teams -------------------------------------------------------
+    W.vowelTeamLong = {
+        ai: ['rain', 'mail', 'wait', 'train', 'paint', 'chain'],
+        ay: ['day', 'play', 'stay', 'tray', 'clay', 'away'],
+        ee: ['feet', 'tree', 'green', 'sleep', 'sweet', 'queen'],
+        ea: ['team', 'leaf', 'beach', 'clean', 'dream', 'seat'],
+        oa: ['boat', 'road', 'coat', 'soap', 'toast', 'float'],
+        ow: ['snow', 'grow', 'yellow', 'window', 'throw', 'pillow'],
+        igh: ['night', 'light', 'high', 'right', 'bright', 'sight'],
+        ie: ['pie', 'tie', 'lie', 'died', 'cried', 'tried'],
+    };
+
+    W.vowelTeamMore = {
+        'oo (long)': ['moon', 'soon', 'food', 'room', 'pool', 'zoo'],
+        'oo (short)': ['book', 'look', 'good', 'foot', 'wood', 'cook'],
+        ew: ['new', 'grew', 'flew', 'chew', 'drew', 'stew'],
+        au: ['sauce', 'August', 'haunt', 'launch', 'author'],
+        aw: ['saw', 'draw', 'lawn', 'crawl', 'yawn', 'straw'],
+    };
+
+    // Same spelling, different sound — the over-generalisation trap.
+    W.vowelTeamExceptions = [
+        { team: 'ea', usual: ['beach', 'clean', 'dream'], odd: ['bread', 'head', 'ready'] },
+        { team: 'ow', usual: ['snow', 'grow', 'yellow'], odd: ['cow', 'down', 'brown'] },
+        { team: 'oo', usual: ['moon', 'food', 'room'], odd: ['book', 'foot', 'good'] },
+    ];
+
+    // ---- r-controlled ------------------------------------------------------
+    // No explicit CCSS home; placement is convention. See PROFICIENCIES.md.
+    W.rControlled = {
+        ar: ['car', 'star', 'farm', 'park', 'sharp', 'garden'],
+        or: ['fork', 'corn', 'storm', 'north', 'short', 'horse'],
+        er: ['her', 'water', 'sister', 'letter', 'under', 'winter'],
+        ir: ['bird', 'girl', 'first', 'shirt', 'third', 'thirty'],
+        ur: ['turn', 'hurt', 'burn', 'purple', 'church', 'Thursday'],
+    };
+
+    // ---- diphthongs --------------------------------------------------------
+    W.diphthong = {
+        oi: ['coin', 'boil', 'join', 'point', 'soil', 'noise'],
+        oy: ['boy', 'toy', 'joy', 'enjoy', 'royal', 'destroy'],
+        ou: ['out', 'loud', 'round', 'house', 'mouth', 'cloud'],
+        ow: ['cow', 'now', 'down', 'brown', 'town', 'flower'],
+    };
+
+    // ---- odds and ends ------------------------------------------------------
+    W.softC = ['city', 'cent', 'circle', 'ice', 'race', 'pencil'];
+    W.hardC = ['cat', 'cup', 'cold', 'card', 'coat', 'cave'];
+    W.softG = ['gem', 'giant', 'giraffe', 'cage', 'page', 'magic'];
+    W.hardG = ['got', 'gum', 'game', 'goat', 'garden', 'gate'];
+
+    W.silent = {
+        kn: ['knee', 'knife', 'knock', 'know', 'knot'],
+        wr: ['write', 'wrong', 'wrap', 'wrist', 'wreck'],
+        mb: ['lamb', 'thumb', 'comb', 'climb', 'crumb'],
+        gn: ['gnaw', 'sign', 'gnome'],
+    };
+
+    W.yVowel = {
+        'long i': ['cry', 'fly', 'sky', 'try', 'why', 'dry'],
+        'long e': ['happy', 'baby', 'funny', 'city', 'penny', 'story'],
+    };
+
+    W.tchDge = {
+        tch: ['catch', 'match', 'pitch', 'watch', 'kitchen'],
+        dge: ['badge', 'bridge', 'edge', 'judge', 'hedge'],
+    };
+
+    W.ffllss = ['puff', 'cliff', 'bell', 'spell', 'grass', 'dress', 'buzz', 'miss'];
+
+    // ---- inflections --------------------------------------------------------
+    // base, plus the three inflected forms, so one entry serves both the reading
+    // node and the spelling-rule node.
+    W.inflect = [
+        { base: 'jump', s: 'jumps', ed: 'jumped', ing: 'jumping', rule: 'add' },
+        { base: 'play', s: 'plays', ed: 'played', ing: 'playing', rule: 'add' },
+        { base: 'walk', s: 'walks', ed: 'walked', ing: 'walking', rule: 'add' },
+        { base: 'hop', s: 'hops', ed: 'hopped', ing: 'hopping', rule: 'double' },
+        { base: 'stop', s: 'stops', ed: 'stopped', ing: 'stopping', rule: 'double' },
+        { base: 'run', s: 'runs', ed: null, ing: 'running', rule: 'double' },
+        { base: 'sit', s: 'sits', ed: null, ing: 'sitting', rule: 'double' },
+        { base: 'hope', s: 'hopes', ed: 'hoped', ing: 'hoping', rule: 'dropE' },
+        { base: 'smile', s: 'smiles', ed: 'smiled', ing: 'smiling', rule: 'dropE' },
+        { base: 'bake', s: 'bakes', ed: 'baked', ing: 'baking', rule: 'dropE' },
+        { base: 'cry', s: 'cries', ed: 'cried', ing: 'crying', rule: 'yToI' },
+        { base: 'try', s: 'tries', ed: 'tried', ing: 'trying', rule: 'yToI' },
+        { base: 'carry', s: 'carries', ed: 'carried', ing: 'carrying', rule: 'yToI' },
+    ];
+
+    // ---- syllables ----------------------------------------------------------
+    W.twoSyllable = ['rabbit', 'napkin', 'basket', 'sunset', 'muffin', 'picnic', 'tennis',
+        'kitten', 'magnet', 'puppet', 'contest', 'invite'];
+    W.multisyllable = ['fantastic', 'wonderful', 'important', 'celebrate', 'understand',
+        'invisible', 'imagination', 'temperature', 'photograph', 'remember'];
+    // The unstressed vowel that collapses to /uh/ — the reason long words are
+    // hard to read even once every grapheme is known.
+    W.schwa = [
+        { w: 'about', syl: 'a' }, { w: 'pencil', syl: 'cil' }, { w: 'problem', syl: 'lem' },
+        { w: 'banana', syl: 'ba' }, { w: 'family', syl: 'mi' }, { w: 'animal', syl: 'mal' },
+    ];
+
+    // ---- high-frequency and irregular ---------------------------------------
+    W.hfEarly = ['the', 'and', 'is', 'you', 'that', 'was', 'for', 'are', 'as', 'with',
+        'his', 'they', 'have', 'this', 'from', 'one', 'had', 'not', 'but', 'what'];
+    W.hfExtended = ['because', 'people', 'through', 'another', 'important', 'different',
+        'thought', 'should', 'enough', 'together', 'sometimes', 'once'];
+
+    /*
+     * Heart words: irregular high-frequency words, with the ONE part that has to
+     * be learned by heart marked. The regular parts are still decodable, and
+     * teaching the whole word as a picture is the misconception this exists to
+     * prevent.
+     */
+    W.heart = [
+        { w: 'said', odd: 'ai', why: 'ai here says /e/' },
+        { w: 'was', odd: 'a', why: 'a here says /u/' },
+        { w: 'of', odd: 'f', why: 'f here says /v/' },
+        { w: 'come', odd: 'o', why: 'o here says /u/' },
+        { w: 'some', odd: 'o', why: 'o here says /u/' },
+        { w: 'they', odd: 'ey', why: 'ey here says long a' },
+        { w: 'do', odd: 'o', why: 'o here says /oo/' },
+        { w: 'you', odd: 'ou', why: 'ou here says /oo/' },
+        { w: 'friend', odd: 'ie', why: 'ie here says /e/' },
+        { w: 'once', odd: 'o', why: 'o here says /w/ then /u/' },
+    ];
+
+    // ---- spelling, with clues so audio is never required ---------------------
+    W.spell = {
+        cvc: [
+            { w: 'cat', clue: 'a pet that purrs' }, { w: 'bed', clue: 'you sleep in it' },
+            { w: 'pig', clue: 'a farm animal that says oink' }, { w: 'dog', clue: 'a pet that barks' },
+            { w: 'sun', clue: 'it shines in the day' }, { w: 'hat', clue: 'you wear it on your head' },
+            { w: 'box', clue: 'you put things in it' }, { w: 'cup', clue: 'you drink from it' },
+        ],
+        vceVowelTeams: [
+            { w: 'cake', clue: 'you eat it on your birthday' }, { w: 'rain', clue: 'water falling from the sky' },
+            { w: 'boat', clue: 'it floats on water' }, { w: 'tree', clue: 'it has leaves and branches' },
+            { w: 'kite', clue: 'you fly it on a windy day' }, { w: 'road', clue: 'cars drive on it' },
+            { w: 'moon', clue: 'it shines at night' }, { w: 'green', clue: 'the colour of grass' },
+        ],
+        rControlled: [
+            { w: 'star', clue: 'it twinkles in the night sky' }, { w: 'bird', clue: 'it has feathers and flies' },
+            { w: 'farm', clue: 'where cows and sheep live' }, { w: 'horse', clue: 'you can ride it' },
+            { w: 'girl', clue: 'a young female person' }, { w: 'turn', clue: 'to go round a corner' },
+        ],
+        irregularHF: [
+            { w: 'said', clue: 'the past tense of say' }, { w: 'because', clue: 'it gives a reason' },
+            { w: 'friend', clue: 'someone you like to be with' }, { w: 'people', clue: 'more than one person' },
+            { w: 'they', clue: 'the word for more than one other person' },
+            { w: 'once', clue: 'one time only' },
+        ],
+    };
+
+    window.WORDS = W;
+    if (typeof module !== 'undefined' && module.exports) module.exports = W;
+})();
