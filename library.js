@@ -172,6 +172,58 @@
         $('lb-node-body').innerHTML = html;
     }
 
+    // ---- progress panel ---------------------------------------------------
+    function lbProgressSummary() {
+        const all = CUR.all().filter((n) => CUR.isBuilt(n.id));
+        const started = all.filter((n) => prLevel(n.id) >= 1).length;
+        const proficient = all.filter((n) => prLevel(n.id) >= 3).length;
+        const due = prDue().filter((id) => CUR.isBuilt(id)).length;
+        return `<span><strong>${proficient}</strong> ready</span>`
+            + `<span><strong>${started}</strong> started</span>`
+            + `<span><strong>${all.length}</strong> available</span>`
+            + `<span><strong>${due}</strong> due</span>`;
+    }
+
+    function lbMsg(text, bad) {
+        const el = $('lb-progress-msg');
+        if (!el) return;
+        el.textContent = text;
+        el.className = 'lb-panel-msg' + (bad ? ' lb-panel-bad' : '');
+    }
+
+    /* With no server this file is the only backup there is, and it doubles as the
+     * way to move a learner to another device. */
+    function lbExport() {
+        prFlush();
+        const blob = new Blob([prExport()], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        const day = new Date().toISOString().slice(0, 10);
+        a.href = url;
+        a.download = 'numberquizzer-progress-' + day + '.json';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        lbMsg('Backup saved to your downloads.');
+    }
+
+    function lbImport(file) {
+        const reader = new FileReader();
+        reader.onload = () => {
+            try {
+                prImport(String(reader.result));
+                lbMsg('Restored. Reloading the ladders…');
+                lbRenderStrands();
+                $('lb-progress-summary').innerHTML = lbProgressSummary();
+            } catch (e) {
+                lbMsg('That file could not be read as a backup.', true);
+            }
+        };
+        reader.onerror = () => lbMsg('That file could not be read.', true);
+        reader.readAsText(file);
+    }
+
     // ---- routing ---------------------------------------------------------
     function lbGo(path) { location.hash = '#/' + path; }
 
@@ -193,7 +245,22 @@
     // ---- markup ----------------------------------------------------------
     const STRANDS_HTML =
         '<div class="lb-container">'
-        + '  <h1 class="lb-title">Learn</h1>'
+        + '  <div class="lb-head">'
+        + '    <h1 class="lb-title">Learn</h1>'
+        + '    <button id="lb-progress-btn" class="lb-back" data-panel="progress">Progress &amp; backup</button>'
+        + '  </div>'
+        + '  <div id="lb-progress-panel" class="lb-panel hidden">'
+        + '    <div id="lb-progress-summary" class="lb-summary"></div>'
+        + '    <p class="lb-panel-note">Progress is stored in this browser only. There is no account and '
+        + '       no server, so clearing site data would lose it — the backup file is the only copy.</p>'
+        + '    <div class="lb-actions">'
+        + '      <button class="btn btn-primary lb-small" data-prog="export">Save a backup</button>'
+        + '      <button class="btn btn-secondary lb-small" data-prog="import">Restore from a backup</button>'
+        + '      <button class="btn btn-secondary lb-small" data-prog="reset">Start over</button>'
+        + '    </div>'
+        + '    <input type="file" id="lb-import-file" accept="application/json,.json" class="hidden">'
+        + '    <div id="lb-progress-msg" class="lb-panel-msg"></div>'
+        + '  </div>'
         + '  <div id="lb-strands-body"></div>'
         + '</div>';
 
@@ -359,11 +426,49 @@
                 return;
             }
 
+            const panel = e.target.closest('[data-panel]');
+            if (panel) {
+                const el = $('lb-progress-panel');
+                el.classList.toggle('hidden');
+                if (!el.classList.contains('hidden')) {
+                    $('lb-progress-summary').innerHTML = lbProgressSummary();
+                    lbMsg('');
+                }
+                return;
+            }
+
+            const prog = e.target.closest('[data-prog]');
+            if (prog) {
+                const what = prog.dataset.prog;
+                if (what === 'export') lbExport();
+                else if (what === 'import') $('lb-import-file').click();
+                else if (what === 'reset') {
+                    // Irreversible and unbacked — make them say so, and offer the
+                    // backup first rather than after.
+                    if (window.confirm('This erases all progress in this browser. '
+                        + 'Save a backup first if you might want it back. Erase now?')) {
+                        prReset();
+                        lbRenderStrands();
+                        $('lb-progress-summary').innerHTML = lbProgressSummary();
+                        lbMsg('Progress erased.');
+                    }
+                }
+                return;
+            }
+
             const prac = e.target.closest('[data-practice]');
             if (prac && typeof TAB_ENTRY !== 'undefined' && TAB_ENTRY[prac.dataset.practice]) {
                 TAB_ENTRY[prac.dataset.practice]();
             }
         });
+
+        const file = $('lb-import-file');
+        if (file) {
+            file.addEventListener('change', (e) => {
+                if (e.target.files && e.target.files[0]) lbImport(e.target.files[0]);
+                e.target.value = '';
+            });
+        }
 
         window.addEventListener('hashchange', () => {
             // Only drive navigation while the learner is actually in Learn.

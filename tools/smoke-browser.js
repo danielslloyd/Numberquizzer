@@ -327,6 +327,28 @@ function check(name, ok, detail) {
             ['mult.facts', 'mult.div.facts', 'add.facts.within10', 'add.within100']),
         JSON.stringify(flashNode));
 
+    // ---- backup round-trip ------------------------------------------------
+    // With no server this file is the only copy of a learner's progress, so a
+    // broken round-trip loses everything with no way to notice.
+    await page.evaluate(() => { location.hash = '#/'; });
+    await page.waitForTimeout(200);
+    const backup = await page.evaluate(() => {
+        const before = JSON.stringify(window.__PR.raw().nodes);
+        const dump = prExport();
+        prReset();
+        const wiped = Object.keys(window.__PR.raw().nodes).length;
+        prImport(dump);
+        return { wiped: wiped, restored: JSON.stringify(window.__PR.raw().nodes) === before };
+    });
+    check('reset clears progress', backup.wiped === 0, 'left ' + backup.wiped);
+    check('export/import round-trips progress exactly', backup.restored);
+
+    const badImport = await page.evaluate(() => {
+        try { prImport('{"not":"a backup"}'); return 'accepted'; }
+        catch (e) { return 'rejected'; }
+    });
+    check('a file that is not a backup is rejected', badImport === 'rejected', badImport);
+
     // ---- storage helper -------------------------------------------------
     const stOk = await page.evaluate(() => {
         stSetJSON('smoke.test', { a: 1 });
