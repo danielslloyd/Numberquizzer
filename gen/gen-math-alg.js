@@ -17,32 +17,44 @@
         const c = rng.int(2, 9);
         const form = rng.int(0, 2);
 
-        let expr, answer, leftToRight;
+        // `wrong` is the answer the common misreading gives, and `misread` names
+        // that misreading — which differs by form. Calling them all "left to
+        // right" would be inaccurate: reading (11 + 5) x 4 left to right gives
+        // the RIGHT answer, and the mistake there is ignoring the brackets.
+        let expr, answer, wrong, misread;
         if (form === 0) {
             expr = a + ' + ' + b + ' × ' + c;
             answer = a + b * c;
-            leftToRight = (a + b) * c;
+            wrong = (a + b) * c;
+            misread = 'Working strictly left to right';
         } else if (form === 1) {
             expr = '(' + a + ' + ' + b + ') × ' + c;
             answer = (a + b) * c;
-            leftToRight = a + b * c;
+            wrong = a + b * c;
+            misread = 'Ignoring the brackets and multiplying first';
         } else {
-            expr = a + ' × ' + b + ' − ' + c;
-            answer = a * b - c;
-            leftToRight = a * (b - c);
+            // Keep c below b, so the misreading a x (b - c) stays positive.
+            // "would give -48" drags negative numbers into an item that is not
+            // about them.
+            const hi = Math.max(b, c), lo = Math.min(b, c);
+            if (hi === lo) return G['alg.orderOfOperations'](rng);
+            expr = a + ' × ' + hi + ' − ' + lo;
+            answer = a * hi - lo;
+            wrong = a * (hi - lo);
+            misread = 'Doing the subtraction first';
         }
 
         // If both readings agree the item cannot discriminate, so redraw.
-        if (answer === leftToRight) return G['alg.orderOfOperations'](rng);
+        if (answer === wrong) return G['alg.orderOfOperations'](rng);
 
         return genNum({
             stem: 'Work out ' + expr,
             prompt: [{ t: 'expr', s: expr }],
             answer: answer,
             hint: 'Brackets first, then multiply and divide, then add and subtract.',
-            explain: expr + ' = ' + answer + '. Working strictly left to right would give '
-                + leftToRight + ', which is why the order matters.',
-            sig: 'ooo:' + form + ':' + a + ':' + b + ':' + c,
+            explain: expr + ' = ' + answer + '. ' + misread + ' would give '
+                + wrong + ', which is why the order matters.',
+            sig: 'ooo:' + form + ':' + a + ':' + b + ':' + c + ':' + answer,
         });
     };
 
