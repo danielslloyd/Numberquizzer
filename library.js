@@ -167,9 +167,16 @@
         }
 
         const practice = (n.practice || []).filter((t) => typeof TAB_ENTRY !== 'undefined' && TAB_ENTRY[t]);
+        const canRead = isBuilt && (n.types || []).indexOf('speech') >= 0
+            && typeof spSupported === 'function' && spSupported();
+
         html += '<div class="lb-actions">';
         if (isBuilt) {
-            html += '<button class="btn btn-primary" data-act="check">Check</button>';
+            // Reading aloud leads, where it is available. Picking a word out of
+            // four can be done by elimination without decoding anything; reading
+            // it cannot, so it is both the better question and the better game.
+            if (canRead) html += '<button class="btn btn-primary" data-act="read">Read aloud</button>';
+            html += `<button class="btn btn-${canRead ? 'secondary' : 'primary'}" data-act="check">Check</button>`;
         } else {
             html += '<button class="btn btn-primary" disabled>Not built yet</button>';
         }
@@ -179,6 +186,15 @@
             html += `<button class="btn btn-secondary" data-practice="${esc(t)}">Practise in ${esc(label)}</button>`;
         });
         html += '</div>';
+
+        // Said plainly rather than buried: on most browsers speech recognition
+        // is a network service, so the audio leaves the device. A parent should
+        // be able to know that before handing over a microphone.
+        if (canRead) {
+            html += '<p class="lb-mic-note">Reading aloud uses your browser\'s speech '
+                + 'recognition, which on most browsers sends the audio away to be '
+                + 'recognised. Everything else in the app stays on this device.</p>';
+        }
 
         $('lb-node-body').innerHTML = html;
     }
@@ -431,9 +447,13 @@
             }
 
             const act = e.target.closest('[data-act]');
-            if (act && act.dataset.act === 'check') {
+            if (act && (act.dataset.act === 'check' || act.dataset.act === 'read')) {
                 const id = (location.hash.split('/')[2] || '').trim();
-                if (id) irStart({ nodeIds: [id], count: 10, mode: 'assess' });
+                // The microphone is asked for here, on a deliberate tap, and
+                // never on arriving at the screen. A permission dialog nobody
+                // expected gets dismissed once and stays dismissed.
+                if (id) irStart({ nodeIds: [id], count: 10, mode: 'assess',
+                                  mic: act.dataset.act === 'read' });
                 return;
             }
 

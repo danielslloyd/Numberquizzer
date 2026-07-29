@@ -185,8 +185,14 @@
      * Rejects rather than returning junk when a node has no generator: showing a
      * child a broken or wrong question is the worst failure this app has, so the
      * caller is made to handle the gap explicitly.
+     *
+     * `extra` is merged over the node's own params, which is how a caller states
+     * a fact about the *situation* rather than about the node — `{mic:true}` when
+     * a microphone is available, so a decoding node can ask the learner to read
+     * the word aloud instead of picking it from four. Generators stay pure and
+     * seeded; they just get told what the room can do.
      */
-    function generate(nodeId, n, seed) {
+    function generate(nodeId, n, seed, extra) {
         const node = get(nodeId);
         if (!node) return Promise.reject(new Error('unknown node ' + nodeId));
 
@@ -195,6 +201,7 @@
             if (!gen) throw new Error('node ' + nodeId + ' has no generator in pack ' + node.pack);
 
             const count = n || 1;
+            const params = Object.assign({}, node.params || {}, extra || {});
             const baseSeed = (seed === undefined || seed === null)
                 ? (hash32(nodeId) ^ ((Date.now() & 0xffff) * 2654435761)) >>> 0
                 : seed;
@@ -211,7 +218,7 @@
 
                 let raw;
                 try {
-                    raw = gen(rng, node.params || {});
+                    raw = gen(rng, params);
                 } catch (e) {
                     console.error('curriculum: generator for ' + nodeId + ' threw', e);
                     continue;

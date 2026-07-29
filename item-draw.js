@@ -141,8 +141,12 @@
                 return `<p class="idr-text${prose ? ' idr-prose' : ''}">${esc(b.s)}</p>`;
             }
 
+            // `big` is for a word that IS the question rather than part of it —
+            // a read-aloud item is nothing but the word, and at the ordinary
+            // expression size it reads as a caption to the instruction above it
+            // instead of as the thing to look at.
             case 'expr':
-                return `<div class="idr-expr">${esc(b.s)}</div>`;
+                return `<div class="idr-expr${b.big ? ' idr-expr-big' : ''}">${esc(b.s)}</div>`;
 
             case 'tokens':
                 return '<p class="idr-tokens">' + (b.items || []).map((tok, i) =>

@@ -126,6 +126,13 @@
 
 .idr-text { font-size: 1.25rem; margin: .4rem 0; }
 .idr-expr { font-size: 2.2rem; font-weight: 700; margin: .5rem 0; font-variant-numeric: tabular-nums; }
+/* A word to be read aloud, set large and loose. Wide letter spacing is not
+ * decoration here — it stops adjacent letters visually merging, which is the
+ * difference between decoding a word and guessing at its shape. */
+.idr-expr-big {
+    font-size: 4.2rem; letter-spacing: .04em; margin: 1.2rem 0 1.6rem;
+    line-height: 1.1; word-break: break-word;
+}
 .idr-figure { margin: .75rem auto; max-width: 100%; overflow-x: auto; }
 .idr-figure .fr-svg, .idr-svg { max-width: 100%; height: auto; max-height: 190px; }
 .idr-tokens { font-size: 1.2rem; line-height: 2; }
@@ -160,6 +167,34 @@
 .ir-choice.is-wrong { border-color: #c62828; background: #ffebee; }
 .ir-choice .fr-svg, .ir-choice .idr-svg { max-height: 110px; }
 
+/* ---- read it out loud ---------------------------------------------------
+ * Deliberately quiet. The word being read is the prompt, and it is already the
+ * largest thing on the screen; this is only a status line saying whether the
+ * microphone is awake. A big pulsing control here would compete with the word.
+ */
+.ir-speech { flex-direction: column; align-items: center; gap: .8rem; }
+.ir-speech-state {
+    display: flex; align-items: center; gap: .5rem;
+    color: #666; font-size: 1rem; margin: 0; min-height: 1.6em;
+}
+.ir-speech-dot {
+    width: .7rem; height: .7rem; border-radius: 50%; background: #bbb; flex: none;
+}
+.ir-speech.is-live .ir-speech-dot { background: #c62828; animation: ir-mic-pulse 1.4s ease-in-out infinite; }
+.ir-speech.is-live .ir-speech-msg { color: #c62828; }
+.ir-speech.is-off .ir-speech-dot { background: #bbb; }
+.ir-speech-actions { display: flex; gap: .6rem; flex-wrap: wrap; justify-content: center; }
+
+@keyframes ir-mic-pulse {
+    0%, 100% { opacity: 1;   transform: scale(1); }
+    50%      { opacity: .35; transform: scale(.75); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .ir-speech.is-live .ir-speech-dot { animation: none; }
+}
+
+.lb-mic-note { color: #777; font-size: .85rem; margin-top: .9rem; max-width: 46ch; }
+
 .ir-numberline { flex-direction: column; align-items: center; }
 .ir-numberline svg { touch-action: none; cursor: pointer; width: 100%; max-width: 460px; }
 .ir-numberline svg:focus { outline: 2px solid #1565c0; outline-offset: 2px; }
@@ -187,6 +222,7 @@
 @media (max-width: 420px) {
     .lb-container, .ir-stage { padding-left: .6rem; padding-right: .6rem; }
     .idr-expr { font-size: 1.8rem; }
+    .idr-expr-big { font-size: 3rem; margin: .9rem 0 1.2rem; }
     .lb-grid { grid-template-columns: 1fr; }
 }
 

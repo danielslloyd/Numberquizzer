@@ -99,6 +99,73 @@ Writes are debounced (500 ms, plus `visibilitychange` and `beforeunload`).
 write inside an answer handler can never lose the answer; `stPersistent()` reports
 whether that happened.
 
+## Reading aloud
+
+The page has one microphone, so it has one recogniser. `speech.js` owns it and
+hands it out as a **claim** — `spListen()` returns a token, `spRelease()` gives
+it back, and a second claim takes it from the first and tells that holder so.
+Anything that listens goes through it. Nothing constructs its own
+`SpeechRecognition`; two instances fight over the input stream and the loser
+fails in a way that reads as flakiness.
+
+A node opts in with `'speech'` in its `types`. The runner then asks generators
+for read-aloud items by passing `{mic:true}` through `CUR.generate`, and the
+generator turns roughly half its draws into "read this word". A run without a
+microphone draws exactly the items it always did — the coin is only tossed when
+`params.mic` is set, so no existing seed changes meaning.
+
+Read-aloud beats multiple choice on validity, not just on engagement. "Which
+word says /ship/?" pays 25% for guessing and considerably more for eliminating
+the three that plainly are not it, and neither route requires decoding anything.
+"Read this word" has no such route.
+
+### Three outcomes, not two
+
+A recogniser mishearing a child who read correctly is a certainty. So the
+`spoken` grader answers "do we know anything", not "did it match":
+
+| What came back | What happens |
+|---|---|
+| The word, on any alternative | Correct, `src:'runner-mic'` |
+| Silence or noise | **`evidence:false`** — nothing recorded at all. The runner draws a spare item so the run still asks as many real questions, and gives up on the microphone after three. |
+| A clear transcript of a different word | Recorded wrong, showing what was heard |
+
+Silence says something about the room and nothing about the reader. The accepted
+cost is that a child who cannot decode the word and stays quiet produces no
+negative signal; the alternative folds the recogniser's accuracy on a young
+voice into the mastery model and marks children wrong for words they read
+perfectly.
+
+`verdict.evidence === false` is a general contract, not a speech special case —
+any future type may decline to produce evidence.
+
+### The accept list
+
+`W.heard` in `content/words-phonics.js` maps a word to spellings a recogniser
+plausibly returns for a *correct* reading: true homophones, plus numerals for
+number words. Two rules, both enforced by `tools/smoke-generators.js`:
+
+- **Only true homophones.** Never a word that merely sounds similar — accepting
+  *sheep* for *ship* destroys the contrast the node measures.
+- **Never another word in the same node's bank.** That would let a genuine
+  misread grade correct while every other assertion still passed.
+
+`spell.*`, `vocab.homophone`, `vocab.homograph` and `gram.apostrophe` are barred
+from read-aloud outright, in `tools/validate-curriculum.js`. Telling *knot* from
+*not* is what those nodes assess and a microphone cannot do it.
+
+### What cannot be tested headlessly
+
+Hearing. Headless Chromium defines `SpeechRecognition` and has no service behind
+it, so `tools/smoke-browser.js` tests the *claim bookkeeping* and the whole
+heard-nothing path — which is genuinely most of the design — and nothing about
+recognition quality. That needs a real microphone and a real child, on Chrome
+and on iOS Safari. The permission prompt fires only on an explicit tap; a dialog
+nobody expected gets dismissed once and stays dismissed.
+
+Speech recognition is a network service on most browsers, so the audio leaves
+the device. The node screen says so.
+
 ## Adding a proficiency
 
 1. Add it to `curriculum/PROFICIENCIES.md` first — that document is the source of
@@ -175,9 +242,12 @@ rather than the bank being thin.
 Stated plainly rather than papered over:
 
 - **Writing and Speaking & Listening have no nodes.** Not machine-scorable.
-- **No oral reading fluency.** Real ORF is words-correct-per-minute against a
-  passage and needs audio capture. `flu.*` is timed *word* recognition, which is
-  the honest auto-gradable substitute.
+- **No oral reading fluency at passage length.** Real ORF is
+  words-correct-per-minute against a passage. Single words *are* now read aloud
+  where a microphone exists (see below); a whole passage is not, because a long
+  utterance gives the recogniser many more chances to drop a word and there is
+  no way to tell a dropped word from a skipped one. `flu.*` remains timed word
+  recognition.
 - **Vocabulary is machinery, not a list.** Texts hold 88,500+ word families
   against roughly 3,000 acquired a year; wide reading is the part the app cannot
   replace, and it should say so.

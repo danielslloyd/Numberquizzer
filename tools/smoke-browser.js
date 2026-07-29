@@ -549,6 +549,114 @@ function check(name, ok, detail) {
     check('flash cards release the microphone when the quiz ends',
         quizMic.after === null && quizMic.token === null, JSON.stringify(quizMic));
 
+    // ---- read aloud ------------------------------------------------------
+    // Headless Chromium has SpeechRecognition but no speech service behind it,
+    // so it hears nothing — which is exactly the path worth testing, because
+    // "the microphone heard nothing" is the outcome the whole design turns on.
+    // A silence must record nothing, lengthen the run to make up for the
+    // question it failed to ask, and eventually give up on the microphone.
+    // The flash-card results screen is showing, and hash routing deliberately
+    // only drives navigation from inside Learn — so enter Learn the way a
+    // learner would, then let it route.
+    await page.evaluate(() => { location.hash = '#/phon/phon.cvc'; TAB_ENTRY.learn(); });
+    await page.waitForSelector('[data-act="read"]', { timeout: 5000 }).catch(() => {});
+    check('a decoding node offers to be read aloud',
+        await page.evaluate(() => !!document.querySelector('[data-act="read"]')),
+        await page.evaluate(() => JSON.stringify({
+            screen: (document.querySelector('.screen.active') || {}).id,
+            hash: location.hash,
+            sp: typeof spSupported === 'function' && spSupported(),
+        })));
+    check('and says where the audio goes',
+        await page.evaluate(() => /speech recognition/i.test(
+            (document.querySelector('.lb-mic-note') || {}).textContent || '')));
+
+    // Driven with a fixed seed rather than by clicking the button, because the
+    // assertions below depend on how many read-aloud items the run contains and
+    // an unseeded draw makes that a coin toss — a test that sometimes checks
+    // three things and sometimes one is not checking anything reliably.
+    await page.evaluate(() => irStart({
+        nodeIds: ['phon.cvc'], count: 10, mode: 'assess', mic: true, seed: 20260729,
+    }));
+    await page.waitForFunction(() => window.__IR.items.length > 0, { timeout: 10000 }).catch(() => {});
+
+    const micRun = await page.evaluate(() => ({
+        speech: window.__IR.items.filter((i) => i.type === 'speech').length,
+        reserve: window.__IR.reserve.length,
+        mic: window.__IR.mic,
+    }));
+    check('a read-aloud run actually contains read-aloud items',
+        micRun.speech > 0 && micRun.mic, JSON.stringify(micRun));
+    check('and carries spare tap items for the ones it cannot hear',
+        micRun.reserve > 0, JSON.stringify(micRun));
+    check('the run holds the microphone', await page.evaluate(() => spActive() !== null));
+
+    // Walk the whole run, answering tap items and pressing "Move on" for every
+    // read-aloud one, until the microphone has been given up on.
+    let unheardSeen = 0;
+    let recordedAcrossSilences = true;
+    for (let i = 0; i < 24; i++) {
+        const st = await page.evaluate(() => ({
+            done: (document.querySelector('.screen.active') || {}).id === 'ir-results-screen',
+            type: (window.__IR.items[window.__IR.idx] || {}).type,
+            len: window.__IR.items.length,
+            stats: JSON.stringify(prGet('phon.cvc')),
+        }));
+        if (st.done) break;
+
+        if (st.type === 'speech') {
+            await page.click('#ir-response-host [data-act="skip"]');
+            await page.waitForTimeout(150);
+            unheardSeen++;
+
+            const after = await page.evaluate(() => ({
+                len: window.__IR.items.length,
+                fb: document.getElementById('ir-feedback').textContent,
+                stats: JSON.stringify(prGet('phon.cvc')),
+            }));
+            check(`silence ${unheardSeen}: the run grows to keep asking as many questions`,
+                after.len === st.len + 1, JSON.stringify({ was: st.len, now: after.len }));
+            check(`silence ${unheardSeen}: says so rather than marking it wrong`,
+                /didn't hear/i.test(after.fb), after.fb);
+            if (after.stats !== st.stats) recordedAcrossSilences = false;
+        } else {
+            // Answer it correctly, pausing past the anti-mash floor.
+            await page.evaluate(() => {
+                const S = window.__IR;
+                const item = S.items[S.idx];
+                const input = document.querySelector('#ir-response-host .ir-input');
+                if (input) { input.value = String(item.answer); return; }
+                const choice = document.querySelector(
+                    `#ir-response-host .ir-choice[data-choice="${item.answer}"]`);
+                if (choice) choice.classList.add('selected');
+            });
+            await page.waitForTimeout(450);
+            await page.click('#ir-submit').catch(() => {});
+            await page.waitForTimeout(200);
+        }
+
+        const nextBtn = await page.$('#ir-next:not(.hidden)');
+        if (nextBtn) await nextBtn.click().catch(() => {});
+        await page.waitForTimeout(150);
+        if (unheardSeen >= 3) break;
+    }
+
+    const afterMic = await page.evaluate(() => ({
+        mic: window.__IR.mic,
+        speechLeft: window.__IR.items.slice(window.__IR.idx).filter((i) => i.type === 'speech').length,
+    }));
+    check('the run reached three silences', unheardSeen === 3, 'saw ' + unheardSeen);
+    check('a silence records nothing at all against the node', recordedAcrossSilences);
+    check('three silences and it stops asking for the microphone',
+        !afterMic.mic && afterMic.speechLeft === 0,
+        JSON.stringify(Object.assign({ unheardSeen: unheardSeen }, afterMic)));
+
+    await page.evaluate(() => { const b = document.getElementById('ir-quit'); if (b) b.click(); });
+    await page.waitForTimeout(200);
+    check('leaving the runner gives the microphone back',
+        await page.evaluate(() => spActive() === null));
+
+    await page.evaluate(() => { location.hash = '#/'; });
     await page.evaluate(() => showScreen('home'));
 
     // ---- console --------------------------------------------------------
