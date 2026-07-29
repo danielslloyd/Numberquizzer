@@ -1,0 +1,293 @@
+/* Learn: the ladder browser (lb-) and the assessment runner (ir-). */
+
+/* ---------------------------------------------------------------- browser */
+.lb-container {
+    max-width: 780px;
+    margin: 0 auto;
+    padding: 1.25rem 1rem 3rem;
+}
+.lb-title { font-size: 1.9rem; margin: 0 0 .25rem; }
+.lb-sub { color: #666; margin: 0 0 1.25rem; }
+.lb-subject {
+    font-size: 1.15rem;
+    margin: 1.75rem 0 .75rem;
+    color: #444;
+    border-bottom: 2px solid #eee;
+    padding-bottom: .35rem;
+}
+.lb-back {
+    background: none; border: none; cursor: pointer;
+    color: #1565c0; font-size: 1rem; padding: .35rem 0; margin-bottom: .5rem;
+}
+
+.lb-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: .75rem;
+}
+.lb-card {
+    display: flex; flex-direction: column; gap: .3rem;
+    text-align: left; cursor: pointer;
+    padding: .9rem 1rem;
+    border: 2px solid #e2e2e2; border-radius: 12px; background: #fff;
+    font: inherit;
+}
+.lb-card:hover { border-color: #1565c0; }
+.lb-card-empty { opacity: .55; }
+.lb-card-title { font-weight: 600; font-size: 1.02rem; }
+.lb-card-sub { font-size: .84rem; color: #777; }
+.lb-bar { display: block; height: 6px; border-radius: 3px; background: #eee; margin-top: .3rem; }
+.lb-bar-fill { display: block; height: 100%; border-radius: 3px; background: #2e7d32; }
+
+.lb-banner {
+    display: flex; align-items: center; gap: .75rem; flex-wrap: wrap;
+    background: #fff8e1; border: 2px solid #ffe082; border-radius: 12px;
+    padding: .75rem 1rem; margin-bottom: 1rem;
+}
+.lb-next { margin-bottom: 1.25rem; }
+.lb-next-title { font-size: .82rem; text-transform: uppercase; letter-spacing: .06em; color: #888; margin-bottom: .4rem; }
+.lb-next-row { display: flex; flex-wrap: wrap; gap: .4rem; }
+
+.lb-chip {
+    display: inline-flex; align-items: center; gap: .35rem;
+    padding: .35rem .7rem; border-radius: 999px;
+    border: 1.5px solid #ddd; background: #fafafa; cursor: pointer;
+    font: inherit; font-size: .88rem;
+}
+.lb-chip:hover { border-color: #1565c0; }
+
+/* The ladder. Order is the whole idea, so the rung number is always visible. */
+.lb-ladder { display: flex; flex-direction: column; gap: .3rem; }
+.lb-rung {
+    display: flex; align-items: center; gap: .6rem;
+    width: 100%; text-align: left; cursor: pointer; font: inherit;
+    padding: .6rem .8rem;
+    border: 1.5px solid #e8e8e8; border-radius: 10px; background: #fff;
+}
+.lb-rung:hover { border-color: #1565c0; }
+.lb-rung-unbuilt { opacity: .5; }
+.lb-rung-n {
+    flex: 0 0 1.7rem; text-align: right;
+    color: #aaa; font-variant-numeric: tabular-nums; font-size: .85rem;
+}
+.lb-rung-label { flex: 1; }
+.lb-soon { font-size: .74rem; color: #999; text-transform: uppercase; letter-spacing: .04em; }
+.lb-due { color: #ef6c00; }
+.lb-speed { opacity: .55; font-size: .9rem; }
+
+/* Mastery levels 0-4. */
+.lb-dot { flex: 0 0 12px; width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+.lb-dot-0 { background: #fff; border: 2px solid #ccc; }
+.lb-dot-1 { background: #ffe0b2; border: 2px solid #ffb74d; }
+.lb-dot-2 { background: #ffd54f; border: 2px solid #fbc02d; }
+.lb-dot-3 { background: #81c784; border: 2px solid #388e3c; }
+.lb-dot-4 { background: #388e3c; border: 2px solid #1b5e20; }
+.lb-dot-unbuilt { background: repeating-linear-gradient(45deg,#eee,#eee 2px,#fff 2px,#fff 4px); border: 2px solid #ddd; }
+
+.lb-node-status { display: flex; align-items: center; gap: .5rem; margin-bottom: .75rem; }
+.lb-node-tally { color: #777; font-size: .88rem; margin-left: auto; }
+.lb-note {
+    background: #e3f2fd; border-left: 4px solid #1565c0;
+    padding: .6rem .85rem; border-radius: 0 8px 8px 0; margin: .75rem 0;
+}
+.lb-prereq, .lb-misc { margin: 1rem 0; display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
+.lb-misc { display: block; }
+.lb-prereq-label {
+    font-size: .78rem; text-transform: uppercase; letter-spacing: .06em;
+    color: #999; margin-right: .3rem;
+}
+.lb-misc ul { margin: .4rem 0 0; padding-left: 1.2rem; color: #666; font-size: .92rem; }
+.lb-actions { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: 1.5rem; }
+.lb-small { padding: .35rem .8rem; font-size: .88rem; }
+
+/* ----------------------------------------------------------------- runner */
+.ir-topbar {
+    display: flex; align-items: center; gap: .75rem;
+    padding: .6rem 1rem; max-width: 780px; margin: 0 auto; width: 100%;
+}
+.ir-node-label { flex: 1; font-weight: 600; }
+.ir-count { color: #888; font-variant-numeric: tabular-nums; }
+.ir-icon-btn {
+    background: none; border: none; cursor: pointer;
+    font-size: 1.3rem; line-height: 1; padding: .2rem .4rem; color: #555;
+}
+.ir-progress { height: 4px; background: #eee; max-width: 780px; margin: 0 auto; width: 100%; }
+.ir-progress-fill { height: 100%; background: #2e7d32; transition: width .2s ease; width: 0; }
+
+.ir-stage {
+    /* width:100% matters: with `margin: 0 auto` and no width, an auto inline
+       margin makes a grid item shrink-wrap instead of stretch, which collapsed
+       the stage to the width of the button row. */
+    max-width: 780px; width: 100%; margin: 0 auto; padding: 1.5rem 1rem 3rem;
+    display: flex; flex-direction: column; align-items: center; gap: 1rem;
+}
+.ir-body { text-align: center; width: 100%; }
+.ir-loading { color: #888; text-align: center; padding: 2rem 0; }
+
+.idr-text { font-size: 1.25rem; margin: .4rem 0; }
+.idr-expr { font-size: 2.2rem; font-weight: 700; margin: .5rem 0; font-variant-numeric: tabular-nums; }
+.idr-figure { margin: .75rem auto; max-width: 100%; overflow-x: auto; }
+.idr-figure .fr-svg, .idr-svg { max-width: 100%; height: auto; max-height: 190px; }
+.idr-tokens { font-size: 1.2rem; line-height: 2; }
+.idr-token { padding: .12rem .25rem; border-radius: 4px; cursor: pointer; }
+.idr-blank { display: inline-block; min-width: 3rem; border-bottom: 2px solid #333; }
+
+.ir-response { display: flex; justify-content: center; flex-wrap: wrap; gap: .6rem; width: 100%; }
+.ir-input {
+    font-size: 1.6rem; text-align: center; width: 8rem;
+    padding: .45rem .5rem; border: 2px solid #bbb; border-radius: 10px;
+}
+.ir-input:focus { outline: none; border-color: #1565c0; }
+
+/* Stacked, so it reads as a fraction rather than two unrelated boxes. */
+.ir-fraction { flex-direction: column; align-items: center; gap: .2rem; }
+.ir-frac-num, .ir-frac-den {
+    font-size: 1.5rem; text-align: center; width: 4.5rem;
+    padding: .3rem; border: 2px solid #bbb; border-radius: 8px;
+}
+.ir-frac-bar { width: 5.5rem; height: 3px; background: #333; }
+
+.ir-mc { gap: .6rem; }
+.ir-choice {
+    min-width: 5rem; padding: .7rem 1.1rem; font: inherit;
+    font-size: 1.15rem; cursor: pointer;
+    border: 2px solid #ccc; border-radius: 12px; background: #fff;
+    display: flex; align-items: center; justify-content: center;
+}
+.ir-choice:hover { border-color: #1565c0; }
+.ir-choice.selected { border-color: #1565c0; background: #e3f2fd; }
+.ir-choice.is-correct { border-color: #2e7d32; background: #e8f5e9; }
+.ir-choice.is-wrong { border-color: #c62828; background: #ffebee; }
+.ir-choice .fr-svg, .ir-choice .idr-svg { max-height: 110px; }
+
+.ir-numberline { flex-direction: column; align-items: center; }
+.ir-numberline svg { touch-action: none; cursor: pointer; width: 100%; max-width: 460px; }
+.ir-numberline svg:focus { outline: 2px solid #1565c0; outline-offset: 2px; }
+.ir-nl-readout { font-variant-numeric: tabular-nums; color: #666; min-height: 1.2em; }
+
+.ir-feedback { min-height: 2.5em; text-align: center; font-size: 1.05rem; }
+.ir-fb-correct { color: #2e7d32; font-weight: 600; }
+.ir-fb-wrong { color: #c62828; }
+.ir-fb-nudge { color: #ef6c00; }
+.ir-explain { color: #666; font-size: .92rem; }
+
+.ir-actions { display: flex; gap: .6rem; flex-wrap: wrap; justify-content: center; }
+.ir-small { padding: .4rem .9rem; font-size: .9rem; }
+
+.ir-res-nodes { margin: 1.5rem 0; display: flex; flex-direction: column; gap: .5rem; }
+.ir-res-node {
+    display: flex; align-items: center; gap: .6rem; flex-wrap: wrap;
+    padding: .6rem .8rem; border: 1.5px solid #eee; border-radius: 10px;
+}
+.ir-res-name { font-weight: 600; }
+.ir-res-tally { color: #666; font-variant-numeric: tabular-nums; }
+.ir-res-note { flex-basis: 100%; font-size: .88rem; color: #ef6c00; }
+.ir-res-note.ir-res-good { color: #2e7d32; }
+
+@media (max-width: 420px) {
+    .lb-container, .ir-stage { padding-left: .6rem; padding-right: .6rem; }
+    .idr-expr { font-size: 1.8rem; }
+    .lb-grid { grid-template-columns: 1fr; }
+}
+
+/* ---------------------------------------------------------- section bar */
+/* The top level of a two-level nav. Nineteen activities do not fit on one
+   row; this groups them without touching the tab bar's contract. */
+.section-bar {
+    display: flex;
+    gap: .25rem;
+    padding: .4rem .6rem 0;
+    justify-content: center;
+    flex-wrap: wrap;
+    background: #fafafa;
+    border-bottom: 1px solid #e6e6e6;
+}
+.section-btn {
+    font: inherit;
+    font-weight: 600;
+    font-size: .98rem;
+    padding: .5rem 1.1rem;
+    border: none;
+    background: none;
+    color: #777;
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    border-radius: 6px 6px 0 0;
+}
+.section-btn:hover { color: #333; background: #f0f0f0; }
+.section-btn.active { color: #1565c0; border-bottom-color: #1565c0; }
+
+@media (max-width: 420px) {
+    .section-btn { padding: .45rem .7rem; font-size: .9rem; }
+}
+
+/* --------------------------------------------------------- progress panel */
+.lb-head { display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap; }
+.lb-head .lb-title { flex: 1; }
+.lb-panel {
+    border: 2px solid #e2e2e2; border-radius: 12px;
+    padding: 1rem; margin-bottom: 1.25rem; background: #fcfcfc;
+}
+.lb-summary { display: flex; gap: 1.25rem; flex-wrap: wrap; margin-bottom: .5rem; }
+.lb-summary span { color: #666; font-size: .92rem; }
+.lb-summary strong { color: #222; font-size: 1.15rem; }
+.lb-panel-note { color: #777; font-size: .88rem; margin: .5rem 0 0; }
+.lb-panel .lb-actions { margin-top: .9rem; }
+.lb-panel-msg { margin-top: .6rem; font-size: .9rem; color: #2e7d32; min-height: 1.2em; }
+.lb-panel-msg.lb-panel-bad { color: #c62828; }
+
+/* The base .screen.active grid is `auto 1fr auto`, which assumes the middle
+   child is the content. The runner's middle child is the 4px progress bar, so
+   without this the progress bar absorbs all the free space and pushes the
+   question to the bottom of the viewport. */
+#ir-run-screen.screen.active {
+    grid-template-rows: auto auto 1fr;
+    /* No explicit column means the implicit one is content-sized, which left the
+       stage about half the width it should have and squeezed the number line. */
+    grid-template-columns: minmax(0, 1fr);
+}
+
+/* .ir-numberline is a centred flex column, so its children shrink-wrap and a
+   width:100% svg resolves against nothing. Stretch the column so the line gets
+   the full stage width up to its natural size. */
+.ir-stage > #ir-response-host { width: 100%; }
+.ir-response.ir-numberline { align-self: stretch; width: 100%; }
+.ir-numberline svg { max-height: none; }
+
+/* Passage-length text: left-aligned with a readable measure. */
+.idr-prose {
+    text-align: left;
+    max-width: 62ch;
+    margin: .6rem auto;
+    line-height: 1.55;
+}
+
+/* Multi-select needs to look different from single choice, or a learner taps
+   once and waits for it to move on. The box makes "more than one" visible
+   before the first tap rather than only in the wording. */
+.ir-multi .ir-choice::before {
+    content: '';
+    flex: 0 0 18px;
+    width: 18px;
+    height: 18px;
+    margin-right: .55rem;
+    border: 2px solid #bbb;
+    border-radius: 4px;
+    background: #fff;
+}
+.ir-multi .ir-choice.selected::before {
+    border-color: #1565c0;
+    background: #1565c0 linear-gradient(transparent, transparent);
+    box-shadow: inset 0 0 0 3px #fff, inset 0 0 0 12px #1565c0;
+}
+.ir-multi-note { width: 100%; text-align: center; color: #777; font-size: .88rem; margin: 0 0 .2rem; }
+
+/* The strand a "maybe next" chip came from. The label alone does not say where
+   it sits, and the chips are drawn from every strand at once. */
+.lb-chip-where {
+    color: #999;
+    font-size: .78rem;
+    margin-left: .1rem;
+}
+.lb-chip-where::before { content: '· '; }
+.lb-chip-due { color: #ef6c00; margin-left: .1rem; }

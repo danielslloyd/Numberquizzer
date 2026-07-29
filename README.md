@@ -1,8 +1,64 @@
-# Math Flash Cards
+# Numberquizzer
 
-A speech-based math flash card app for kids. Speak your answer — no tapping, no typing. Race against your best time.
+Elementary maths and English, drilled and assessed. A static single-page app —
+no build step, no dependencies, no framework, no server.
+
+Two halves:
+
+- **Learn** — 201 curated proficiencies arranged as per-strand ladders, with a
+  generic assessment runner, a mastery model, and spaced review. All of them
+  generate questions.
+- **Play** — eighteen hand-built activity modes, from speech-driven flash cards
+  to a Byrne-style Euclid proof builder. These are the practice half, and they
+  feed the same mastery record.
+
+## How Learn is organised
+
+**There are no grade levels anywhere in the interface.** A learner is routinely
+years ahead in one subject and behind in another, and a single grade is the wrong
+answer to "where are you". Position is per-strand instead: a strand plus a rung.
+
+**Nothing is gated.** Every rung opens from a cold start, including the top one.
+The app tracks what has been done and suggests what might come next; it never
+locks anything.
+
+The proficiency list was built by aggregating several standards frameworks,
+de-duplicating them, and then curating hard — it is not a standards document and
+does not aim at coverage. `curriculum/PROFICIENCIES.md` records what is on the
+list and why, including where the weighting deliberately departs from how
+standards documents weight things: fractions take about a quarter of the maths
+list, morphology outweighs vocabulary, phonemic awareness is capped at seven
+rungs, and writing and speaking get nothing at all because they are not
+machine-scorable.
+
+### What "proficient" means
+
+Getting everything right in one sitting is not enough. Promotion needs accuracy
+across at least eight scored answers, on **two different days**, and — for the
+rungs where speed matters — a median answer time under the target. A learner who
+is accurate but slow is told so, because slow recall eats the working memory that
+later multi-step work needs. Answers faster than 400ms are discarded as unread.
+
+## Development
+
+```bash
+python3 -m http.server 8765            # then open http://localhost:8765
+
+node tools/validate-curriculum.js      # graph integrity, doc/data agreement
+node tools/smoke-generators.js         # draws 7000+ items, grades each one
+NODE_PATH=/opt/node22/lib/node_modules node tools/smoke-browser.js
+```
+
+`tools/smoke-generators.js` is the one that matters: it asserts that every
+generated item's own answer grades correct through its own declared grader.
+Telling a child their right answer is wrong is the worst thing this app could do.
+
+See `CLAUDE.md` for the invariants, `docs/learn.md` for the engine, and
+`docs/modes.md` for the activity modes.
 
 ## Features
+
+
 
 - **Always-on microphone** — no button to tap; the mic listens continuously and accepts the answer the moment it hears a number anywhere in speech ("I think twelve" → ✓)
 - **Four operations** — addition, subtraction, multiplication, division; select any combination

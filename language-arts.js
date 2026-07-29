@@ -1432,6 +1432,9 @@
         const bar = document.getElementById('tab-bar');
         if (!bar) return;
         TAB_BUTTONS.forEach(([tab, label]) => {
+            // boot.js pre-creates these so the tab keeps its place in the bar
+            // while this file is still being fetched. Don't add a second one.
+            if (bar.querySelector('.tab-btn[data-tab="' + tab + '"]')) return;
             const btn = document.createElement('button');
             btn.className = 'tab-btn';
             btn.dataset.tab = tab;

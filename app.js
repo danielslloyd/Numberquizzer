@@ -458,6 +458,37 @@ function stopTimer() {
 }
 
 // ============================================
+// PRACTICE -> MASTERY
+// ============================================
+
+/*
+ * Report a correct/incorrect answer from one of the bespoke activity modes into
+ * the proficiency model. Those modes are the *practice* half of the app; the
+ * item runner is the *assessment* half. Both feed the same record.
+ *
+ * Guarded on `typeof` so load order never matters — progress.js is loaded after
+ * this file, and these call sites can fire before it arrives.
+ *
+ * Deliberately passes no `ms`. These modes do not time individual answers, and
+ * inventing a duration would let practice satisfy the latency gate on an
+ * automaticity node without ever having been measured. Practice contributes
+ * accuracy evidence; the speed evidence has to come from a timed run.
+ */
+function recordPractice(nodeId, correct, src) {
+    if (typeof prRecord !== 'function' || !nodeId) return;
+    prRecord(nodeId, { correct: !!correct, partial: correct ? 1 : 0, src: src || 'practice' });
+}
+
+// Which proficiency a flash-card question exercises, from its operator and range.
+function flashcardNode(display, max) {
+    const op = (display || '').split('\n')[1];
+    if (op === '\u00d7') return 'mult.facts';
+    if (op === '\u00f7') return 'mult.div.facts';
+    if (max > 20) return 'add.within100';
+    return max > 10 ? 'add.facts.within20' : 'add.facts.within10';
+}
+
+// ============================================
 // SCREENS & TAB BAR
 // ============================================
 
@@ -476,6 +507,11 @@ const SCREEN_TAB = {
     'ten-frame':         'ten-frame',
     'visualizer':        'visualizer',
     'sudoku':            'sudoku',
+    // These three had TAB_ENTRY entries but no mapping back, so showScreen()
+    // resolved tab === undefined and cleared the active class from every button.
+    'times-grid':        'times-grid',
+    'fractions':         'fractions',
+    'money':             'money',
 };
 
 function showScreen(name) {
@@ -580,6 +616,7 @@ function renderQuestion() {
 function advanceQuestion() {
     const answeredQ = state.questions[state.currentIndex];
     state.correctCount++;
+    recordPractice(flashcardNode(answeredQ.display, state.maxNumber), true, 'flashcards');
     state.currentIndex++;
 
     spawnSprites(answeredQ);
@@ -797,6 +834,8 @@ function tgChoose(value, btn) {
 
     if (value === round.answer) {
         state.tgCorrect++;
+        recordPractice(state.tgOpts && state.tgOpts.target === 10
+            ? 'add.makeTen' : 'add.decompose10', true, 'make-ten');
         state.tgIndex++;
         state.tgActive = false;  // block taps during the flip
         const next = () => {
@@ -2633,7 +2672,10 @@ function ttInit() {
 }
 
 function ttMastery(r, c)        { return parseInt(localStorage.getItem(`ttFact_${r}x${c}`) || '0', 10); }
-function ttBumpMastery(r, c)    { localStorage.setItem(`ttFact_${r}x${c}`, String(ttMastery(r, c) + 1)); }
+function ttBumpMastery(r, c)    {
+    localStorage.setItem(`ttFact_${r}x${c}`, String(ttMastery(r, c) + 1));
+    recordPractice('mult.facts', true, 'times-grid');
+}
 
 function ttSetMode(mode) {
     ttState.mode   = mode;
@@ -2860,8 +2902,10 @@ function frCheckIdentify() {
         fb.className = 'feedback-display fr-fb-correct';
         frState.score++;
         frUpdateScore();
+        recordPractice('frac.aOverB', true, 'fractions');
         setTimeout(frNewRound, g > 1 ? 1400 : 800);
     } else {
+        recordPractice('frac.aOverB', false, 'fractions');
         fb.textContent = '✗ Try again';
         fb.className = 'feedback-display fr-fb-wrong';
     }
@@ -3556,8 +3600,10 @@ function mnCheckIdentify() {
         mnFeedback('✓ ' + mnFormat(mnState.target), 'fr-fb-correct');
         mnState.score++;
         mnUpdateScore();
+        recordPractice('meas.money.count', true, 'money');
         setTimeout(mnNewIdentify, 900);
     } else {
+        recordPractice('meas.money.count', false, 'money');
         mnFeedback('✗ Try again', 'fr-fb-wrong');
     }
 }
@@ -3828,7 +3874,10 @@ function onTabLeave(fromTab) {
     }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+// boot.js injects this file dynamically, and dynamically inserted scripts do not
+// block DOMContentLoaded — so by the time this runs the event may already have
+// fired. Same readyState guard the two plug-ins already use.
+const appBoot = () => {
     const speechReady = initSpeechRecognition();
     if (speechReady) {
         document.getElementById('mic-btn').classList.remove('hidden');
@@ -4136,4 +4185,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ---- Sudoku ----
     document.getElementById('sudoku-generate-btn').addEventListener('click', pgGenerateSudoku);
-});
+};
+
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', appBoot);
+else appBoot();

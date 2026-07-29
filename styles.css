@@ -2602,3 +2602,13 @@ body {
     margin-top: 0.8rem;
     line-height: 1.4;
 }
+
+/* A lazily-loaded tab while its implementation is being fetched. Only visible on
+   the very first click; afterwards the module is cached. */
+.tab-btn.tab-loading {
+    opacity: 0.6;
+    cursor: progress;
+}
+.tab-btn.tab-loading::after {
+    content: ' …';
+}
