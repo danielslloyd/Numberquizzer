@@ -49,6 +49,14 @@ app has, and it is worth a test that is slow and thorough.
 **Graders are referenced by string, never as a function.** That keeps items
 serialisable, so they can be cached, exported, printed and diffed.
 
+**An item's `sig` is a category, not its identity.** The runner de-duplicates a
+run by signature, so a signature coarser than the item makes it discard perfectly
+good questions as repeats — a node whose sig named only the pattern being tested
+could produce two questions per session however large its word bank was. The
+shared constructors in `item-gen-helpers.js` append the answer automatically, so
+pass a `sig` that names the *kind* of item and let them finish it. If two items
+differ in a way a learner would notice, that difference belongs in the sig.
+
 **Never delete legacy localStorage keys.** The times-tables grid reads `ttFact_*`
 live. Migration copies, it does not move.
 
@@ -121,10 +129,22 @@ as a separate node is the most common way lists like this bloat.
 | Command | What it does |
 |---|---|
 | `node tools/validate-curriculum.js` | Graph integrity, tier-1 closure, doc/data agreement, no `provenance` in UI code |
-| `node tools/smoke-generators.js` | Draws 10,000+ items, grades each against its own grader, regenerates `gen/manifest.js` |
+| `node tools/smoke-generators.js` | Draws 10,000+ items, grades each against its own grader, checks passage integrity, reports item variety, regenerates `gen/manifest.js` |
 | `NODE_PATH=/opt/node22/lib/node_modules node tools/smoke-browser.js` | Full in-browser run; needs `python3 -m http.server 8765` first |
 
 None of them is a build gate. This repo has no build step and is not getting one.
+
+## Item variety
+
+`smoke-generators.js` reports how many distinct items each generator can produce
+and lists anything under 20. It is informational, not a failure: some spaces are
+legitimately small — there are four numbers to subitise and five introductory
+denominators — and the runner tolerates a short space by allowing repeats once it
+is exhausted.
+
+Treat anything well under a session's length as needing more content, and check
+the signature first: a low count often means the sig is collapsing distinct items
+rather than the bank being thin.
 
 ## Deliberate gaps
 

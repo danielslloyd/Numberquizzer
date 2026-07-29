@@ -133,6 +133,9 @@ migration copies rather than moves and nothing is ever deleted.
 - **Generators never call `Math.random()`** — they take a seeded `rng`.
 - **Every item's own answer must grade correct through its own declared grader.**
 - Ladder position is array order. Never hand-write a `rung`.
+- An item's `sig` is a de-duplication key. Pass the *kind* of item; the
+  helpers append the answer. A sig coarser than the item makes the runner
+  throw away good questions as repeats.
 
 ### Visualizer
 - **Canvas sizing** (`animator.js`) — camera aspect from the *container's* real
