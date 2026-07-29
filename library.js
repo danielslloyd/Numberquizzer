@@ -52,7 +52,13 @@
             html += '<div class="lb-next"><div class="lb-next-title">Maybe next</div><div class="lb-next-row">'
                 + next.map((n) => {
                     const node = CUR.get(n.id);
-                    return `<button class="lb-chip" data-node="${esc(n.id)}">${esc(node.label)}</button>`;
+                    // Name the strand: "Hundreds, tens and ones" does not tell a
+                    // parent it is place value, and the chips come from all over.
+                    const where = node.strandLabel || node.strand;
+                    return `<button class="lb-chip" data-node="${esc(n.id)}" title="${esc(where)}">`
+                        + `${esc(node.label)}<span class="lb-chip-where">${esc(where)}</span>`
+                        + (n.why === 'review' ? '<span class="lb-chip-due" title="Due for review">&#9679;</span>' : '')
+                        + '</button>';
                 }).join('') + '</div></div>';
         }
 
