@@ -383,6 +383,31 @@ function check(name, ok, detail) {
     });
     check('storage helper round-trips and namespaces', stOk);
 
+    // ---- runner layout ----------------------------------------------------
+    // Both of these were silent: the questions still worked, they were just in
+    // the wrong place and half the size.
+    await page.evaluate(() => irStart({ nodeIds: ['frac.numberline'], count: 1, mode: 'practice', seed: 7 }));
+    await page.waitForFunction(() => !!document.querySelector('.ir-numberline svg'), { timeout: 8000 })
+        .catch(() => {});
+    await page.waitForTimeout(300);
+
+    const layout = await page.evaluate(() => {
+        const w = (s) => Math.round(document.querySelector(s).getBoundingClientRect().width);
+        const stage = document.querySelector('.ir-stage').getBoundingClientRect();
+        return {
+            stage: Math.round(stage.width),
+            svg: w('.ir-numberline svg'),
+            stageTop: Math.round(stage.top),
+        };
+    });
+    check('stage stretches to its max width rather than shrink-wrapping',
+        layout.stage >= 700, JSON.stringify(layout));
+    check('number line gets its full drawing width', layout.svg >= 440, JSON.stringify(layout));
+    // The progress bar absorbing the grid's free row is what pushed the question
+    // down; the bar element itself stayed 4px, so the position is what to assert.
+    check('content starts near the top, not pushed down the page',
+        layout.stageTop < 200, JSON.stringify(layout));
+
     // ---- phone viewport ---------------------------------------------------
     // Two stacked nav rows and 19 activities is exactly the shape that overflows
     // a narrow screen, so this is checked rather than assumed.
