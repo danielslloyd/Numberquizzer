@@ -21,6 +21,30 @@
             'add.within100',
             'add.within1000',
         ],
+        'math-alg': [
+            'alg.orderOfOperations',
+        ],
+        'math-count': [
+            'count.cardinality',
+            'count.compare.sets',
+            'count.numeral',
+            'count.oneToOne',
+            'count.sequence',
+            'count.skip',
+            'count.subitize.grouped',
+            'count.subitize.small',
+        ],
+        'math-dec': [
+            'dec.addSub',
+            'dec.compare',
+            'dec.div',
+            'dec.fractionLink',
+            'dec.mult',
+            'dec.numberline',
+            'dec.round',
+            'dec.tenthsHundredths',
+            'dec.thousandths',
+        ],
         'math-frac': [
             'frac.aOverB',
             'frac.add.likeDen',
@@ -47,6 +71,14 @@
             'frac.unit',
             'frac.wholeAsFraction',
         ],
+        'math-geom': [
+            'geom.partition.equalArea',
+        ],
+        'math-meas': [
+            'meas.area.count',
+            'meas.area.multiply',
+            'meas.iterateUnits',
+        ],
         'math-mult': [
             'mult.byTens',
             'mult.commutative',
@@ -61,6 +93,18 @@
             'mult.facts',
             'mult.multiDigit.byOne',
             'mult.multiDigit.byTwo',
+        ],
+        'math-pv': [
+            'pv.compare.multiDigit',
+            'pv.compare.twoDigit',
+            'pv.expanded',
+            'pv.numberline.whole',
+            'pv.powersOfTen',
+            'pv.round',
+            'pv.teen',
+            'pv.tenTimes',
+            'pv.threeDigit',
+            'pv.twoDigit',
         ],
     };
 

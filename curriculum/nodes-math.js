@@ -79,7 +79,7 @@
 
         { id: 'pv.teen', label: 'Teens as ten and some ones',
           prereq: ['count.numeral', 'count.cardinality'],
-          types: ['numeric', 'build'], practice: ['ten-frame', 'visualizer'],
+          types: ['numeric', 'mc', 'build'], practice: ['ten-frame', 'visualizer'],
           misconceptions: ['reads 14 as "four-teen" and writes 41'],
           provenance: { ccss: ['K.NBT.A.1', '1.NBT.B.2'] } },
 
@@ -98,7 +98,7 @@
           provenance: { ccss: ['2.NBT.A.1'] } },
 
         { id: 'pv.expanded', label: 'Expanded form',
-          prereq: ['pv.threeDigit'], types: ['numeric', 'cloze'], practice: ['visualizer'],
+          prereq: ['pv.threeDigit'], types: ['numeric', 'mc', 'cloze'], practice: ['visualizer'],
           provenance: { ccss: ['2.NBT.A.3', '4.NBT.A.2'] } },
 
         { id: 'pv.numberline.whole', label: 'Place a whole number on a number line',
@@ -491,7 +491,7 @@
           provenance: { ccss: ['3.MD.C.5', '3.MD.C.6'] } },
 
         { id: 'meas.area.multiply', label: 'Area as multiplication',
-          prereq: ['meas.area.count', 'mult.equalGroups'], types: ['numeric'],
+          prereq: ['meas.area.count', 'mult.equalGroups'], types: ['numeric', 'mc'],
           practice: ['visualizer'],
           misconceptions: ['confuses area with perimeter'],
           provenance: { ccss: ['3.MD.C.7', '4.MD.A.3'] } },

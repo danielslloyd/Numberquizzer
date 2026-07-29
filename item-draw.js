@@ -72,6 +72,31 @@
                 + ticks + mark + '</svg>';
         },
 
+        /* Loose dots at generator-supplied positions. Placement is decided by the
+         * generator's seeded rng and passed in, so the same item always draws the
+         * same picture — counting a *scattered* set is a harder and different
+         * skill from counting a row, and it has to be reproducible to be fair. */
+        'dots': function (a) {
+            const pts = a.points || [];
+            const r = a.r || 13;
+            const fill = a.fill || '#1565c0';
+            return '<svg viewBox="0 0 300 200" class="idr-svg" xmlns="http://www.w3.org/2000/svg">'
+                + pts.map((p) => `<circle cx="${p[0]}" cy="${p[1]}" r="${r}" fill="${fill}"/>`).join('')
+                + '</svg>';
+        },
+
+        /* Two groups side by side, for more/fewer/same comparisons. */
+        'two-sets': function (a) {
+            const draw = (pts, dx, colour) => pts.map((p) =>
+                `<circle cx="${p[0] + dx}" cy="${p[1]}" r="12" fill="${colour}"/>`).join('');
+            return '<svg viewBox="0 0 320 170" class="idr-svg" xmlns="http://www.w3.org/2000/svg">'
+                + '<rect x="2" y="2" width="152" height="166" fill="none" stroke="#ccc" stroke-width="2" rx="8"/>'
+                + '<rect x="166" y="2" width="152" height="166" fill="none" stroke="#ccc" stroke-width="2" rx="8"/>'
+                + draw(a.left || [], 0, '#1565c0')
+                + draw(a.right || [], 164, '#ef6c00')
+                + '</svg>';
+        },
+
         /* A rows x cols dot array — the picture behind equal groups, and the one
          * that makes commutativity visible by turning the same array sideways. */
         'array': function (a) {
