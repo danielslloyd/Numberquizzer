@@ -26,7 +26,11 @@ const DRAWS = Number(process.env.DRAWS || 50);
 // ---- minimal harness: the browser globals the modules expect ---------------
 global.window = global;
 window.idrEscape = (s) => String(s);
-window.idrDraw = new Proxy({}, { get: () => () => '' });
+// item-draw.js adapts these two from app.js; stub them so the real DRAW table can
+// be loaded and exercised rather than replaced by a no-op.
+global.frRenderBar = (n, d) => `<svg data-bar="${n}/${d}"></svg>`;
+global.frRenderPie = (n, d) => `<svg data-pie="${n}/${d}"></svg>`;
+require(path.join(__dirname, '..', 'item-draw.js'));
 
 const nodes = [];
 ['curriculum/nodes-math.js', 'curriculum/nodes-english.js'].forEach((rel) => {
@@ -148,6 +152,23 @@ generators.forEach((entry, nodeId) => {
                 }
             }
         }
+
+        // Every diagram must actually render. A missing DRAW entry or a renderer
+        // that throws on unexpected args would otherwise reach a learner as a
+        // question with no picture — unanswerable, and silent.
+        (item.prompt || []).forEach((b) => {
+            if (b.t !== 'svg') return;
+            const fn = window.idrDraw[b.draw];
+            if (!fn) { failures.push(`${nodeId} seed ${seed}: no DRAW entry for "${b.draw}"`); return; }
+            let out;
+            try { out = fn(b.args || {}); } catch (e) {
+                failures.push(`${nodeId} seed ${seed}: DRAW "${b.draw}" threw — ${e.message}`);
+                return;
+            }
+            if (!out || out.indexOf('<svg') === -1) {
+                failures.push(`${nodeId} seed ${seed}: DRAW "${b.draw}" produced no svg`);
+            }
+        });
 
         // A wrong answer must actually grade wrong, or the node measures nothing.
         if (item.type === 'mc' && Array.isArray(item.choices) && item.choices.length > 1) {
