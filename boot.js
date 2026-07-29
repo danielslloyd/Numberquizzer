@@ -26,7 +26,7 @@
 
     // Bump on ANY change to a local .js or .css file. This is the only version
     // number in the project — CLAUDE.md's per-file ?v=N rule is retired.
-    const ASSET_V = '57';
+    const ASSET_V = '58';
     window.ASSET_V = ASSET_V;
 
     // Order matters: storage and the curriculum registry come first so the node
@@ -45,6 +45,9 @@
         'parser.js',
         'physics.js',
         'animator.js',
+        // The page's single SpeechRecognition. Must precede app.js, which claims
+        // it for the flash-card quiz, and item-runner.js, which claims it too.
+        'speech.js',
         'app.js',
         // Learn. These come after app.js because they read TAB_ENTRY, SCREEN_TAB
         // and showScreen when they boot, and item-draw adapts app.js's renderers.

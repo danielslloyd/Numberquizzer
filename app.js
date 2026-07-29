@@ -17,7 +17,7 @@ const state = {
     showTranscript: true,
     progressBar: true,
     bestTimePacer: null,
-    recognition: null,
+    spToken: null,          // our claim on the shared recogniser, see speech.js
     isListening: false,
     speechSupported: false,
     quizActive: false,
@@ -355,69 +355,46 @@ function buildNumberGrammar() {
     return `#JSGF V1.0; grammar numbers; public <number> = ${terms.join(' | ')};`;
 }
 
+// The recogniser itself lives in speech.js, because the page only has one
+// microphone and the Learn runner needs to borrow it too. Everything below is
+// just this quiz's matcher: hear a number, and if it is the answer, move on.
 function initSpeechRecognition() {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) { state.speechSupported = false; return false; }
-
-    state.speechSupported = true;
-    state.recognition = new SR();
-    state.recognition.continuous = true;
-    state.recognition.interimResults = true;
-    state.recognition.lang = 'en-US';
-    state.recognition.maxAlternatives = 3;
-
-    const SGL = window.SpeechGrammarList || window.webkitSpeechGrammarList;
-    if (SGL) {
-        const grammarList = new SGL();
-        grammarList.addFromString(buildNumberGrammar(), 1);
-        state.recognition.grammars = grammarList;
-    }
-
-    state.recognition.onstart = () => {
-        state.isListening = true;
-        document.getElementById('mic-btn').classList.add('listening');
-    };
-
-    state.recognition.onresult = (event) => {
-        const latest = event.results[event.results.length - 1];
-        const transcript = latest[0].transcript.trim();
-
-        if (state.showTranscript) {
-            document.getElementById('listening-text').textContent = transcript;
-        }
-
-        if (!state.quizActive) return;
-        for (let i = 0; i < latest.length; i++) {
-            const found = findNumberInSpeech(latest[i].transcript.trim());
-            if (found !== null && found === state.questions[state.currentIndex].answer) {
-                advanceQuestion();
-                return;
-            }
-        }
-    };
-
-    state.recognition.onerror = (event) => {
-        state.isListening = false;
-        if (event.error !== 'aborted' && state.quizActive) {
-            setTimeout(startListening, 200);
-        }
-    };
-
-    state.recognition.onend = () => {
-        state.isListening = false;
-        if (state.quizActive) {
-            setTimeout(startListening, 100);
-        } else {
-            document.getElementById('mic-btn').classList.remove('listening');
-        }
-    };
-
-    return true;
+    state.speechSupported = typeof spSupported === 'function' && spSupported();
+    return state.speechSupported;
 }
 
 function startListening() {
-    if (state.isListening) return;
-    try { state.recognition.start(); } catch (e) { /* already running */ }
+    if (state.spToken) return;
+    state.spToken = spListen({
+        lang: 'en-US',
+        alternatives: 3,
+        grammar: buildNumberGrammar(),
+        indicator: 'mic-btn',
+        indicatorClass: 'listening',
+
+        onStart: () => { state.isListening = true; },
+        onEnd: () => { state.isListening = false; state.spToken = null; },
+
+        onText: (transcript, info) => {
+            if (state.showTranscript) {
+                document.getElementById('listening-text').textContent = transcript;
+            }
+            if (!state.quizActive) return;
+            for (const alt of info.alternatives) {
+                const found = findNumberInSpeech(alt);
+                if (found !== null && found === state.questions[state.currentIndex].answer) {
+                    advanceQuestion();
+                    return;
+                }
+            }
+        },
+    });
+}
+
+function stopListening() {
+    if (state.spToken) spRelease(state.spToken);
+    state.spToken = null;
+    state.isListening = false;
 }
 
 // ============================================
@@ -658,7 +635,7 @@ function submitTyped() {
 
 function endQuiz() {
     state.quizActive = false;
-    if (state.speechSupported) state.recognition.stop();
+    stopListening();
     const elapsed = stopTimer();
 
     const bestTime  = loadBestTime(state.operations, state.maxNumber);

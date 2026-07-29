@@ -500,6 +500,57 @@ function check(name, ok, detail) {
 
     await page.setViewportSize({ width: 1280, height: 900 });
 
+    // ---- the shared recogniser ------------------------------------------
+    // Headless Chromium defines SpeechRecognition but has no speech service
+    // behind it, so nothing here can test *hearing*. What it can test is the
+    // claim bookkeeping — one microphone, handed between callers — which is the
+    // whole reason the recogniser moved out of app.js, and the part that used to
+    // be untestable because there was no seam.
+    const claims = await page.evaluate(() => {
+        const log = [];
+        const noop = () => {};
+        const a = spListen({ onText: noop, onEnd: (why) => log.push('a:' + why) });
+        const activeAfterA = spActive() === a;
+
+        const b = spListen({ onText: noop, onEnd: (why) => log.push('b:' + why) });
+        const activeAfterB = spActive() === b;
+
+        spRelease(a);                       // stale token — must not disturb b
+        const afterStale = { active: spActive() === b, log: log.slice() };
+
+        spRelease(b);
+        const idleAfterRelease = spActive() === null;
+
+        return { activeAfterA, activeAfterB, afterStale, idleAfterRelease, log };
+    });
+    check('a claim makes its holder the active listener',
+        claims.activeAfterA && claims.activeAfterB, JSON.stringify(claims));
+    check('a second claim supersedes the first and says so',
+        claims.log[0] === 'a:superseded', JSON.stringify(claims.log));
+    check('releasing a stale token does not steal the microphone',
+        claims.afterStale.active && claims.afterStale.log.length === 1,
+        JSON.stringify(claims.afterStale));
+    check('releasing the live claim frees the microphone',
+        claims.idleAfterRelease && claims.log.includes('b:released'),
+        JSON.stringify(claims.log));
+
+    // The flash-card quiz must give the microphone back when the quiz ends,
+    // otherwise the runner can never get it on the same page load.
+    const quizMic = await page.evaluate(async () => {
+        TAB_ENTRY.flashcards();
+        state.operations = ['+']; state.maxNumber = 5; state.shuffle = false;
+        startQuiz();
+        const during = spActive() !== null && state.spToken !== null;
+        endQuiz();
+        return { during, after: spActive(), token: state.spToken };
+    });
+    check('flash cards hold the microphone for the length of a quiz',
+        quizMic.during, JSON.stringify(quizMic));
+    check('flash cards release the microphone when the quiz ends',
+        quizMic.after === null && quizMic.token === null, JSON.stringify(quizMic));
+
+    await page.evaluate(() => showScreen('home'));
+
     // ---- console --------------------------------------------------------
     // The three CDN libraries are unreachable in a sandbox with no outbound
     // network. That takes THREE/CANNON/jsPDF down with it, which is a property of
