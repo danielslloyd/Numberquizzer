@@ -134,6 +134,30 @@ as a separate node is the most common way lists like this bloat.
 
 None of them is a build gate. This repo has no build step and is not getting one.
 
+## Read the items
+
+The generator smoke test proves an item grades its own answer. It cannot tell you
+the question is *wrong*. Every one of these came from printing items and reading
+them, and all of them passed every assertion at the time:
+
+- A multiple-choice item with three correct options — "which shape has four
+  straight sides", offering rhombus, square and trapezium.
+- Distractors borrowed from other entries, so one of them was also part of the
+  word being asked about.
+- Foils differing in spelling but not in sound, so "same vowel sound as *soon*"
+  offered *drew*.
+- A phonics item asking for the first sound of "ship" and expecting **s**.
+- A blending item presenting "m … u … c … h", splitting the digraph in a node
+  whose whole subject is that letters and sounds differ.
+- A picture showing ten dots whatever the answer was.
+- An explanation naming the wrong misreading on a node about precedence.
+
+So: after touching a pack, print a sample and read it. Then, when you find
+something, add the check — most of the guards in `smoke-generators.js` exist
+because reading found the bug first. And verify the guard actually bites by
+reintroducing the bug; one of mine passed against the broken version and proved
+nothing until it was strengthened.
+
 ## Item variety
 
 `smoke-generators.js` reports how many distinct items each generator can produce
