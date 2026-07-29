@@ -476,6 +476,11 @@ const SCREEN_TAB = {
     'ten-frame':         'ten-frame',
     'visualizer':        'visualizer',
     'sudoku':            'sudoku',
+    // These three had TAB_ENTRY entries but no mapping back, so showScreen()
+    // resolved tab === undefined and cleared the active class from every button.
+    'times-grid':        'times-grid',
+    'fractions':         'fractions',
+    'money':             'money',
 };
 
 function showScreen(name) {
@@ -3828,7 +3833,10 @@ function onTabLeave(fromTab) {
     }
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+// boot.js injects this file dynamically, and dynamically inserted scripts do not
+// block DOMContentLoaded — so by the time this runs the event may already have
+// fired. Same readyState guard the two plug-ins already use.
+const appBoot = () => {
     const speechReady = initSpeechRecognition();
     if (speechReady) {
         document.getElementById('mic-btn').classList.remove('hidden');
@@ -4136,4 +4144,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ---- Sudoku ----
     document.getElementById('sudoku-generate-btn').addEventListener('click', pgGenerateSudoku);
-});
+};
+
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', appBoot);
+else appBoot();
