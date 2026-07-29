@@ -78,7 +78,10 @@
         return genMc(rng, {
             stem: 'Which shape has ' + s.sides + ' straight sides?',
             correct: s.n,
-            distractors: rng.sample(others.map((x) => x.n), 3),
+            // Only shapes with a DIFFERENT side count. The list holds several
+            // four-sided shapes, so drawing distractors from "any other shape"
+            // produced items where three of the four options were correct.
+            distractors: rng.sample(others.filter((x) => x.sides !== s.sides).map((x) => x.n), 3),
             sig: 'name2d:' + s.n,
         });
     };
@@ -102,13 +105,16 @@
 
     G['geom.attributes'] = function (rng) {
         const s = rng.pick(SHAPES_2D);
+        // Phrased as "true of every X" rather than "makes a shape an X": four
+        // straight sides is necessary for a square but not sufficient, and the
+        // node is about defining versus non-defining attributes, not definitions.
         return genMc(rng, {
-            stem: 'Which of these makes a shape a ' + s.n + ', no matter how it is drawn?',
-            correct: 'having ' + s.sides + ' straight sides',
-            // Size and colour are the classic non-defining attributes.
-            distractors: ['being coloured blue', 'being small', 'pointing upwards'],
-            explain: 'Colour, size and which way up it is can all change. The number of sides '
-                + 'cannot — that is what makes it a ' + s.n + '.',
+            stem: 'Which of these is true of every ' + s.n + ', however it is drawn?',
+            correct: 'it has ' + s.sides + ' straight sides',
+            // Size, colour and orientation are the classic non-defining attributes.
+            distractors: ['it is coloured blue', 'it is small', 'it points upwards'],
+            explain: 'Colour, size and which way up it is can all change without it ceasing to be a '
+                + s.n + '. The number of sides cannot.',
             sig: 'attr:' + s.n,
         });
     };
@@ -233,6 +239,11 @@
             sig: 'coord:' + x + ':' + y,
         });
     };
+
+    // Exposed for tools/smoke-generators.js, which uses it to check that a
+    // "how many sides" item never offers two shapes with the same side count.
+    // Following the window.__GP precedent rather than duplicating the table.
+    G.__SHAPES_2D = SHAPES_2D;
 
     if (typeof CUR !== 'undefined') CUR.registerGens('math-geom', G);
     if (typeof module !== 'undefined' && module.exports) module.exports = G;

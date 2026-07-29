@@ -87,7 +87,11 @@ if (!packs.length) { console.log('\nNo generator packs yet — nothing to smoke.
 const generators = new Map();
 packs.forEach((f) => {
     const G = require(path.join(genDir, f));
-    Object.keys(G).forEach((id) => generators.set(id, { fn: G[id], pack: f }));
+    Object.keys(G).forEach((id) => {
+        // Packs may export data for the tests under a __ prefix.
+        if (id.indexOf('__') === 0) return;
+        generators.set(id, { fn: G[id], pack: f });
+    });
 });
 
 // ---- run -------------------------------------------------------------------
@@ -278,6 +282,32 @@ if (dotsChecked) console.log(`\nChecked ${dotsChecked} pictures against their an
         });
     }
 });
+
+// ---- one correct option only ---------------------------------------------------
+/*
+ * "Which shape has four straight sides?" is broken if three of the four options
+ * do. The grader cannot notice — it compares indices, so a semantically correct
+ * alternative still grades wrong — which is exactly why this needs its own check.
+ */
+const geomPack = fs.existsSync(path.join(genDir, 'gen-math-geom.js'))
+    ? require(path.join(genDir, 'gen-math-geom.js')) : null;
+if (geomPack && geomPack.__SHAPES_2D && generators.has('geom.name2d')) {
+    const sides = {};
+    geomPack.__SHAPES_2D.forEach((x) => { sides[x.n] = x.sides; });
+    const entry = generators.get('geom.name2d');
+    const node = byId.get('geom.name2d');
+    for (let i = 0; i < 200; i++) {
+        let item;
+        try { item = entry.fn(makeRng(40000 + i * 7919), node.params || {}); } catch (e) { continue; }
+        const m = /has (\d+) straight sides/.exec((item || {}).stem || '');
+        if (!m || !item.choices) continue;
+        const alsoRight = item.choices.filter((c, idx) =>
+            idx !== Number(item.answer) && sides[c] === Number(m[1]));
+        if (alsoRight.length) {
+            failures.push(`geom.name2d: "${item.stem}" also admits ${alsoRight.join(', ')}`);
+        }
+    }
+}
 
 // ---- item variety -------------------------------------------------------------
 /*
