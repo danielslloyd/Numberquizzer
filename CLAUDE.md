@@ -2,22 +2,37 @@
 
 ## Project overview
 
-Static single-page app (`index.html` + `app.js` + `styles.css`) deployed on Netlify.
-No build step, no dependencies, no framework.
+Static single-page app deployed on Netlify. No build step, no dependencies, no
+framework, and it is staying that way — the plug-in isolation that lets separate
+work-streams avoid conflicts *depends* on classic scripts sharing one global scope.
+
+Two halves:
+
+- **Practice** — eighteen bespoke activity modes. Detail in `docs/modes.md`.
+- **Learn** — a curated proficiency graph, a generic assessment runner, and a
+  mastery model. Detail in `docs/learn.md`.
 
 ## File layout
 
 ```
-index.html         — all screens (home, quiz, results) + settings widget + sprite layer
-app.js             — all logic: state, deck generation, speech, animation, quiz flow
-styles.css         — all styles
-parser.js          — math visualizer expression parser (a × b + c)
-animator.js        — Three.js InstancedMesh scene + animation for the visualizer
-physics.js         — inline + Web Worker Cannon backends
-physics-worker.js  — Cannon running on a dedicated Web Worker (loaded via new Worker(...))
-language-arts.js   — self-contained language-arts modes (+ language-arts.css)
-geometry-proofs.js — self-contained Byrne-style proof builder (+ geometry-proofs.css)
-netlify.toml       — publish = ".", must-revalidate caching for all assets
+index.html         all screens + settings widget + sprite layer
+boot.js            THE script manifest and the single asset version
+app.js             core: state, deck generation, speech, animation, quiz flow
+styles.css         core styles
+
+curriculum/PROFICIENCIES.md   the curated proficiency list — source of authority
+curriculum/nodes-*.js         the same list as data (201 nodes)
+curriculum.js                 registry, seeded RNG, lazy pack loader (CUR)
+gen/                          item generators, lazily loaded; manifest.js is generated
+content/                      word and language banks
+item-draw.js item-types.js item-gen-helpers.js item-runner.js
+progress.js library.js learn.css storage.js
+
+parser.js animator.js physics.js physics-worker.js   visualizer
+language-arts.js + .css       lazily loaded plug-in
+geometry-proofs.js + .css     lazily loaded plug-in
+tools/                        manually-run validators; never a build gate
+netlify.toml                  publish = ".", must-revalidate on everything
 ```
 
 ## Architecture
@@ -67,87 +82,101 @@ elements on `#sprite-layer` (fixed overlay, z-index 999), each positioned at a s
 card width. CSS custom properties `--dx`/`--dy` drive the drift in the `sprite-float` keyframe.
 Sprites remove themselves on `animationend`.
 
-## Development workflow
+## Extension points — treat as a public API
 
-Branch: `main` — the only branch. The repo was consolidated onto `main` on
-2026-07-27; the old `claude/*` feature branches were merged or retired and deleted.
+`TAB_ENTRY`, `SCREEN_TAB`, `showScreen()`, body-level `#<name>-screen` divs
+inserted before `#sprite-layer`, and `#tab-bar` accepting appended `.tab-btn`
+children. Two external plug-ins depend on all of it. Build on top; do not change
+the shape.
 
-Work on a short-lived branch off `main` and merge it back, or commit straight to
-`main` for small changes. Do not push to `main` without explicit permission.
+A new self-contained mode follows `language-arts.js`: one IIFE that injects its
+own stylesheet, screens and tab, registers into `TAB_ENTRY`/`SCREEN_TAB`, and
+touches no other file. Add it to `LAZY` in `boot.js` if it is large.
 
-```bash
-git add <files>
-git commit -m "description"
-git push origin main
-```
+## Scripts and cache busting
 
-If push is rejected (remote has new commits), pull with rebase first:
-```bash
-git pull origin main --rebase
-git push origin main
-```
+**`boot.js` owns the script list and the only version number.** Bump `ASSET_V`
+on any change to a local `.js` or `.css`. Do not add `<script>` tags to
+`index.html` — adding a file is a one-line append to an array in `boot.js`, which
+is also what stopped `index.html` being a merge-conflict hotspot.
 
-## Cache busting
+`language-arts.js` and `geometry-proofs.js` are fetched on first tab click, not
+at boot. Their tab buttons are created up front so the bar behaves identically;
+each plug-in's `injectTab` skips a button that already exists.
 
-`index.html` links assets with a `?v=N` query string. **Increment `N` whenever
-`app.js` or `styles.css` change** so browsers don't serve stale cached files.
+## Prefix table
 
-```html
-<link rel="stylesheet" href="styles.css?v=2">
-<script src="app.js?v=2"></script>
-```
+Every module namespaces its globals. Taken: `ws tg tt fr mn pv pg viz la gp sb`
+(activities) and `cur ir lb pr st idr gen` (Learn). Pick a free one.
 
-## Interactive learning modes
+## Storage
 
-These are screen-based games (not PDF generators), each driven from `TAB_ENTRY` in `app.js`:
-
-- **Times Tables** (`times-grid-screen`, `tt*` functions) — 11×11 multiplication grid. Two modes via toggle: **Explore** (tap a cell to reveal/hide the product; shows a big `r × c = p` equation in `#tt-equation` below the grid) and **Quiz** (`ttAutoSelect` auto-picks an unfilled cell; answer in the `#tt-quiz-bar` input; correct fills green and auto-advances, wrong shakes). Active cell highlights its row/column factor headers. Per-fact mastery stored in localStorage as `ttFact_<r>x<c>` (correct-answer counter). Grid size set by `#tt-max` (5/10/12).
-- **Fractions** (`fractions-screen`, `fr*` functions) — two sub-modes via toggle (`frSetMode`): **Compare** ("which is bigger?", `frNewCompare`; equal values rejected; tap larger → score) and **Identify** (`frNewIdentify`/`frCheckIdentify`; one shape shown, user types numerator over denominator — the `#fr-id-num`/`#fr-id-den` inputs are **stacked** vertically like a real fraction inside `.fr-id-fraction`). Identify accepts **any equivalent fraction** (cross-multiply: `num*den₀ === den*num₀`), e.g. 1/2 for 3/6; on success the feedback shows the shape's fraction and, when it isn't already lowest terms, its simplest form too (`frGcd`). Shapes rendered as SVG (`frRenderBar`/`frRenderPie`); shape toggle (bar/pie) and denominator range (`#fr-max-den`).
-- **Make Ten** (`make-ten-menu` → `tap-game`, `tg*` / `TAP_MODES` / `startTapGame`) — tap the number that completes the target. A **deck** is one card per complement `0..target` (`buildDeck`); the menu's **Reps** selector (`#mt-reps-btns`, default 1) makes that many copies which are **shuffled together** (`tgShuffle`) into one run — not sequential passes — so best-time (`bestKey`) is per target *and* reps. Round count is `state.tgRounds.length` (never a fixed 10). For target 10 the choices render as a **keypad** (`tgRenderRound` sets `.tg-keypad` + per-button grid position: 1–9 in a 3×3, 0 left of 1, 10 right of 9); other targets stay a flat wrap. Count-up stopwatch as before. Optional `#mt-tenframe` adds a ten-frame visual (`tgRenderVisual`) showing the known addend as filled dots.
-- **Place-value visualizer** (`viz-place-mode`, `pv*` functions) — secondary mode of the Visualizer tab (toggle via `vizSetMainMode`). Enter a number (`#pv-input`); `pvRender` draws base-ten blocks as SVG to scale — ones (unit cubes), tens (rods), hundreds (flats), thousands (10×100 columns of stacked hundred-flats) — each place a distinct color with a large bold digit label beneath. Above the blocks, `pvWords`/`pvRenderWords` write the number in **colour-coded words** ("one thousand, two hundred and thirty-four", British *and*), each place matching its block colour (`PV_PLACES`), connectors grey. A play button (`#pv-play`) reads it aloud via `pvSpeak` preferring an `en-GB` voice. viewBox auto-fits (`xMidYMax meet`); updates on every keystroke. The original 3D Three.js multiply visualizer lives in `viz-multiply-mode`.
-- **Money visualizer** (`money-screen`, `mn*` functions) — four sub-modes via toggle (`mnSetMode`): **Identify** (`mnNewIdentify`/`mnCheckIdentify`; a random amount is shown as pieces, user types it), **Build** (`mnNewBuild`; tap denomination buttons to reach a target, with live total, undo/clear, and a fewest-pieces check on success), **Change** (`mnRenderChange`; enter an amount and pick a breakdown chip — exact change, coins only, or novelties like "All 1¢") and **Shopping** (`mnShop*`; spend a budget on a catalogue without going over). Five currencies in `MN_CURRENCIES` (USD default, GBP, EUR, CAD, AUD), each a list of denominations valued in **minor units** (cents/pence); choice persists in localStorage as `mnCurrency`. Identify/Build share the range select (`#mn-range`: under $1 / under $1000), which also drives the denomination pool via `mnPool` (a $1 bill is no use under $1).
-- **Geometric Proofs** (`geo-proofs-screen`, `gp*` functions, all in `geometry-proofs.js` + `geometry-proofs.css`) — step-by-step proof builder in the style of **Oliver Byrne's 1847 Euclid**: flat vermilion/ultramarine/gamboge/black shapes on cream paper, and proof statements written with **inline coloured glyphs instead of letter labels** (`gpGlyphs` expands tokens like `[red-line]`, `[blue-circle]`, `[yellow-angle]`). **All 48 propositions of Book I** plus III.31 (Thales) in `PROPS` — the original nine (I.1, I.5, I.9, I.10, I.11, I.15, I.32, I.47, III.31) use raw coordinates; the other 39 live in `MORE_PROPS` and use the **named-point format**: `P: {A:[x,y],…}` with shapes referencing names (`{t:'line',p:'A',q:'B'}`, `{t:'circle',at:'A',thru:'B'}`, `{t:'poly',ptsN:[…]}`, `{t:'wedge',at:'B',from:'A',to:'C'}`). `gpResolve` computes wedge angles (always the non-reflex side) and radii, so no hand-entered trigonometry — prefer this format for any new proposition. I.47 uses the full Euclid argument (nine steps: I.46 squares, the I.14 collinearity that later serves as the I.41 rail, the I.31 parallel split, the two auxiliary triangles, right-plus-common angle addition, I.4, and I.41 doubling on each side) — its diagram's G–C–B collinearity and equal pivot wedges are exact in the coordinates, so do not simplify it back. Menu order is enforced by `gpOrd` sort (Book I numeric, then Book III). `window.__GP = {PROPS, SB_INSTRUMENTS}` is a debug handle used by validation scripts. Each step the user picks the correct next construction/justification from three shuffled choices; a correct pick reveals the SVG shapes tagged with that step (`data-gp-step`; strokes draw themselves in via `getTotalLength`, fills fade), appends a Byrne-style line to the proof ledger (Roman-numeral markers), and optionally pulses related shapes (`flash`). Wrong picks disable the choice and show a *why-not* explanation. Ends with a Q.E.D. panel; completion stored as `gpDone_<propId>`. Same self-contained plug-in pattern as `language-arts.js` (injects its own stylesheet/tab/screen, registers in `TAB_ENTRY`/`SCREEN_TAB`). Diagram convention: shapes with `z:0` are solid fills beneath the linework; wedge angles are in SVG screen coordinates (y down, clockwise from +x). A **Sandbox** sub-mode (`sb*` functions, toggle via `gpSetMode`) gives free-form straightedge + compass drawing with **key-point snapping**: points are the atoms (`sbState.pts`, each `{id,x,y,kind}`), segments reference two point ids and circles a centre id + radius, and every commit (`sbCommitObj`) registers new intersections (line×line, line×circle, circle×circle) as key points. Segment ends and circle centres snap to key points; a dragged circle's rim *sticks* when its radius passes within `SB_RIM` of a key point's distance (the Euclidean collapsing compass); dragging a segment out of an existing endpoint snaps to the collinear extension (`sbDirSnap` — Euclid's "produce the line"). Four Byrne ink swatches, snapshot-stack undo, and a "Begin with" seed select (`SB_SEEDS`: line / crossing lines / triangle / right triangle / blank). **Build-this-proof challenges** (`sbChal*` / `sbStartBuild`): eleven propositions carry a `build` block (I.1, I.2, I.3, I.9, I.10, I.11, I.12, I.16, I.22, I.32, I.46) — a seed plus ordered `targets`, each an expected circle (centre + radius) or segment (both endpoints; `any:` for symmetric alternatives; **`{from:[x,y], dir:[dx,dy], minLen}` for "produce the line" steps** where only one end and the direction are determinate) with ±3-unit tolerance, plus a glyph `instr` and a `miss` nudge. Seeds may be a plain segment array or `{segs, pts}` (bare points, e.g. I.2/I.12's floating point). A `needs: ['carry',…]` list renders an "Instruments called for" line in the challenge bar (advisory, not blocking — locked ones name the earning proposition). I.2 and I.12 are buildable with the base kit alone; I.3/I.22 need carry, I.16 needs midpoints, I.32 parallels, I.46 perpendiculars — the toolkit bootstraps itself, and I.2's own build is what unlocks carry. Because snapping makes correct constructions land exactly, targets are plain precomputed coordinates. A committed object matching any unfinished target is accepted and re-inked to the target's canonical colour; a mismatch is auto-undone with the current step's `miss` text. Progress is recomputed from canvas contents (`sbChalRecalc`), so user Undo just works; Clear restarts the challenge. Completion stores `gpBuilt_<propId>` ("△ built" seal on the menu card, beside "∎ proved") and offers "Now prove it" into the guided proof. Menu cards are `<div>`s with `data-act` Prove/Build buttons. **Progressive instruments** (`SB_INSTRUMENTS` / `sbHas` / `sbInstrumentsRender`): completing a proposition (proved *or* built) permanently unlocks its construction as a one-stroke snap power in the sandbox, shown as chips above the board — always-on collinear extension (Postulate 2); **carry lengths** (I.2/I.3: the rim also sticks at any drawn segment's length — the non-collapsing compass; the source segment pulses as the cue); **bisect angles** (I.9: segment from a vertex snaps to the bisector of any two rays there); **midpoints** (I.10: every segment shows a hollow-dot virtual midpoint, snappable by ends/centres/rims and materialised into a real point on commit via `sbVirtualPts`); **perpendiculars** (I.11/I.12: segment from any point *on* a line snaps square to it); **parallels** (I.31: segments snap parallel to any existing segment). All direction candidates funnel through `sbDirSnap` (smallest angular offset wins; key-point snap always beats direction snap); unlock checks read localStorage live, and chips refresh on `gpFinish`, build completion, and sandbox entry.
-
-### Money: sizing and assets
-
-Every denomination carries `mm`, its real-world width. CSS sizes each piece as `mm * --mn-ppm`, so **all pieces are to scale against each other** — a dime really is smaller than a penny, an AUD $2 smaller than an AUD $1, and a note ~6.4x a quarter.
-
-A pile renders as **one group per distinct denomination** (`.mn-stage` > `.mn-col`), highest value first. `mnFitStage()` tries **both orientations** and keeps whichever makes the pieces bigger: `mn-cols` stacks each denomination vertically (columns side by side), `mn-rows` lays each horizontally (rows stacked top-to-bottom). Wide bills win big in one orientation, so this is what makes them fill the space — don't drop it back to a single fixed orientation. For each orientation it binary-searches `--mn-ppm` (via `mnMaxPpm`) up to the largest value that fits `MN_WIDTH_FILL` (0.98) of the box width and all its height. A group draws at most `MN_COL_MAX` (12) real pieces; beyond that a `×N` badge shows the true count (so "all pennies" is a neat labelled stack, not 137 coins). Because a wide pile can inflate the box's own measured width, `mnFitStage` first collapses `--mn-ppm` to the minimum, reads the true box width, then grows into that fixed reference. `.mn-container` is 880px wide to give bills room. The Build toolbar is a wrap-row, not columns, so it uses `mnFitHeight` (height-only).
-
-USD pieces are real **photos hot-linked from Wikimedia Commons** (`d.img`, all public domain — 4 individual coin obverses + 5 individual note obverses; **not** stored in the repo). `mnPieceHTML` layers the `<img>` over the drawn SVG (`mnCoinSVG`/`mnBillSVG`) inside a `.mn-photo` wrapper, so a slow fetch shows the drawing until the photo arrives and a failed fetch (`onerror` removes the img) leaves the drawing in place — which is why USD denoms keep their `face`/`edge`/`ink` colours even though they normally show a photo. `.mn-photo` is `overflow:hidden` so the wrapper's `border-radius` (50% for coins, 3px for notes) clips the photo; sources are tight-cropped so `object-fit:cover` needs no per-image tuning. Non-USD currencies render as drawn SVG only.
-
-The bills are **individual** note images, not the old `USDnotes.png` composite — you can't hot-link one note out of a 7-note composite (and it's 8.9 MB). To swap or add USD art, resolve a Commons thumbnail URL (keep it public-domain) and drop it in `d.img`; nothing to commit.
-
-The nickel uses `File:2026-nickel-transparent-512.png` — a background-removed version (outer white flood-filled to transparent, interior highlights kept) uploaded to Commons, because the stock Jefferson-nickel scan is opaque-white and left a ring under the circular crop. The other three coins are naturally transparent on Commons.
-
-### Money: rules to preserve
-
-- **Denomination values are always minor units** (`v: 25` is 25¢, `v: 2000` is a $20 bill) — never store floats, money math is integer-only
-- `mnFewest` uses **DP, not greedy** — greedy is wrong for non-canonical denomination sets, so keep it if new currencies are added
-- `mnRandomAmount` steps by the **smallest denomination**, so the target stays makeable in currencies with no 1¢ — do not switch to a plain random integer
-- Not every amount is makeable: CAD/AUD have no 1¢, so `mnChangeOptions` can return empty (e.g. $1.37 CAD) — that path must stay handled
-- `MN_COL_MAX` caps pieces drawn per column; higher counts get a `×N` badge so "All 1¢" of a large amount stays responsive
-- Amount fields are **cash-register entry** (`mnAttachAmount`): digits fill from the right (1234 → 12.34), so there is never an ambiguous bare integer and no placeholder is needed. Read them with `mnFieldCents`, not `parseFloat`
-- The mode panels (`#mn-identify` etc.) must stay `width: 100%` — the container centres its children, so without it the pile box shrinks to content and the 90%-width sizing has nothing to work against
-
-`.tt-btn-group` (shared by Fractions, Times Tables, and Money mode toggles) has `flex-wrap: wrap`, and `.tt-container`/`.fr-container` trim their side padding under 420px — both needed so those tabs don't overflow a phone viewport.
-
-### Money: Shopping mode
-
-A **fixed catalogue** (`MN_SHOP_CATALOG`), not a live storefront. A static page cannot query a retailer: cross-origin requests are blocked, and Amazon's Product Advertising API needs server-side credential signing that would leak in a public page. So prices live in the catalogue and only the **photos** are fetched, hot-linked from Wikimedia Commons; the search term filters the catalogue. Photos are CC-licensed, so each item carries `by`/`lic` and renders a credit in its tile `title` — keep that if you edit the catalogue. The grid is built on first entry to the mode (not in `mnInit`) so visitors who never open Shopping don't fetch ~10 external images; `MN_IMG_FALLBACK` hides a tile's image if a hot-linked URL ever rots.
-
-## Hidden features
-
-- **Number Bonds worksheet** — fully implemented (`pgPDFBonds`, `pgDrawBonds`, `pgDrawBond`, `pgMakeBonds` in `app.js`; config UI at `#pg-bonds-config` in `index.html`). The "Bonds" button in the worksheet type selector is hidden via `class="hidden"`. To re-enable, remove the `hidden` class from the button in `index.html`. Activate programmatically with `pgSetType('bonds')`.
+New keys go through `storage.js` and are namespaced under `nq.`. Legacy keys are
+flat and **must stay that way** — the times-tables grid reads `ttFact_*` live, so
+migration copies rather than moves and nothing is ever deleted.
 
 ## Key constraints / design rules
 
+### Core quiz
 - **No card count cap** — the complete deck is always used; never sample randomly
-- **No delay between correct answer and next card** — `advanceQuestion()` advances instantly (animation is the only pause)
+- **No delay between correct answer and next card** — animation is the only pause
 - **Zero can never be a divisor**
-- **Subtraction and division answers must be whole numbers within the selected range**
-- The settings burger is **only visible on the home screen** (managed in `showScreen()`)
-- `state.animations` and `state.showTranscript` are read at quiz start from the burger toggles; they do not hot-reload mid-quiz
-- **Visualizer (multiply) canvas sizing** (`animator.js`) — the camera aspect must track the *container's* real size, or the 3D scene renders vertically squished. Keep all three: camera aspect from `container.client{Width,Height}` (not `window`), `renderer.setSize(w, h, false)` so Three.js doesn't write an inline canvas size that feeds back into the container height, and the `render()` loop's size-drift check that re-syncs when the container settles late. `#viz-{multiply,place}-mode:not(.hidden)` are flex columns so the canvas gets a definite height.
-- **Visualizer (multiply) fill staging** — `fillBox()` reveals the box one *dimension* at a time (X row → Y rows complete the base layer → Z layers stack), so `a × b × c` reads as three dimensions rather than a uniform sweep. Delays are precomputed per instance into a `delays[]` array indexed to the creation order (layer outermost, then row, then col) — if you change either loop order, change both. Stages whose extent is 1 collapse to zero width. `MathAnimator.FILL_DURATION` is the worst-case total and `handleVisualizerShow()` in `app.js` times the answer reveal off it — **keep them in step** rather than re-hardcoding a delay.
-- **Visualizer (multiply) block rotation** — blocks generate perfectly axis-aligned (`_addCube` uses an identity quaternion; **never** bake a resting tilt in). The tumble is **angular momentum** given on DROP: the physics `addCube(..., spin)` sets a random `angularVelocity` (both backends), scaled from the Rotation slider by `MathAnimator.SPIN_SCALE`. `settled` checks angular velocity too, so a spinning block isn't called to rest early.
+- **Subtraction and division answers must be whole numbers within the range**
+- The settings burger is **only visible on the home screen**
+- `state.animations` and `state.showTranscript` are read at quiz start; they do
+  not hot-reload mid-quiz
+
+### Learn
+- **No grade level in UI code.** It lives in `node.provenance` for authoring only,
+  and the validator fails if a UI file mentions it.
+- **Nothing is gated.** Every rung opens from a cold profile.
+- **Generators never call `Math.random()`** — they take a seeded `rng`.
+- **Every item's own answer must grade correct through its own declared grader.**
+- Ladder position is array order. Never hand-write a `rung`.
+
+### Visualizer
+- **Canvas sizing** (`animator.js`) — camera aspect from the *container's* real
+  size, `renderer.setSize(w, h, false)`, and the `render()` loop's size-drift
+  check. Keep all three or the scene renders vertically squished.
+- **Fill staging** — `fillBox()` reveals one dimension at a time; delays are
+  precomputed into a `delays[]` array indexed to creation order. Change one loop
+  order and you must change both. `MathAnimator.FILL_DURATION` and
+  `handleVisualizerShow()` must stay in step.
+- **Block rotation** — blocks generate axis-aligned; never bake a resting tilt in.
+  The tumble is angular momentum given on DROP.
+
+## Verification
+
+```bash
+node tools/validate-curriculum.js
+node tools/smoke-generators.js          # also regenerates gen/manifest.js — commit it
+python3 -m http.server 8765 &
+NODE_PATH=/opt/node22/lib/node_modules node tools/smoke-browser.js
+```
+
+None is a build gate. Run them before pushing anything that touches Learn.
+
+## Development workflow
+
+Branch: `main`. Work on a short-lived branch and merge back, or commit straight
+to `main` for small changes. **Do not push to `main` without explicit permission.**
+
+If push is rejected: `git pull origin main --rebase && git push origin main`.
+
+## Where the rest lives
+
+- `docs/modes.md` — the eighteen activity modes in detail (times tables,
+  fractions, make ten, place value, money incl. sizing and currency rules,
+  geometric proofs).
+- `docs/learn.md` — the curriculum graph, item contract, mastery model, and how
+  to add a proficiency or a response type.
+- `curriculum/PROFICIENCIES.md` — what is being assessed and why each thing
+  earned its place.
+
+CLAUDE.md was split on 2026-07-29. It had grown past the point where anyone would
+read it end to end, so it now holds the invariants and the per-mode prose lives
+alongside the code it describes.
+
+## Hidden features
+- **Number Bonds worksheet** — fully implemented (`pgPDFBonds`, `pgDrawBonds`, `pgDrawBond`, `pgMakeBonds` in `app.js`; config UI at `#pg-bonds-config` in `index.html`). The "Bonds" button in the worksheet type selector is hidden via `class="hidden"`. To re-enable, remove the `hidden` class from the button in `index.html`. Activate programmatically with `pgSetType('bonds')`.
+
