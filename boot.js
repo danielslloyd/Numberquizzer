@@ -45,6 +45,7 @@
         // Learn. These come after app.js because they read TAB_ENTRY, SCREEN_TAB
         // and showScreen when they boot, and item-draw adapts app.js's renderers.
         'item-draw.js',
+        'item-gen-helpers.js',
         'item-types.js',
         'progress.js',
         'item-runner.js',

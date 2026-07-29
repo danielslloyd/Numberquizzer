@@ -9,6 +9,18 @@
 (function () {
     'use strict';
     const MANIFEST = {
+        'math-add': [
+            'add.algorithm',
+            'add.decompose10',
+            'add.equalSign',
+            'add.facts.within10',
+            'add.facts.within20',
+            'add.joinSeparate',
+            'add.makeTen',
+            'add.unknownPosition',
+            'add.within100',
+            'add.within1000',
+        ],
         'math-frac': [
             'frac.aOverB',
             'frac.add.likeDen',
@@ -34,6 +46,21 @@
             'frac.scaling',
             'frac.unit',
             'frac.wholeAsFraction',
+        ],
+        'math-mult': [
+            'mult.byTens',
+            'mult.commutative',
+            'mult.comparison',
+            'mult.distributive',
+            'mult.div.facts',
+            'mult.div.longDivision',
+            'mult.div.remainder',
+            'mult.divInverse',
+            'mult.equalGroups',
+            'mult.factorsMultiples',
+            'mult.facts',
+            'mult.multiDigit.byOne',
+            'mult.multiDigit.byTwo',
         ],
     };
 

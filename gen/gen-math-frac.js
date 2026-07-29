@@ -30,77 +30,13 @@
     function dens(params) { return (params && params.dens) || [2, 3, 4, 6, 8]; }
     function shape(rng) { return rng.bool() ? 'fraction-bar' : 'fraction-pie'; }
 
-    /*
-     * Build a multiple-choice item. Distractors are de-duplicated against the
-     * correct label and each other, then everything is shuffled — so `answer` is
-     * always the post-shuffle index and never a fixed position a learner could
-     * pattern-match.
-     */
-    function mc(rng, opts) {
-        const labels = [opts.correct];
-        (opts.distractors || []).forEach((d) => {
-            if (d !== null && d !== undefined && labels.indexOf(d) === -1) labels.push(d);
-        });
-        while (labels.length < 2) labels.push('none of these');
-
-        const order = rng.shuffle(labels.map((l, i) => ({ l: l, orig: i })));
-        return {
-            type: 'mc',
-            stem: opts.stem,
-            prompt: opts.prompt,
-            choices: order.map((o) => o.l),
-            answer: order.findIndex((o) => o.orig === 0),
-            grade: 'exact',
-            hint: opts.hint,
-            explain: opts.explain,
-            sig: opts.sig || (opts.stem + '|' + opts.correct),
-        };
-    }
-
-    function fracAnswer(opts) {
-        return {
-            type: 'fraction',
-            stem: opts.stem,
-            prompt: opts.prompt,
-            answer: { num: opts.num, den: opts.den },
-            grade: 'fraction',
-            gradeOpts: opts.lowest ? { lowest: true } : {},
-            hint: opts.hint,
-            explain: opts.explain,
-            sig: opts.sig,
-        };
-    }
-
-    function numAnswer(opts) {
-        return {
-            type: 'numeric',
-            stem: opts.stem,
-            prompt: opts.prompt,
-            answer: opts.answer,
-            grade: 'numeric',
-            gradeOpts: opts.tol ? { tol: opts.tol } : {},
-            hint: opts.hint,
-            explain: opts.explain,
-            sig: opts.sig,
-        };
-    }
-
-    function nlItem(opts) {
-        return {
-            type: 'numberline',
-            stem: opts.stem,
-            prompt: [{ t: 'text', s: opts.stem }],
-            line: opts.line,
-            answer: opts.answer,
-            grade: 'numeric',
-            // A twentieth of the span. The skill is magnitude estimation, not
-            // pixel accuracy, so the tolerance is deliberately generous.
-            gradeOpts: { tol: ((opts.line.hi - opts.line.lo) || 1) / 20 },
-            hint: opts.hint,
-            explain: opts.explain,
-            sig: opts.sig,
-        };
-    }
+    // These four are the shared constructors from item-gen-helpers.js under the
+    // names this pack already uses. Choice shuffling and de-duplication live in
+    // one place rather than once per pack.
+    const mc = genMc;
+    const fracAnswer = genFraction;
+    const numAnswer = genNum;
+    const nlItem = genNumberline;
 
     // ---- generators ------------------------------------------------------
     const G = {};

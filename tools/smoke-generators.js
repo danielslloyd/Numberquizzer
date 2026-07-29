@@ -38,6 +38,7 @@ const byId = new Map(nodes.map((n) => [n.id, n]));
 // item-types.js assigns to window.*; document is only touched inside render(),
 // which this test never calls.
 require(path.join(__dirname, '..', 'item-types.js'));
+require(path.join(__dirname, '..', 'item-gen-helpers.js'));
 const GRADERS = window.GRADERS;
 
 // The same xorshift32 curriculum.js uses, so seeds line up with the real app.

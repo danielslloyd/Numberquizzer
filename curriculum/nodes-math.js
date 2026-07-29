@@ -264,7 +264,7 @@
           provenance: { ccss: ['4.OA.A.3', '4.NBT.B.6'] } },
 
         { id: 'mult.factorsMultiples', label: 'Factors and multiples',
-          prereq: ['mult.div.facts'], types: ['multi', 'numeric'],
+          prereq: ['mult.div.facts'], types: ['multi', 'mc', 'numeric'],
           misconceptions: ['confuses factors with multiples'],
           provenance: { ccss: ['4.OA.B.4'] } },
 
