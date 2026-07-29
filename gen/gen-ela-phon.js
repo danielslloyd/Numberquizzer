@@ -104,9 +104,22 @@
         });
     };
 
-    function patternItem(rng, table, label, sig) {
+    /*
+     * Foils come from groups with a DIFFERENT sound, not merely a different
+     * spelling. Several spellings share a sound — ew and long oo, oi and oy, er
+     * and ir and ur — so a foil chosen by spelling alone can be a perfectly
+     * correct answer to a question about sound.
+     */
+    function otherSoundWords(table, tableName, key) {
+        const mine = W.soundClassIn ? W.soundClassIn(tableName, key) : key;
+        return Object.keys(table)
+            .filter((k) => (W.soundClassIn ? W.soundClassIn(tableName, k) : k) !== mine)
+            .reduce((acc, k) => acc.concat(table[k]), []);
+    }
+
+    function patternItem(rng, table, label, sig, tableName) {
         const key = rng.pick(Object.keys(table));
-        const foils = flat(table, key).concat(flat(W.cvc));
+        const foils = otherSoundWords(table, tableName, key).concat(flat(W.cvc));
         const correct = rng.pick(table[key]);
         return genMc(rng, {
             stem: 'Which word has the "' + key + '" ' + label + '?',
@@ -120,11 +133,30 @@
         });
     }
 
-    G['phon.digraphs'] = function (rng) { return patternItem(rng, W.digraph, 'sound', 'dig'); };
-    G['phon.rControlled'] = function (rng) { return patternItem(rng, W.rControlled, 'sound', 'rc'); };
-    G['phon.diphthongs'] = function (rng) { return patternItem(rng, W.diphthong, 'sound', 'dip'); };
-    G['phon.vowelTeams.long'] = function (rng) { return patternItem(rng, W.vowelTeamLong, 'vowel team', 'vtl'); };
-    G['phon.vowelTeams.more'] = function (rng) { return patternItem(rng, W.vowelTeamMore, 'vowel sound', 'vtm'); };
+    G['phon.digraphs'] = function (rng) { return patternItem(rng, W.digraph, 'sound', 'dig', 'digraph'); };
+    G['phon.rControlled'] = function (rng) { return patternItem(rng, W.rControlled, 'sound', 'rc', 'rControlled'); };
+    G['phon.diphthongs'] = function (rng) { return patternItem(rng, W.diphthong, 'sound', 'dip', 'diphthong'); };
+    G['phon.vowelTeams.long'] = function (rng) { return patternItem(rng, W.vowelTeamLong, 'vowel team', 'vtl', 'vowelTeamLong'); };
+    /*
+     * These groups are separated by SOUND, not spelling — "moon" and "book" both
+     * contain oo. Asking "which word has the oo spelling" is therefore ambiguous
+     * with its own foils, so this one asks for a matching sound against an
+     * example instead. Telling long oo from short oo is the actual skill.
+     */
+    G['phon.vowelTeams.more'] = function (rng) {
+        const key = rng.pick(Object.keys(W.vowelTeamMore));
+        const group = W.vowelTeamMore[key];
+        const target = rng.pick(group);
+        const example = rng.pick(group.filter((w) => w !== target)) || target;
+        const foils = otherSoundWords(W.vowelTeamMore, 'vowelTeamMore', key);
+        return genMc(rng, {
+            stem: 'Which word has the same vowel sound as "' + example + '"?',
+            correct: target,
+            distractors: rng.sample(foils.filter((w) => group.indexOf(w) === -1), 3),
+            explain: '"' + target + '" and "' + example + '" share the ' + key + ' sound.',
+            sig: 'vtm:' + key + ':' + example,
+        });
+    };
 
     G['phon.blends.initial'] = function (rng) {
         const word = rng.pick(W.blendInitial);

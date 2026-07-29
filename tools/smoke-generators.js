@@ -309,6 +309,88 @@ if (geomPack && geomPack.__SHAPES_2D && generators.has('geom.name2d')) {
     }
 }
 
+// ---- phonics foils must not contain the target pattern -------------------------
+/*
+ * "Which word has the 'ai' sound?" is broken if a foil also contains ai. The
+ * foils are drawn from neighbouring pattern groups, and those groups overlap in
+ * ways that are easy to miss by eye — 'flower' carries an er inside an ow word.
+ */
+// Spelling-based items only. phon.vowelTeams.more asks about a SOUND against an
+// example word, because its groups share spellings (moon and book are both oo),
+// so "no foil may contain the pattern" does not apply to it.
+const PATTERN_NODES = ['phon.digraphs', 'phon.rControlled', 'phon.diphthongs',
+    'phon.vowelTeams.long', 'phon.tchDge'];
+let foilsChecked = 0;
+PATTERN_NODES.forEach((nodeId) => {
+    const entry = generators.get(nodeId);
+    const node = byId.get(nodeId);
+    if (!entry || !node) return;
+    for (let i = 0; i < 150; i++) {
+        let item;
+        try { item = entry.fn(makeRng(30000 + i * 7919), node.params || {}); } catch (e) { continue; }
+        const m = /"([a-z ()]+)"/.exec((item || {}).stem || '');
+        if (!m || !item.choices) continue;
+        // The key may be written like "oo (long)" — compare on the letters only.
+        const key = m[1].replace(/\s*\(.*\)\s*/, '');
+        foilsChecked++;
+        item.choices.forEach((c, idx) => {
+            if (idx === Number(item.answer)) return;
+            if (String(c).toLowerCase().indexOf(key) !== -1) {
+                failures.push(`${nodeId}: asked for "${key}" but the foil "${c}" contains it`);
+            }
+        });
+    }
+});
+if (foilsChecked) console.log(`Checked ${foilsChecked} phonics items for foils containing the target pattern.`);
+
+// ---- no foil may share the answer's sound --------------------------------------
+/*
+ * Stronger than the spelling check above. Several spellings make the same sound,
+ * so a foil that merely differs in spelling can still be a correct answer to a
+ * question about sound — "drew" answers "same vowel sound as soon" perfectly
+ * well. Every option must sit in a different sound class from the answer.
+ */
+const phonicsPack = fs.existsSync(path.join(genDir, 'gen-ela-phon.js')) ? true : false;
+if (phonicsPack && window.WORDS && window.WORDS.soundClassIn) {
+    const W = window.WORDS;
+    const TABLES = {
+        'phon.digraphs': ['digraph', W.digraph],
+        'phon.rControlled': ['rControlled', W.rControlled],
+        'phon.diphthongs': ['diphthong', W.diphthong],
+        'phon.vowelTeams.long': ['vowelTeamLong', W.vowelTeamLong],
+        'phon.vowelTeams.more': ['vowelTeamMore', W.vowelTeamMore],
+    };
+    let soundChecked = 0;
+    Object.keys(TABLES).forEach((nodeId) => {
+        const entry = generators.get(nodeId);
+        const node = byId.get(nodeId);
+        if (!entry || !node) return;
+        const [tableName, table] = TABLES[nodeId];
+        // word -> sound class, for every word this table knows
+        const classOf = {};
+        Object.keys(table).forEach((k) => {
+            table[k].forEach((w) => { classOf[w] = W.soundClassIn(tableName, k); });
+        });
+
+        for (let i = 0; i < 150; i++) {
+            let item;
+            try { item = entry.fn(makeRng(20000 + i * 7919), node.params || {}); } catch (e) { continue; }
+            if (!item || !item.choices) continue;
+            const answer = item.choices[Number(item.answer)];
+            const want = classOf[answer];
+            if (!want) continue;
+            soundChecked++;
+            item.choices.forEach((c, idx) => {
+                if (idx === Number(item.answer)) return;
+                if (classOf[c] === want) {
+                    failures.push(`${nodeId}: answer "${answer}" and foil "${c}" share the ${want} sound`);
+                }
+            });
+        }
+    });
+    if (soundChecked) console.log(`Checked ${soundChecked} phonics items for foils sharing the answer's sound.`);
+}
+
 // ---- item variety -------------------------------------------------------------
 /*
  * How many distinct questions can each generator actually produce? A node backed

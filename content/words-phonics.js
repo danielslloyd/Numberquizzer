@@ -128,6 +128,37 @@
 
     W.ffllss = ['puff', 'cliff', 'bell', 'spell', 'grass', 'dress', 'buzz', 'miss'];
 
+    /*
+     * Which spellings make the SAME sound. The tables above are keyed by
+     * spelling, and several spellings share a sound — ew and long oo, oi and oy,
+     * ou and ow, er and ir and ur. A foil drawn from a same-sound group is a
+     * correct answer to a question about sound, so generators must consult this
+     * before choosing one.
+     */
+    W.soundClass = {
+        // vowel teams, long
+        ai: 'long-a', ay: 'long-a',
+        ee: 'long-e', ea: 'long-e',
+        oa: 'long-o', ow: 'long-o',
+        igh: 'long-i', ie: 'long-i',
+        // vowel teams, more
+        'oo (long)': 'oo', ew: 'oo',
+        'oo (short)': 'uu',
+        au: 'aw', aw: 'aw',
+        // r-controlled: er, ir and ur are indistinguishable by ear
+        ar: 'ar', or: 'or', er: 'er', ir: 'er', ur: 'er',
+        // diphthongs
+        oi: 'oi', oy: 'oi',
+        ou: 'ow-dip',
+    };
+
+    // `ow` appears in two tables with two different sounds, so it cannot live in
+    // a single flat map. Generators pass the table name to disambiguate.
+    W.soundClassIn = function (table, key) {
+        if (table === 'diphthong' && key === 'ow') return 'ow-dip';
+        return W.soundClass[key] || key;
+    };
+
     // ---- inflections --------------------------------------------------------
     // base, plus the three inflected forms, so one entry serves both the reading
     // node and the spelling-rule node.
