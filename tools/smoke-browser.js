@@ -383,6 +383,63 @@ function check(name, ok, detail) {
     });
     check('storage helper round-trips and namespaces', stOk);
 
+    // ---- a mixed review run -----------------------------------------------
+    // Several nodes at once, of different item types, interleaved. This is the
+    // path the Review button takes and nothing else in the suite covers it.
+    const mixed = await page.evaluate(async () => {
+        const ids = ['frac.numberline', 'add.facts.within20', 'gram.comma',
+            'count.subitize.grouped', 'morph.prefix.common'];
+        await new Promise((resolve) => {
+            irStart({ nodeIds: ids, count: 15, mode: 'review', onDone: resolve });
+            // Answer everything correctly, as fast as the runner allows.
+            const tick = setInterval(() => {
+                const S = window.__IR;
+                const active = (document.querySelector('.screen.active') || {}).id;
+                if (active === 'ir-results-screen') { clearInterval(tick); resolve(); return; }
+                const item = S.items[S.idx];
+                if (!item || S.locked) return;
+                const host = document.getElementById('ir-response-host');
+                if (item.type === 'mc') {
+                    const btn = host.querySelectorAll('.ir-choice')[Number(item.answer)];
+                    if (btn) btn.click();
+                } else if (item.type === 'multi') {
+                    item.answer.forEach((i) => host.querySelectorAll('.ir-choice')[i].click());
+                    document.getElementById('ir-submit').click();
+                } else if (item.type === 'fraction') {
+                    host.querySelector('.ir-frac-num').value = item.answer.num;
+                    host.querySelector('.ir-frac-den').value = item.answer.den;
+                    document.getElementById('ir-submit').click();
+                } else {
+                    const input = host.querySelector('.ir-input');
+                    if (input) { input.value = String(item.answer); document.getElementById('ir-submit').click(); }
+                    else if (item.type === 'numberline') {
+                        // Drive the value directly; pointer geometry is covered elsewhere.
+                        host.__nlValue = () => item.answer;
+                        document.getElementById('ir-submit').click();
+                    }
+                }
+            }, 120);
+            setTimeout(() => { clearInterval(tick); resolve(); }, 25000);
+        });
+        const S = window.__IR;
+        return {
+            screen: (document.querySelector('.screen.active') || {}).id,
+            items: S.items.length,
+            distinctNodes: new Set(S.items.map((i) => i.node)).size,
+            types: [...new Set(S.items.map((i) => i.type))].sort(),
+            answered: S.results.length,
+            correct: S.results.filter((r) => r.correct).length,
+        };
+    });
+    check('mixed review draws from every node asked for',
+        mixed.distinctNodes === 5, JSON.stringify(mixed));
+    check('mixed review interleaves several item types',
+        mixed.types.length >= 3, JSON.stringify(mixed));
+    check('a full mixed run completes on the results screen',
+        mixed.screen === 'ir-results-screen', JSON.stringify(mixed));
+    check('every answer in the mixed run graded correct',
+        mixed.answered > 0 && mixed.correct === mixed.answered, JSON.stringify(mixed));
+
     // ---- runner layout ----------------------------------------------------
     // Both of these were silent: the questions still worked, they were just in
     // the wrong place and half the size.
