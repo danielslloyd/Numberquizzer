@@ -168,7 +168,7 @@
           prereq: ['add.equalSign', 'add.facts.within20'], types: ['numeric'],
           provenance: { ccss: ['1.OA.D.8', '1.OA.A.1'] }, params: { max: 20 } },
 
-        { id: 'add.unknownAddend', label: 'Subtraction as a missing addend',
+        { id: 'add.unknownAddend', label: 'Subtraction as a missing addend', tier: 2,
           prereq: ['add.unknownPosition'], types: ['numeric', 'mc'],
           provenance: { ccss: ['1.OA.B.4'] }, params: { max: 20 } },
 

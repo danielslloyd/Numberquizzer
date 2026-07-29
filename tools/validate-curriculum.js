@@ -125,6 +125,40 @@ const weakTier1 = nodes
     .filter((n) => n.tier === 1 && outDeg.get(n.id) < 2)
     .map((n) => `${n.id} (gates ${outDeg.get(n.id)})`);
 
+// ---- PROFICIENCIES.md must agree with the data --------------------------
+// The document is declared the source of authority, so drift between it and
+// these files is a defect in the document, not a cosmetic mismatch.
+const docPath = path.join(__dirname, '..', 'curriculum', 'PROFICIENCIES.md');
+if (fs.existsSync(docPath)) {
+    const doc = fs.readFileSync(docPath, 'utf8');
+    const rowRe = /^\|\s*\d+\s*\|\s*`([^`]+)`\s*\|[^|]*\|\s*([123])\b[^|]*\|/gm;
+    const documented = new Set();
+    let m;
+    while ((m = rowRe.exec(doc)) !== null) {
+        const [, id, tierStr] = m;
+        const tier = parseInt(tierStr, 10);
+        documented.add(id);
+        const node = byId.get(id);
+        if (!node) { errors.push(`PROFICIENCIES.md lists "${id}", which is not in the data`); continue; }
+        if (node.tier !== tier) {
+            errors.push(`PROFICIENCIES.md gives ${id} tier ${tier}, data says tier ${node.tier}`);
+        }
+    }
+    nodes.forEach((n) => {
+        if (!documented.has(n.id)) warnings.push(`${n.id} is in the data but not in PROFICIENCIES.md`);
+    });
+
+    // Headline counts stated in prose must match reality.
+    const declared = /\*\*Total\*\*\s*\|\s*\*\*(\d+)\*\*\s*\|\s*\*\*(\d+)\*\*/.exec(doc);
+    if (declared) {
+        const t1 = nodes.filter((n) => n.tier === 1).length;
+        if (+declared[1] !== nodes.length) errors.push(`PROFICIENCIES.md totals ${declared[1]} nodes, data has ${nodes.length}`);
+        if (+declared[2] !== t1) errors.push(`PROFICIENCIES.md totals ${declared[2]} tier-1, data has ${t1}`);
+    }
+} else {
+    warnings.push('curriculum/PROFICIENCIES.md not found — document/data agreement unchecked');
+}
+
 // ---- provenance must not leak into UI code ------------------------------
 const UI_FILES = ['app.js', 'library.js', 'item-runner.js', 'item-types.js', 'progress.js'];
 UI_FILES.forEach((rel) => {

@@ -35,7 +35,7 @@ A node must pass **1 and 2**, plus **at least two of 3–6**:
    The capstone half of this is not a loophole, and the distinction matters when
    reading `validate-curriculum.js` output. Out-degree ≥ 2 is the right bar
    against the **full framework graph** of several hundred standards. Measured
-   against this already-curated 113-node list it under-counts badly, because
+   against this already-curated 201-node list it under-counts badly, because
    pruning removes precisely the downstream nodes that would have supplied the
    edges. `frac.div.wholeByUnit` gates nothing further in elementary math and is
    still the endpoint the entire fractions ladder climbs toward; `dec.div` and
@@ -114,7 +114,7 @@ IXL, and Singapore MOE are **read for judgment and re-expressed**, never pasted.
 
 ---
 
-# Math — 113 nodes (80 at tier 1)
+# Math — 113 nodes (79 at tier 1)
 
 Fractions 26 · multiplicative 15 · measurement 15 · additive 14 · place value 11 ·
 decimals 10 · counting 9 · geometry 9 · pre-algebra 4.
@@ -173,7 +173,7 @@ decimal strand hangs off.
 | 5 | `add.facts.within20` | All single-digit sums and their subtractions | 1 · **auto** |
 | 6 | `add.equalSign` | What the equals sign means | 1 |
 | 7 | `add.unknownPosition` | Find the missing number anywhere in an equation | 1 |
-| 8 | `add.unknownAddend` | Subtraction as a missing addend | 1 |
+| 8 | `add.unknownAddend` | Subtraction as a missing addend | 2 |
 | 9 | `add.within100` | Add and subtract within 100 | 1 |
 | 10 | `add.within1000` | Add and subtract within 1000 | 1 |
 | 11 | `add.algorithm` | Multi-digit addition and subtraction | 1 |
@@ -329,28 +329,289 @@ than floating as abstractions.
 
 ---
 
-# English
+# English — 88 nodes (63 at tier 1)
 
-Not yet curated. Next pass. The intended shape, from the research:
+Phonics & decoding 25 · morphology 13 · grammar 13 · vocabulary 11 · spelling 8 ·
+phonological awareness 7 · comprehension 5 · sight recognition 4 · fluency 2.
 
-- Split along the **Simple View of Reading** (`RC = D × LC`, multiplicative — a
-  zero in either factor zeroes comprehension). Word recognition and language
-  comprehension are **independent ladders whose scores are never averaged**. A
-  learner can sit at a high comprehension ceiling behind a low decoding
-  bottleneck, and that is the common case for this audience.
-- **Word recognition:** phonological awareness (~7, capped — the National Reading
-  Panel meta-analysis found *larger* effects from teaching fewer skills, with
-  letters, in under 20 hours) · phonics & decoding (~32) · orthographic mapping
-  and irregular words (~4) · fluency (~3).
-- **Language comprehension:** morphology (~14 — highest ROI in the English list;
-  improves reading, spelling *and* vocabulary, strongest effects for weaker
-  readers, and doubles as multisyllable decoding) · vocabulary strategy (~10) ·
-  comprehension drillables (~4).
-- **Alongside:** spelling (~8) · grammar & mechanics (~8).
-- Vocabulary is **generative, not a word list**. School texts hold 88,500+ word
-  families and children acquire ~3,000 a year, mostly incidentally; direct
-  instruction reaches a few hundred. Build morphology and inference strategy, and
-  be honest in the product that volume reading is what we cannot substitute for.
+## Structure: the Simple View of Reading
 
-UK National Curriculum English Appendix 1 (spelling, ordered, with statutory word
-lists) and Appendix 2 (grammar) are the copyable skeleton for this half.
+`RC = D × LC` — reading comprehension is decoding **times** language
+comprehension. It is multiplicative, so a zero in either factor zeroes the
+product and neither factor alone is sufficient.
+
+Two consequences that are load-bearing for this app, not decoration:
+
+- **Word recognition and language comprehension are separate ladders whose scores
+  are never averaged.** A learner can sit at a high comprehension ceiling behind a
+  low decoding bottleneck. Averaging those into one "reading level" hides exactly
+  the thing worth finding, and for an audience that is routinely far ahead in one
+  dimension it is the common case rather than the edge case.
+- **Remediation routes by which factor is limiting**, which is only possible if
+  the two are measured apart.
+
+Word recognition: `pa` → `phon` → `omap` → `flu`.
+Language comprehension: `morph` → `vocab` → `comp`.
+Production, drawing on both: `spell`, `gram`.
+
+## `pa` — phonological awareness (7 nodes, 4 at tier 1)
+
+Deliberately small, and the smallness is the evidence-based choice. The National
+Reading Panel meta-analysis (Ehri et al. 2001; 52 studies) found phonemic
+awareness instruction produced **larger** effects when only one or two skills were
+taught rather than many, when children **manipulated letters** (d = 0.59) rather
+than sounds alone (d = 0.36), and when total instruction ran **under 20 hours**.
+
+That is direct evidence against the 30-to-40-skill awareness ladders many programs
+ship. So: seven nodes, four at tier 1, concentrated on **blending and segmenting
+with letters**. Rhyme, onset-rime and phoneme manipulation are kept at tier 2 —
+real, but not where the effect lives.
+
+| # | id | label | tier |
+|---|---|---|---|
+| 1 | `pa.rhyme` | Hear when words rhyme | 2 |
+| 2 | `pa.syllable` | Count and blend syllables | 1 |
+| 3 | `pa.onsetRime` | Blend onset and rime | 2 |
+| 4 | `pa.isolate` | Hear the first, last and middle sound | 1 |
+| 5 | `pa.blend` | Blend sounds into a word | 1 |
+| 6 | `pa.segment` | Break a word into its sounds | 1 |
+| 7 | `pa.manipulate` | Add, take away or swap a sound | 2 |
+
+Every node here is `audio: true` — the stem is meaningless as text. This is why
+TTS is a Phase-1 requirement and not a later enhancement.
+
+## `phon` — phonics & decoding (25 nodes, 18 at tier 1)
+
+The largest English strand, and the one CCSS serves worst: Reading Foundational
+Skills gives roughly five standards per grade for a domain that structured
+programs decompose into 100+ ordered steps. A node here means **a set of
+correspondences testable in one 20-item screen**, which compresses a 128-lesson
+program sequence to 25 assessable rungs without losing an ordering distinction
+that matters.
+
+| # | id | label | tier |
+|---|---|---|---|
+| 1 | `phon.letterNames` | Name every letter, capital and small | 1 · **auto** |
+| 2 | `phon.consonants` | The sound each consonant makes | 1 · **auto** |
+| 3 | `phon.shortVowels` | The five short vowel sounds | 1 · **auto** |
+| 4 | `phon.cvc` | Read short-vowel words like cat and hop | 1 |
+| 5 | `phon.digraphs` | Two letters, one sound — sh, ch, th, ck | 1 |
+| 6 | `phon.blends.initial` | Blends at the start — st, bl, tr | 1 |
+| 7 | `phon.blends.final` | Blends at the end — nd, st, mp | 1 |
+| 8 | `phon.ffllss` | Doubling f, l and s at the end | 2 |
+| 9 | `phon.vce` | Silent e makes the vowel say its name | 1 |
+| 10 | `phon.vowelTeams.long` | Vowel teams — ai, ee, oa, igh | 1 |
+| 11 | `phon.vowelTeams.more` | More vowel teams — oo, ew, au, aw | 1 |
+| 12 | `phon.vowelTeams.exceptions` | When a vowel team changes its sound | 2 |
+| 13 | `phon.rControlled` | When r changes the vowel — ar, or, er, ir, ur | 1 |
+| 14 | `phon.diphthongs` | Gliding vowels — oi, oy, ou, ow | 1 |
+| 15 | `phon.softCG` | Soft c and soft g | 2 |
+| 16 | `phon.tchDge` | tch and dge after a short vowel | 2 |
+| 17 | `phon.silentLetters` | Silent letters — kn, wr, mb | 2 |
+| 18 | `phon.yAsVowel` | When y acts as a vowel | 2 |
+| 19 | `phon.inflections` | Reading -s, -ed and -ing endings | 1 |
+| 20 | `phon.syllableTypes` | The six kinds of syllable | 1 |
+| 21 | `phon.consonantLe` | The -le ending | 2 |
+| 22 | `phon.syllableDivision` | Where to split a long word | 1 |
+| 23 | `phon.twoSyllable` | Read two-syllable words | 1 |
+| 24 | `phon.schwa` | The lazy vowel in unstressed syllables | 1 |
+| 25 | `phon.multisyllable` | Read long unfamiliar words | 1 |
+
+`phon.cvc` is the single most load-bearing English node (out-degree 7) — it is the
+first point at which the alphabetic principle actually pays out.
+
+**Ordering caveat, recorded honestly.** r-controlled vowels, diphthongs and
+hard/soft c-g have **no explicit home in CCSS** — they fall under "additional
+common vowel teams" and "inconsistent but common spelling-sound
+correspondences" (RF.2.3b, RF.2.3e). Their placement here is convention, not
+standard, and the affected nodes carry a `provenance.note` saying so. Relatedly:
+there is **no canonical Orton-Gillingham sequence** — OG is an approach, and
+published programs differ in the middle of the order. Where three sequences agree
+the ordering is real; where they diverge it is arbitrary and we chose.
+
+## `omap` — word recognition by sight (4 nodes, all tier 1)
+
+Orthographic mapping, not visual memorisation. Sight-word reading is acquired by
+bonding spellings to pronunciations — "gluing phonemes to graphemes" — so
+irregular words get **heart-word treatment**: map the regular parts, flag the one
+grapheme that misbehaves. There are no whole-word flashcards here, and
+`omap.heartWords` carries "memorises the whole word as a picture" as its named
+misconception precisely because that is the failure this strand exists to prevent.
+
+| # | id | label | tier |
+|---|---|---|---|
+| 1 | `omap.hfWords.early` | The first everyday words | 1 · **auto** |
+| 2 | `omap.heartWords` | Tricky words — which part is the odd one | 1 |
+| 3 | `omap.hfWords.extended` | More everyday words | 1 · **auto** |
+| 4 | `omap.autoRecognition` | Know a word the instant you see it | 1 · **auto** |
+
+## `flu` — reading fluency (2 nodes)
+
+| # | id | label | tier |
+|---|---|---|---|
+| 1 | `flu.wordList` | Read a list of words quickly and accurately | 1 · **auto** |
+| 2 | `flu.phrase` | Read a phrase without stumbling | 2 · **auto** |
+
+**Deliberately only two nodes, and prosody is absent.** Real oral reading fluency
+means words-correct-per-minute against a passage, which requires audio capture and
+scoring. We do not do that, so we do not claim it — reporting a WCPM figure
+without audio scoring would be a straightforward lie about what was measured. The
+honest auto-gradable substitute is **timed word and phrase recognition**, which
+is what these two nodes are. Prosody and expression fail the drillable filter
+outright and get no node at all.
+
+## `morph` — word parts & meaning (13 nodes, 11 at tier 1)
+
+**The highest-return strand in the English list**, and it is why morphology gets
+more nodes than vocabulary despite vocabulary being the more obvious target.
+
+Three findings converge on it. Bowers, Kirby & Deacon's meta-analysis of 22
+morphological-instruction studies found gains in reading, spelling **and**
+vocabulary together, with the **strongest effects for younger and weaker readers**
+— the opposite of the usual pattern where interventions help the already-strong.
+Chall & Jacobs' fourth-grade-slump work found the decline shows up **first in word
+meaning**, before comprehension degrades, making this the leading indicator.
+And morphology does double duty: breaking a long word into morphemes is also how
+multisyllable decoding works, so these nodes serve both halves of the Simple View
+at once.
+
+| # | id | label | tier |
+|---|---|---|---|
+| 1 | `morph.compound` | Two words joined into one | 2 |
+| 2 | `morph.inflect.plural` | Making things plural | 1 |
+| 3 | `morph.inflect.tense` | Endings that change the time | 1 |
+| 4 | `morph.baseWord` | Find the base word inside a longer one | 1 |
+| 5 | `morph.prefix.common` | Prefixes that flip or repeat a meaning | 1 |
+| 6 | `morph.suffix.common` | Suffixes that add a meaning | 1 |
+| 7 | `morph.suffix.posShift` | Suffixes that change a word's job | 1 |
+| 8 | `morph.roots.latin` | Latin roots — port, dict, spect | 1 |
+| 9 | `morph.roots.greek` | Greek word parts — photo, graph, tele | 1 |
+| 10 | `morph.wordFamily` | Build a family from one root | 1 |
+| 11 | `morph.decomposeLong` | Break a long word into its parts to read it | 1 |
+| 12 | `morph.inferMeaning` | Work out a new word from its parts | 1 |
+| 13 | `morph.absorbedPrefix` | Prefixes that change shape — in-, im-, il-, ir- | 3 |
+
+`morph.inferMeaning` is the payoff node the other twelve exist to reach.
+
+## `vocab` — vocabulary (11 nodes, 6 at tier 1)
+
+**Generative, not a word list — and this is a deliberate refusal.** School texts
+between grades 3 and 9 contain 88,500+ distinct word meanings, and children
+acquire roughly 3,000 a year, overwhelmingly incidentally from reading volume.
+Direct instruction can realistically reach a few hundred. So building a
+vocabulary *list* app would be building the wrong thing at a ratio of about
+ten to one.
+
+What is buildable is the **machinery**: inferring from context, inferring from
+word parts (which is why `vocab.tier2Academic` depends on `morph.inferMeaning`),
+and the general academic words that recur across every subject. The app should
+say plainly somewhere that wide reading is the part it cannot substitute for.
+
+| # | id | label | tier |
+|---|---|---|---|
+| 1 | `vocab.contextClues` | Work out a word from the sentence around it | 1 |
+| 2 | `vocab.synonymAntonym` | Words that mean the same or the opposite | 1 |
+| 3 | `vocab.multipleMeaning` | One word, more than one meaning | 1 |
+| 4 | `vocab.shadesOfMeaning` | How close words differ in strength | 2 |
+| 5 | `vocab.categories` | How words group together | 2 |
+| 6 | `vocab.homophone` | Sound the same, spelled differently | 1 |
+| 7 | `vocab.homograph` | Spelled the same, said differently | 2 |
+| 8 | `vocab.tier2Academic` | Words that turn up across every subject | 1 |
+| 9 | `vocab.figurative.literal` | When words do not mean what they say | 1 |
+| 10 | `vocab.simileMetaphor` | Similes and metaphors | 2 |
+| 11 | `vocab.idiom` | Idioms, adages and proverbs | 2 |
+
+## `comp` — comprehension (5 nodes, 3 at tier 1)
+
+Only the auto-gradable slice. Most reading-comprehension standards want an
+explanation, and an explanation is not machine-scorable, so it gets no node.
+
+| # | id | label | tier |
+|---|---|---|---|
+| 1 | `comp.anaphora` | Who does this word point back to? | 1 |
+| 2 | `comp.inference.local` | Work out what is not said outright | 1 |
+| 3 | `comp.mainIdea` | What the passage is mostly about | 1 |
+| 4 | `comp.textStructure` | How a passage is put together | 2 |
+| 5 | `comp.evidence` | Which sentence backs this up | 2 |
+
+`comp.anaphora` is the underrated one: pronoun-referent resolution is a genuine
+comprehension bottleneck, it is cleanly multiple-choice, and almost nothing tests
+it directly.
+
+## `spell` — spelling (8 nodes, 6 at tier 1)
+
+Spelling mirrors the phonics ladder one step behind — you can read a pattern
+before you can produce it — so `spell.*` nodes depend on their `phon.*`
+counterparts rather than duplicating them.
+
+| # | id | label | tier |
+|---|---|---|---|
+| 1 | `spell.phonetic` | Spell a word the way it sounds | 1 |
+| 2 | `spell.cvcPatterns` | Spell short-vowel words | 1 |
+| 3 | `spell.vceVowelTeams` | Spell long-vowel words | 1 |
+| 4 | `spell.rControlled` | Spell words with ar, or, er, ir, ur | 1 |
+| 5 | `spell.plurals` | Spell plurals, regular and odd | 2 |
+| 6 | `spell.suffixRules` | Doubling, dropping e, and y to i | 1 |
+| 7 | `spell.irregularHF` | Spell the tricky everyday words | 1 |
+| 8 | `spell.positionRules` | Which spelling goes where — ck, tch, dge | 2 |
+
+`spell.suffixRules` is one node covering four rules — doubling, drop-silent-e,
+y-to-i, and plain addition. Those four generate a very large clean typed-answer
+item bank from a modest word list, which makes it the best value in the strand.
+
+## `gram` — grammar & mechanics (13 nodes, 10 at tier 1)
+
+Highly auto-gradable, and the strand where the app already has the most built:
+five existing language-arts modes attach here as practice.
+
+| # | id | label | tier |
+|---|---|---|---|
+| 1 | `gram.sentence` | What makes a complete sentence | 1 |
+| 2 | `gram.partsOfSpeech` | Nouns, verbs, adjectives, adverbs | 1 |
+| 3 | `gram.endPunctuation` | Full stops, question marks, exclamation marks | 1 |
+| 4 | `gram.capitalisation` | What gets a capital letter | 2 |
+| 5 | `gram.subjectVerb` | Matching the subject and the verb | 1 |
+| 6 | `gram.tense` | Past, present and future — and staying put | 1 |
+| 7 | `gram.pronouns` | Pronouns and who they stand for | 1 |
+| 8 | `gram.apostrophe` | Apostrophes for shortening and owning | 1 |
+| 9 | `gram.conjunctions` | Joining words that build longer sentences | 1 |
+| 10 | `gram.comma` | Where commas go | 1 |
+| 11 | `gram.fragmentRunOn` | Spot a fragment or a run-on | 1 |
+| 12 | `gram.sentenceTypes` | Statements, questions, commands, exclamations | 2 |
+| 13 | `gram.quotation` | Punctuating what someone said | 2 |
+
+## What English deliberately excludes
+
+- **Writing composition** (CCSS W.1–W.10) — no nodes. Not machine-scorable. The
+  auto-gradable *edge* of writing (pick the best topic sentence, the right linking
+  word, the correctly punctuated dialogue) is already covered by `gram.*`.
+- **Speaking & listening** (SL.1–SL.6) — no nodes. Needs a human.
+- **Handwriting** — no nodes.
+- **Oral reading fluency as WCPM** — see `flu` above.
+
+The app should state these gaps rather than imply coverage it does not have.
+
+---
+
+# Totals
+
+| | nodes | tier 1 |
+|---|---|---|
+| Math | 113 | 79 |
+| English | 88 | 63 |
+| **Total** | **201** | **142** |
+
+Tier 1 landed at 142 against a ~120 aspiration. The overshoot is almost entirely
+the decoding ladder, and it is defensible: a phonics sequence with holes in it is
+not a usable phonics sequence, because a learner who reaches a missing rung has
+nowhere to go. Eighteen tier-1 `phon` nodes is the floor for a coherent ladder,
+not padding. The math half is the more compressible one if this needs to come
+down further.
+
+All counts in this document are verified by the validator; if they disagree with
+its output, the validator is right.
+
+Run `node tools/validate-curriculum.js` after any edit here. It enforces
+uniqueness, edge resolution, acyclicity, rung-versus-prerequisite consistency,
+tier-1 closure (a tier-1 node may not depend on backlog), and that no UI file
+reads `provenance`.
