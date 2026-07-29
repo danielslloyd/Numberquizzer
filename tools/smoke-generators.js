@@ -167,6 +167,45 @@ mcPositions.forEach((positions, nodeId) => {
     }
 });
 
+// ---- passage integrity -------------------------------------------------------
+/*
+ * Passages are hand-authored, and the failure modes are quiet: a pronoun that
+ * does not appear in the text, an "option" that is actually the right answer, or
+ * a distractor list too short to make a question. None of those throw — they just
+ * produce an item that is unfair or unanswerable.
+ */
+const langPath = path.join(__dirname, '..', 'content', 'words-language.js');
+if (fs.existsSync(langPath)) {
+    const L = require(langPath);
+    (L.passages || []).forEach((p) => {
+        const where = `passage "${p.id}"`;
+        if (!p.text || p.text.length < 60) failures.push(`${where}: text missing or too short`);
+
+        if (!p.pronoun || !p.pronoun.refersTo || !Array.isArray(p.pronoun.options)) {
+            failures.push(`${where}: no usable pronoun block`);
+        } else {
+            if (p.pronoun.options.length < 2) failures.push(`${where}: fewer than 2 pronoun distractors`);
+            if (p.text.toLowerCase().indexOf(String(p.pronoun.word).toLowerCase()) === -1) {
+                failures.push(`${where}: pronoun "${p.pronoun.word}" does not appear in the text`);
+            }
+            if (p.pronoun.options.indexOf(p.pronoun.refersTo) !== -1) {
+                failures.push(`${where}: the correct referent is also listed as a distractor`);
+            }
+        }
+
+        ['inference', 'mainIdea'].forEach((k) => {
+            const q = p[k];
+            if (!q || !q.a) { failures.push(`${where}: missing ${k}.a`); return; }
+            if (!Array.isArray(q.wrong) || q.wrong.length < 2) {
+                failures.push(`${where}: ${k} needs at least 2 distractors`);
+            } else if (q.wrong.indexOf(q.a) !== -1) {
+                failures.push(`${where}: ${k} lists its own answer as a distractor`);
+            }
+        });
+    });
+    console.log(`\nChecked ${(L.passages || []).length} passages.`);
+}
+
 // ---- regenerate the manifest ------------------------------------------------
 /*
  * gen/manifest.js is a committed artifact, written from the packs themselves so

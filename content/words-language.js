@@ -191,6 +191,112 @@
                     'Spring is the best season'],
             },
         },
+        {
+            id: 'lost-glove',
+            text: 'Sam searched his pockets twice, then his bag. The glove was not there. He '
+                + 'remembered taking it off to tie his laces by the gate, and he turned back up '
+                + 'the hill without saying a word.',
+            pronoun: { word: 'it', refersTo: 'the glove', options: ['the bag', 'the gate', 'the hill'] },
+            inference: {
+                q: 'Where does Sam think the glove is?',
+                a: 'By the gate, where he took it off',
+                wrong: ['In his bag', 'At the top of the hill', 'He has no idea'],
+            },
+            mainIdea: {
+                a: 'Sam works out where he lost something and goes back for it',
+                wrong: ['Gloves are easy to lose', 'Sam does not like tying his laces',
+                    'It is cold at the top of the hill'],
+            },
+        },
+        {
+            id: 'library-cat',
+            text: 'A grey cat began sitting outside the library each morning. At first the '
+                + 'librarian shooed her away. Then she noticed that the children who were shy '
+                + 'about reading aloud would happily read to the cat, so she propped the door open.',
+            pronoun: { word: 'she', refersTo: 'the librarian', options: ['the cat', 'the children', 'the library'] },
+            inference: {
+                q: 'Why did the librarian prop the door open?',
+                a: 'So the cat could come in and children would read to it',
+                wrong: ['Because the library was too warm', 'To let the shy children leave',
+                    'Because the door was broken'],
+            },
+            mainIdea: {
+                a: 'Something unexpected turned out to help children read',
+                wrong: ['Cats like libraries', 'Librarians do not like animals',
+                    'Reading aloud is difficult'],
+            },
+        },
+        {
+            id: 'seed-jar',
+            text: 'Priya put a bean seed in a jar with damp paper against the glass. Nothing '
+                + 'happened for three days. On the fourth morning a white root had pushed '
+                + 'downwards, and by the end of the week a pale shoot was reaching the other way.',
+            pronoun: { word: 'it', refersTo: 'the seed', options: ['the jar', 'the paper', 'the glass'] },
+            inference: {
+                q: 'Which direction did the root grow?',
+                a: 'Downwards',
+                wrong: ['Upwards', 'Sideways', 'It did not grow'],
+            },
+            mainIdea: {
+                a: 'A seed sprouts, with the root and shoot growing opposite ways',
+                wrong: ['Beans need a jar to grow', 'Priya waited three days',
+                    'Paper holds water well'],
+            },
+        },
+        {
+            id: 'bridge-queue',
+            text: 'The footbridge over the stream was only wide enough for one person. Every '
+                + 'morning a crowd built up on both banks while people edged across. Then someone '
+                + 'painted arrows on the planks, one direction on each side, and the queues melted away.',
+            pronoun: { word: 'someone', refersTo: 'a person who painted the arrows', options: ['the stream', 'the planks', 'the crowd'] },
+            inference: {
+                q: 'Why did the queues disappear?',
+                a: 'The arrows kept people moving the same way at the same time',
+                wrong: ['The bridge was made wider', 'Fewer people used the bridge',
+                    'The stream dried up'],
+            },
+            mainIdea: {
+                a: 'A small change fixed a crowding problem',
+                wrong: ['Footbridges are dangerous', 'Painting is useful',
+                    'Mornings are busy'],
+            },
+        },
+        {
+            id: 'moth-lamp',
+            text: 'Moths gathered round the porch lamp every summer night. Ada read that moths '
+                + 'steer by keeping the moon at a fixed angle, and that a nearby lamp confuses '
+                + 'that trick into a tightening spiral. She started switching the lamp off.',
+            pronoun: { word: 'she', refersTo: 'Ada', options: ['the moon', 'a moth', 'the lamp'] },
+            inference: {
+                q: 'Why did Ada start switching the lamp off?',
+                a: 'Because the lamp was confusing the moths',
+                wrong: ['To save electricity', 'Because the porch was too bright to sleep',
+                    'Because she disliked moths'],
+            },
+            mainIdea: {
+                a: 'Learning why moths circle a lamp changed what Ada did',
+                wrong: ['Moths come out in summer', 'The moon is useful for navigation',
+                    'Porch lamps attract insects'],
+            },
+        },
+        {
+            id: 'wrong-bus',
+            text: 'Noor got on the 14 instead of the 41. She noticed at the third stop, when the '
+                + 'bus turned away from the park rather than towards it. Rather than panic she '
+                + 'stayed on until the next stop, crossed the road, and waited for one going back.',
+            pronoun: { word: 'it', refersTo: 'the park', options: ['the bus', 'the road', 'the stop'] },
+            inference: {
+                q: 'How did Noor realise she was on the wrong bus?',
+                a: 'The bus turned away from the park instead of towards it',
+                wrong: ['Someone told her', 'She checked the number again',
+                    'The bus stopped running'],
+            },
+            mainIdea: {
+                a: 'Noor notices a mistake and calmly sorts it out',
+                wrong: ['Buses are often late', 'The 14 and the 41 look alike',
+                    'The park is far away'],
+            },
+        },
     ];
 
     // ---- grammar ---------------------------------------------------------------

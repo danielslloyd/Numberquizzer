@@ -29,7 +29,12 @@
     }
 
     G['comp.anaphora'] = function (rng) {
-        const p = rng.pick(L.passages);
+        // Only passages carrying a real pronoun with real alternatives. A passage
+        // without them would produce a question with one option, which is not a
+        // question.
+        const usable = L.passages.filter((x) => x.pronoun && x.pronoun.refersTo
+            && x.pronoun.options && x.pronoun.options.length >= 2);
+        const p = rng.pick(usable);
         const q = 'In this passage, who or what does "' + p.pronoun.word + '" refer to?';
         return genMc(rng, {
             stem: p.text + ' — ' + q,
