@@ -33,7 +33,16 @@ if (!nodes.length) {
 
 const byId = new Map();
 const VALID_TYPES = new Set(['numeric', 'mc', 'multi', 'text', 'tap-token', 'tap-region',
-    'order', 'match', 'numberline', 'build', 'sort-bins', 'cloze', 'fraction']);
+    'order', 'match', 'numberline', 'build', 'sort-bins', 'cloze', 'fraction', 'speech', 'sound']);
+
+/*
+ * Nodes barred from ever asking to be read aloud. A microphone hears sounds, so
+ * it cannot tell "knot" from "not", "their" from "there", or a missing
+ * apostrophe from a present one — and those distinctions are exactly what these
+ * nodes exist to assess. A read-aloud item here would mark correct answers
+ * wrong, so it is a hard error rather than a judgement call.
+ */
+const NO_SPEECH = /^(spell\.|vocab\.homophone|vocab\.homograph|gram\.apostrophe)/;
 
 // ---- shape + uniqueness -------------------------------------------------
 nodes.forEach((n) => {
@@ -51,6 +60,10 @@ nodes.forEach((n) => {
     (n.types || []).forEach((t) => {
         if (!VALID_TYPES.has(t)) errors.push(`${where}: unknown item type "${t}"`);
     });
+    if ((n.types || []).indexOf('speech') >= 0 && NO_SPEECH.test(n.id)) {
+        errors.push(`${where}: declares "speech", but a microphone cannot hear the `
+            + 'distinction this node assesses — see NO_SPEECH');
+    }
     if (!n.id.startsWith(n.strand + '.')) {
         warnings.push(`${where}: id does not start with its strand prefix "${n.strand}."`);
     }

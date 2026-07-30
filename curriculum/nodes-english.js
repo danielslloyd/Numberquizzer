@@ -74,74 +74,74 @@
 
         { id: 'phon.shortVowels', label: 'The five short vowel sounds',
           prereq: ['phon.letterNames', 'pa.isolate'], automaticity: { targetMs: 2500 },
-          types: ['mc'], params: { audio: true },
+          types: ['mc', 'sound'], params: { audio: true },
           misconceptions: ['confuses short e and short i'],
           provenance: { ccss: ['RF.K.3b'] } },
 
         { id: 'phon.cvc', label: 'Read short-vowel words like cat and hop',
           prereq: ['phon.consonants', 'phon.shortVowels', 'pa.blend'],
-          types: ['mc', 'text'], practice: ['sorting'],
+          types: ['mc', 'text', 'speech'], practice: ['sorting'],
           provenance: { ccss: ['RF.K.3d', 'RF.1.3b'] } },
 
         { id: 'phon.digraphs', label: 'Two letters, one sound — sh, ch, th, ck',
-          prereq: ['phon.cvc'], types: ['mc', 'text'], practice: ['sorting'],
+          prereq: ['phon.cvc'], types: ['mc', 'text', 'speech'], practice: ['sorting'],
           misconceptions: ['sounds each letter of the digraph separately'],
           provenance: { ccss: ['RF.1.3a'] } },
 
         { id: 'phon.blends.initial', label: 'Blends at the start — st, bl, tr',
-          prereq: ['phon.cvc', 'pa.segment'], types: ['mc', 'text'],
+          prereq: ['phon.cvc', 'pa.segment'], types: ['mc', 'text', 'speech'],
           misconceptions: ['drops the second letter of the blend — reads "top" for "stop"'],
           provenance: { ccss: ['RF.1.2b'] } },
 
         { id: 'phon.blends.final', label: 'Blends at the end — nd, st, mp',
-          prereq: ['phon.blends.initial'], types: ['mc', 'text'],
+          prereq: ['phon.blends.initial'], types: ['mc', 'text', 'speech'],
           provenance: { ccss: ['RF.1.2b'] } },
 
         { id: 'phon.ffllss', label: 'Doubling f, l and s at the end', tier: 2,
-          prereq: ['phon.cvc'], types: ['mc', 'text'],
+          prereq: ['phon.cvc'], types: ['mc', 'text', 'speech'],
           provenance: { ccss: ['RF.1.3'] } },
 
         { id: 'phon.vce', label: 'Silent e makes the vowel say its name',
-          prereq: ['phon.cvc', 'phon.digraphs'], types: ['mc', 'text'], practice: ['sorting'],
+          prereq: ['phon.cvc', 'phon.digraphs'], types: ['mc', 'text', 'speech'], practice: ['sorting'],
           misconceptions: ['reads the silent e aloud', 'ignores it and reads cap for cape'],
           provenance: { ccss: ['RF.1.3c'] } },
 
         { id: 'phon.vowelTeams.long', label: 'Vowel teams — ai, ee, oa, igh',
-          prereq: ['phon.vce'], types: ['mc', 'text'], practice: ['sorting'],
+          prereq: ['phon.vce'], types: ['mc', 'text', 'speech'], practice: ['sorting'],
           provenance: { ccss: ['RF.1.3c', 'RF.2.3b'] } },
 
         { id: 'phon.vowelTeams.more', label: 'More vowel teams — oo, ew, au, aw',
-          prereq: ['phon.vowelTeams.long'], types: ['mc', 'text'], practice: ['sorting'],
+          prereq: ['phon.vowelTeams.long'], types: ['mc', 'text', 'speech'], practice: ['sorting'],
           provenance: { ccss: ['RF.2.3b'] } },
 
         { id: 'phon.vowelTeams.exceptions', label: 'When a vowel team changes its sound', tier: 2,
-          prereq: ['phon.vowelTeams.more'], types: ['mc', 'sort-bins'],
+          prereq: ['phon.vowelTeams.more'], types: ['mc', 'sort-bins', 'speech'],
           misconceptions: ['applies one sound to ea everywhere — reads "bread" as "breed"'],
           provenance: { ccss: ['RF.2.3e'] } },
 
         { id: 'phon.rControlled', label: 'When r changes the vowel — ar, or, er, ir, ur',
-          prereq: ['phon.vowelTeams.long'], types: ['mc', 'text'], practice: ['sorting'],
+          prereq: ['phon.vowelTeams.long'], types: ['mc', 'text', 'speech'], practice: ['sorting'],
           misconceptions: ['tries to give the vowel its short sound before the r'],
           provenance: { ccss: ['RF.2.3b', 'RF.2.3e'], note: 'no explicit CCSS home; placement is convention' } },
 
         { id: 'phon.diphthongs', label: 'Gliding vowels — oi, oy, ou, ow',
-          prereq: ['phon.vowelTeams.more'], types: ['mc', 'text'],
+          prereq: ['phon.vowelTeams.more'], types: ['mc', 'text', 'speech'],
           provenance: { ccss: ['RF.2.3b'], note: 'no explicit CCSS home; placement is convention' } },
 
         { id: 'phon.softCG', label: 'Soft c and soft g', tier: 2,
-          prereq: ['phon.digraphs'], types: ['mc', 'sort-bins'],
+          prereq: ['phon.digraphs'], types: ['mc', 'sort-bins', 'speech'],
           provenance: { ccss: ['RF.2.3e'], note: 'no explicit CCSS home; placement is convention' } },
 
         { id: 'phon.tchDge', label: 'tch and dge after a short vowel', tier: 2,
-          prereq: ['phon.digraphs'], types: ['mc', 'text'],
+          prereq: ['phon.digraphs'], types: ['mc', 'text', 'speech'],
           provenance: { ccss: ['RF.2.3e'] } },
 
         { id: 'phon.silentLetters', label: 'Silent letters — kn, wr, mb', tier: 2,
-          prereq: ['phon.digraphs'], types: ['mc', 'text'],
+          prereq: ['phon.digraphs'], types: ['mc', 'text', 'speech'],
           provenance: { ccss: ['RF.2.3e'] } },
 
         { id: 'phon.yAsVowel', label: 'When y acts as a vowel', tier: 2,
-          prereq: ['phon.vowelTeams.long'], types: ['mc', 'sort-bins'],
+          prereq: ['phon.vowelTeams.long'], types: ['mc', 'sort-bins', 'speech'],
           provenance: { ccss: ['RF.2.3b'] } },
 
         { id: 'phon.inflections', label: 'Reading -s, -ed and -ing endings',
@@ -155,7 +155,7 @@
           provenance: { ccss: ['RF.3.3c', 'RF.4.3a'] } },
 
         { id: 'phon.consonantLe', label: 'The -le ending', tier: 2,
-          prereq: ['phon.syllableTypes'], types: ['mc', 'text'],
+          prereq: ['phon.syllableTypes'], types: ['mc', 'text', 'speech'],
           provenance: { ccss: ['RF.3.3c'] } },
 
         { id: 'phon.syllableDivision', label: 'Where to split a long word',
@@ -163,16 +163,16 @@
           provenance: { ccss: ['RF.3.3c', 'RF.4.3a'] } },
 
         { id: 'phon.twoSyllable', label: 'Read two-syllable words',
-          prereq: ['phon.syllableDivision'], types: ['mc', 'text'],
+          prereq: ['phon.syllableDivision'], types: ['mc', 'text', 'speech'],
           provenance: { ccss: ['RF.1.3e', 'RF.2.3c'] } },
 
         { id: 'phon.schwa', label: 'The lazy vowel in unstressed syllables',
-          prereq: ['phon.twoSyllable'], types: ['mc'], params: { audio: true },
+          prereq: ['phon.twoSyllable'], types: ['mc', 'speech'], params: { audio: true },
           misconceptions: ['expects every vowel to keep its full sound'],
           provenance: { ccss: ['RF.3.3c'] } },
 
         { id: 'phon.multisyllable', label: 'Read long unfamiliar words',
-          prereq: ['phon.schwa', 'phon.twoSyllable'], types: ['mc', 'text'],
+          prereq: ['phon.schwa', 'phon.twoSyllable'], types: ['mc', 'text', 'speech'],
           provenance: { ccss: ['RF.3.3c', 'RF.4.3a', 'RF.5.3a'] } },
     ]},
 

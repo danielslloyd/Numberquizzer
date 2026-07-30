@@ -83,6 +83,61 @@
     };
 
     /*
+     * Read it out loud.  opts: {word, accept, stem, prompt, hint, explain, sig}
+     *
+     * The point of this shape is that it has no options to eliminate. "Which word
+     * says /ship/?" hands a child a 25% score for guessing and a much better one
+     * for ruling out the three that obviously aren't it — neither of which
+     * requires decoding anything. "Read this word" cannot be answered any way but
+     * by reading it.
+     *
+     * `accept` is for transcripts a recogniser plausibly returns for a correct
+     * reading — never for words that merely sound similar. Accepting *sheep* for
+     * *ship* would destroy the exact contrast the node exists to measure.
+     */
+    window.genRead = function (opts) {
+        const word = String(opts.word);
+        return {
+            type: 'speech',
+            stem: opts.stem || 'Read this out loud.',
+            prompt: opts.prompt || [{ t: 'text', s: opts.stem || 'Read this out loud.' },
+                                    { t: 'expr', s: word, big: true }],
+            say: word,
+            answer: word,
+            grade: 'spoken',
+            gradeOpts: opts.accept && opts.accept.length ? { accept: opts.accept.slice() } : {},
+            hint: opts.hint,
+            explain: opts.explain,
+            sig: sigOf({ sig: opts.sig || 'read' }, word),
+        };
+    };
+
+    /*
+     * Make the sound.  opts: {vowel, among, stem, hint, explain, sig, names}
+     *
+     * `answer` is a vowel id from audio.js, and `among` is the small set the
+     * mirror draws — a drill asks "is that the a in cat or the a in day", which
+     * is a decision between two or three, not among every vowel in the language.
+     * Narrowing it is not a shortcut: the classifier is markedly more reliable
+     * over a handful of well-separated targets, and that is also the question a
+     * phonics ladder actually asks.
+     */
+    window.genSound = function (opts) {
+        return {
+            type: 'sound',
+            stem: opts.stem,
+            prompt: opts.prompt || [{ t: 'text', s: opts.stem }],
+            among: (opts.among || []).slice(),
+            answer: opts.vowel,
+            grade: 'spoken',
+            gradeOpts: opts.names ? { names: opts.names } : {},
+            hint: opts.hint,
+            explain: opts.explain,
+            sig: sigOf({ sig: opts.sig || 'sound' }, opts.vowel + '|' + (opts.among || []).join(',')),
+        };
+    };
+
+    /*
      * opts: {stem, prompt, right:[labels], wrong:[labels], ...}
      * Shuffled together; `answer` is the list of correct indices.
      */

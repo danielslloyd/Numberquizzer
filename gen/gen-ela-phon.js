@@ -1,9 +1,9 @@
 /*
  * Item generators for phonics and decoding.
  *
- * The awkward constraint here is that decoding is an *oral* skill and this is a
- * silent medium. "Read this word" cannot be graded without audio capture, so
- * these items test decoding indirectly but honestly: matching a vowel sound
+ * Decoding is an *oral* skill. Where a microphone is available these nodes ask
+ * for it directly — see READ_ALOUD at the foot of this file — and where one is
+ * not, they test decoding at one remove but honestly: matching a vowel sound
  * across two written words requires decoding both, and there is no way to answer
  * "which word has the same vowel sound as rain" by looking at letter shapes,
  * because the foils are chosen so the spelling never gives it away.
@@ -76,7 +76,40 @@
         });
     };
 
-    G['phon.shortVowels'] = function (rng) {
+    /*
+     * The five short vowels are where a microphone earns its keep, because they
+     * are the one thing on this ladder that is purely a sound. Every written
+     * item about them is a proxy; making the sound is the skill itself.
+     *
+     * Offered as a choice between two or three neighbours rather than all five —
+     * partly because that is the question ("is that the a in cat or in day"),
+     * and partly because the classifier is markedly steadier over a few
+     * well-separated targets than over the whole vowel space.
+     */
+    const VOWEL_SAY = { 'short-a': 'a as in cat', 'short-e': 'e as in bed',
+        'short-i': 'i as in sit', 'short-o': 'o as in hop', 'short-u': 'u as in cup',
+        'long-e': 'ee as in feet', 'long-oo': 'oo as in moon', 'long-a': 'ay as in day' };
+    const VOWEL_SETS = [
+        ['short-a', 'long-a'], ['short-e', 'long-e'], ['short-i', 'long-e'],
+        ['short-o', 'long-oo'], ['short-u', 'long-oo'],
+        ['short-a', 'short-o'], ['short-i', 'short-u'],
+        ['short-a', 'short-e', 'short-o'],
+    ];
+
+    G['phon.shortVowels'] = function (rng, params) {
+        if (params && params.sound) {
+            const set = rng.pick(VOWEL_SETS);
+            const want = rng.pick(set.filter((id) => id.indexOf('short-') === 0)) || set[0];
+            return genSound({
+                vowel: want,
+                among: set,
+                stem: 'Make the sound "' + VOWEL_SAY[want].split(' as in ')[0]
+                    + '", the one in "' + VOWEL_SAY[want].split(' as in ')[1] + '". Hold it.',
+                names: VOWEL_SAY,
+                explain: 'That is the ' + VOWEL_SAY[want] + ' sound.',
+                sig: 'shortV:sound',
+            });
+        }
         const v = rng.pick(['a', 'e', 'i', 'o', 'u']);
         return sameSound(rng, {
             what: 'middle sound',
@@ -404,6 +437,72 @@
             sig: 'cle:' + word,
         });
     };
+
+    // =====================================================================
+    // READ IT OUT LOUD
+    // =====================================================================
+    /*
+     * Everything above tests decoding at one remove, because for a long time
+     * this was a silent medium. When a microphone is available it is no longer,
+     * and asking a child to read the word is a straightforwardly better question
+     * than asking them to pick it out of four: a four-option item hands over 25%
+     * for guessing and considerably more for eliminating the three that plainly
+     * are not it, and neither route requires decoding anything.
+     *
+     * So: when the caller says a microphone exists, about half the draws for a
+     * word-decoding node become "read this". The other half stay as they were,
+     * because the recogniser will not hear everything and a run that is entirely
+     * read-aloud can stall on a bad microphone.
+     *
+     * Only nodes whose skill really is turning letters into sounds are listed.
+     * phon.letterNames and phon.syllableDivision are not — naming a letter or
+     * splitting a word are not reading it — and no node about *spelling* appears
+     * anywhere here, because a microphone cannot tell "knot" from "not" and that
+     * distinction is the whole of what those nodes assess.
+     */
+    const READ_ALOUD = {
+        'phon.cvc': () => flat(W.cvc),
+        'phon.digraphs': () => flat(W.digraph),
+        'phon.rControlled': () => flat(W.rControlled),
+        'phon.diphthongs': () => flat(W.diphthong),
+        'phon.vowelTeams.long': () => flat(W.vowelTeamLong),
+        'phon.vowelTeams.more': () => flat(W.vowelTeamMore),
+        'phon.vowelTeams.exceptions': () => W.vowelTeamExceptions
+            .reduce((a, x) => a.concat(x.usual, x.odd), []),
+        'phon.blends.initial': () => W.blendInitial,
+        'phon.blends.final': () => W.blendFinal,
+        'phon.vce': () => W.vce,
+        'phon.softCG': () => W.softC.concat(W.hardC, W.softG, W.hardG),
+        'phon.silentLetters': () => flat(W.silent),
+        'phon.yAsVowel': () => flat(W.yVowel),
+        'phon.tchDge': () => flat(W.tchDge),
+        'phon.ffllss': () => W.ffllss,
+        'phon.twoSyllable': () => W.twoSyllable,
+        'phon.multisyllable': () => W.multisyllable,
+        'phon.schwa': () => W.schwa.map((x) => x.w),
+        'phon.consonantLe': () => ['table', 'little', 'apple', 'purple', 'candle',
+            'bubble', 'simple', 'handle'],
+    };
+
+    Object.keys(READ_ALOUD).forEach((id) => {
+        const tap = G[id];
+        if (!tap) return;
+        G[id] = function (rng, params) {
+            // The coin is only tossed when a microphone is in play, so a run
+            // without one draws exactly the items it always did.
+            if (params && params.mic && rng.bool()) {
+                const word = rng.pick(READ_ALOUD[id]() || []);
+                if (word) {
+                    return genRead({
+                        word: word,
+                        accept: W.heard ? (W.heard[word] || []) : [],
+                        sig: id,
+                    });
+                }
+            }
+            return tap(rng, params);
+        };
+    });
 
     if (typeof CUR !== 'undefined') CUR.registerGens('ela-phon', G);
     if (typeof module !== 'undefined' && module.exports) module.exports = G;

@@ -167,9 +167,27 @@
         }
 
         const practice = (n.practice || []).filter((t) => typeof TAB_ENTRY !== 'undefined' && TAB_ENTRY[t]);
+        // Two quite different uses of the microphone. Reading a word aloud is the
+        // assessment itself; saying a number is a shortcut past the keyboard, and
+        // exactly what the flash cards have always done.
+        const hasMic = typeof spSupported === 'function' && spSupported();
+        const hasAudio = typeof auAvailable === 'function' && auAvailable();
+        const canMake = isBuilt && hasAudio && (n.types || []).indexOf('sound') >= 0;
+        const canRead = isBuilt && hasMic && (n.types || []).indexOf('speech') >= 0;
+        const canSay = isBuilt && hasMic && !canRead && !canMake
+            && (n.types || []).indexOf('numeric') >= 0;
+        const anyMic = canMake || canRead || canSay;
+
         html += '<div class="lb-actions">';
         if (isBuilt) {
-            html += '<button class="btn btn-primary" data-act="check">Check</button>';
+            // The microphone leads wherever it is the better question. Picking a
+            // word out of four can be done by elimination without decoding
+            // anything, and no written item about a vowel sound is the vowel
+            // sound — saying it is the skill itself.
+            if (canMake) html += '<button class="btn btn-primary" data-act="make">Make the sounds</button>';
+            else if (canRead) html += '<button class="btn btn-primary" data-act="read">Read aloud</button>';
+            else if (canSay) html += '<button class="btn btn-primary" data-act="read">Say the answers</button>';
+            html += `<button class="btn btn-${anyMic ? 'secondary' : 'primary'}" data-act="check">Check</button>`;
         } else {
             html += '<button class="btn btn-primary" disabled>Not built yet</button>';
         }
@@ -179,6 +197,25 @@
             html += `<button class="btn btn-secondary" data-practice="${esc(t)}">Practise in ${esc(label)}</button>`;
         });
         html += '</div>';
+
+        // Said plainly rather than buried: on most browsers speech recognition
+        // is a network service, so the audio leaves the device. A parent should
+        // be able to know that before handing over a microphone.
+        // The difference between the two microphone routes is worth stating,
+        // because one of them sends a child's voice to a server and the other
+        // genuinely cannot.
+        if (canMake) {
+            html += '<p class="lb-mic-note">This listens to the shape of the sound rather '
+                + 'than trying to recognise a word, so the audio never leaves this device. '
+                + 'There is a short warm-up the first time, to learn your voice.</p>';
+        } else if (canRead || canSay) {
+            html += '<p class="lb-mic-note">'
+                + (canSay ? 'Saying an answer only ever counts in your favour — if it is '
+                    + 'misheard, nothing happens and you can type instead. It uses your '
+                    : 'This uses your ')
+                + 'browser\'s speech recognition, which on most browsers sends the audio '
+                + 'away to be recognised. Everything else in the app stays on this device.</p>';
+        }
 
         $('lb-node-body').innerHTML = html;
     }
@@ -431,9 +468,14 @@
             }
 
             const act = e.target.closest('[data-act]');
-            if (act && act.dataset.act === 'check') {
+            if (act && /^(check|read|make)$/.test(act.dataset.act)) {
                 const id = (location.hash.split('/')[2] || '').trim();
-                if (id) irStart({ nodeIds: [id], count: 10, mode: 'assess' });
+                // The microphone is asked for here, on a deliberate tap, and
+                // never on arriving at the screen. A permission dialog nobody
+                // expected gets dismissed once and stays dismissed.
+                if (id) irStart({ nodeIds: [id], count: 10, mode: 'assess',
+                                  mic: act.dataset.act === 'read',
+                                  sound: act.dataset.act === 'make' });
                 return;
             }
 

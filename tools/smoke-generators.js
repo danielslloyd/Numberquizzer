@@ -449,6 +449,143 @@ if (phonicsPack && window.WORDS && window.WORDS.soundClassIn) {
     }
 }
 
+// ---- read-aloud items ---------------------------------------------------------
+/*
+ * These only appear when the caller says a microphone exists, so the main loop
+ * above never sees one. Everything here is about the ways a read-aloud item can
+ * quietly stop measuring what it claims to.
+ *
+ * The sharpest of them is the accept list. It exists because a recogniser has to
+ * guess which spelling of a sound was meant, and a child who reads "knot"
+ * correctly may well get back "not". But an accept entry that is *also a
+ * different word in the same node's bank* would let a genuine misread grade
+ * correct — the node would still pass every other assertion while measuring
+ * nothing at all.
+ */
+const NO_SPEECH_RE = /^(spell\.|vocab\.homophone|vocab\.homograph|gram\.apostrophe)/;
+const AUDIO = require(path.join(__dirname, '..', 'audio.js'));
+// Enough draws to see a node's whole read-aloud vocabulary rather than a sample
+// of it — the accept-list collision check compares against that vocabulary, and
+// a half-populated bank turns a real failure into a coin toss.
+const MIC_DRAWS = 600;
+let speechItems = 0;
+const speechNodes = new Set();
+
+generators.forEach((entry, nodeId) => {
+    const node = byId.get(nodeId);
+    if (!node) return;
+    // Both microphone routes at once — a recogniser for words, on-device
+    // analysis for sounds. Neither appears without being asked for, so the main
+    // loop above has never seen either.
+    const params = Object.assign({}, node.params || {}, { mic: true, sound: true });
+
+    const drawn = [];
+    for (let i = 0; i < MIC_DRAWS; i++) {
+        const seed = 4000 + i * 7919;
+        let it;
+        try { it = entry.fn(makeRng(seed), params); } catch (e) {
+            failures.push(`${nodeId} seed ${seed} (mic): threw — ${e.message}`);
+            continue;
+        }
+        if (it && (it.type === 'speech' || it.type === 'sound')) drawn.push({ item: it, seed: seed });
+    }
+    if (!drawn.length) return;
+
+    const bank = new Set(drawn.map((d) => String(d.item.answer).toLowerCase()));
+
+    drawn.forEach(({ item, seed }) => {
+        speechItems++;
+        speechNodes.add(nodeId);
+
+        if (NO_SPEECH_RE.test(nodeId)) {
+            failures.push(`${nodeId}: emits a read-aloud item, but a microphone cannot`
+                + ' hear the distinction this node assesses');
+        }
+        if (!node.types || node.types.indexOf(item.type) === -1) {
+            failures.push(`${nodeId}: emits "${item.type}" but the node does not declare it`);
+        }
+        if (item.grade !== 'spoken') {
+            failures.push(`${nodeId} seed ${seed}: microphone item graded by "${item.grade}"`);
+        }
+
+        // A sound item draws a set of targets and expects one of them. An answer
+        // that is not among the options it shows is unanswerable — and would
+        // still pass every other check here, since it grades its own answer
+        // perfectly well.
+        if (item.type === 'sound') {
+            if (!Array.isArray(item.among) || item.among.length < 2) {
+                failures.push(`${nodeId} seed ${seed}: a sound item needs at least two targets`);
+            } else if (item.among.indexOf(item.answer) === -1) {
+                failures.push(`${nodeId} seed ${seed}: answer "${item.answer}" is not among the `
+                    + `targets it shows [${item.among}]`);
+            } else {
+                const known = new Set(AUDIO.auVowels.map((v) => v.id));
+                item.among.forEach((id) => {
+                    if (!known.has(id)) {
+                        failures.push(`${nodeId} seed ${seed}: target "${id}" is not a vowel audio.js knows`);
+                    }
+                });
+                // Two targets the classifier cannot tell apart make an item that
+                // cannot be answered reliably however well the child says it.
+                for (let a = 0; a < item.among.length; a++) {
+                    for (let b = a + 1; b < item.among.length; b++) {
+                        const va = AUDIO.auVowels.find((v) => v.id === item.among[a]);
+                        const vb = AUDIO.auVowels.find((v) => v.id === item.among[b]);
+                        if (!va || !vb) continue;
+                        const pa = AUDIO.auNormalise(va.f1, va.f2, AUDIO.auCorners);
+                        const pb = AUDIO.auNormalise(vb.f1, vb.f2, AUDIO.auCorners);
+                        const gap = Math.hypot(pa.x - pb.x, pa.y - pb.y);
+                        if (gap < 0.18) {
+                            failures.push(`${nodeId} seed ${seed}: "${item.among[a]}" and `
+                                + `"${item.among[b]}" are ${gap.toFixed(2)} apart in vowel space `
+                                + '— too close to ask a child to choose between');
+                        }
+                    }
+                }
+            }
+        }
+
+        const answer = String(item.answer);
+        // Said correctly — both the bare and the wrapped response shape.
+        if (!GRADERS.spoken(answer, item).correct
+            || !GRADERS.spoken({ heard: answer }, item).correct) {
+            failures.push(`${nodeId} seed ${seed}: its own answer "${answer}" does not grade correct`);
+        }
+        // Heard nothing — no evidence, so nothing may be recorded.
+        const silence = GRADERS.spoken({ heard: null }, item);
+        if (silence.evidence !== false || silence.correct) {
+            failures.push(`${nodeId} seed ${seed}: silence must produce no evidence, got `
+                + JSON.stringify(silence));
+        }
+        // Heard a different word — that IS evidence, and it is wrong.
+        const other = GRADERS.spoken({ heard: 'elephant marmalade' }, item);
+        if (other.correct || other.evidence === false) {
+            failures.push(`${nodeId} seed ${seed}: a clearly different word must grade wrong `
+                + 'with evidence, got ' + JSON.stringify(other));
+        }
+
+        const accept = (item.gradeOpts && item.gradeOpts.accept) || [];
+        accept.forEach((a) => {
+            const norm = String(a).toLowerCase();
+            if (String(a) !== norm) {
+                failures.push(`${nodeId}: accept entry "${a}" is not lowercase`);
+            }
+            if (norm === answer.toLowerCase()) {
+                failures.push(`${nodeId}: accept entry "${a}" repeats the answer`);
+            }
+            if (bank.has(norm)) {
+                failures.push(`${nodeId}: accepts "${a}" for "${answer}", but "${a}" is another`
+                    + ' word this node asks for — a real misread would grade correct');
+            }
+        });
+        if (new Set(accept).size !== accept.length) {
+            failures.push(`${nodeId}: duplicate accept entries for "${answer}"`);
+        }
+    });
+});
+
+console.log(`\nRead-aloud: ${speechItems} items across ${speechNodes.size} nodes.`);
+
 // ---- item variety -------------------------------------------------------------
 /*
  * How many distinct questions can each generator actually produce? A node backed

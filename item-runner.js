@@ -29,7 +29,14 @@
         items: [], idx: 0, results: [],
         mode: 'practice', nodeIds: [], onDone: null,
         shownAt: 0, startedAt: 0, locked: false, type: null,
+        mic: false, reserve: [], unheard: 0, advanceAt: null,
     };
+
+    // Three items in a row that the microphone could not hear is not a learner
+    // problem — it is a broken microphone, a noisy room, or a browser that says
+    // it has speech recognition and does not. Stop asking and finish the run on
+    // tap, rather than making a child fight the hardware.
+    const UNHEARD_LIMIT = 3;
 
     function $(id) { return document.getElementById(id); }
 
@@ -51,10 +58,11 @@
 
     // ---- lifecycle -------------------------------------------------------
     /*
-     * opts: {nodeIds, count, mode, seed, onDone}
+     * opts: {nodeIds, count, mode, seed, mic, onDone}
      *   mode 'practice' — explanations shown, no session record
      *   mode 'assess'   — explanations shown, session recorded
      *   mode 'review'   — drawn from the due queue
+     *   mic            — ask generators for read-aloud items where they have them
      */
     function irStart(opts) {
         const o = opts || {};
@@ -65,7 +73,17 @@
         S.idx = 0;
         S.results = [];
         S.locked = false;
+        S.type = null;
+        S.unheard = 0;
+        clearTimeout(S.advanceAt);
+        S.advanceAt = null;
+        S.reserve = [];
         S.startedAt = Date.now();
+        S.mic = !!o.mic && typeof spSupported === 'function' && spSupported();
+        // A separate switch from `mic`, because it is a separate instrument:
+        // `mic` asks a recogniser for words, `sound` measures the signal here on
+        // the device. A browser can have one and not the other.
+        S.sound = !!o.sound && typeof auAvailable === 'function' && auAvailable();
 
         if (!S.nodeIds.length) { console.error('irStart: no nodes'); return; }
 
@@ -76,14 +94,31 @@
         $('ir-feedback').className = 'ir-feedback';
 
         const perNode = Math.max(1, Math.ceil((o.count || 10) / S.nodeIds.length));
-        const draws = S.nodeIds.map((id) => CUR.generate(id, perNode, o.seed).catch((err) => {
-            console.error(err);
-            return [];
-        }));
+        const draw = (extra, seed) => S.nodeIds.map((id) => CUR.generate(id, perNode, seed, extra)
+            .catch((err) => { console.error(err); return []; }));
 
-        Promise.all(draws).then((batches) => {
+        const extra = {};
+        if (S.mic) extra.mic = true;
+        if (S.sound) extra.sound = true;
+        const draws = draw(Object.keys(extra).length ? extra : undefined, o.seed);
+
+        // A parallel set of tap items, drawn up front so they are there the
+        // instant they are needed. An item the microphone could not hear yields
+        // no evidence, so the run has to be one item longer to have asked the
+        // same number of real questions — and if the microphone turns out to be
+        // useless, the rest of the run switches to these rather than stalling.
+        const spares = (S.mic || S.sound)
+            ? Promise.all(draw({ mic: false, sound: false },
+                o.seed === undefined ? undefined : o.seed + 7919))
+            : Promise.resolve([]);
+
+        Promise.all([Promise.all(draws), spares]).then(([batches, spareBatches]) => {
             let all = [];
             batches.forEach((b) => { all = all.concat(b); });
+            spareBatches.forEach((b) => {
+                S.reserve = S.reserve.concat(
+                    b.filter((i) => i.type !== 'speech' && i.type !== 'sound'));
+            });
 
             if (!all.length) {
                 $('ir-body').innerHTML =
@@ -104,7 +139,17 @@
 
     function current() { return S.items[S.idx]; }
 
+    /* A type that holds a resource — the microphone, a timer, an audio graph —
+     * gives it back here. Called before every render and on the way out, so a
+     * type can never leak past its own item. */
+    function teardown() {
+        if (S.type && S.type.teardown) {
+            try { S.type.teardown($('ir-response-host')); } catch (e) { console.error(e); }
+        }
+    }
+
     function irRender() {
+        teardown();
         const item = current();
         if (!item) return irEnd();
 
@@ -123,7 +168,7 @@
 
         const host = $('ir-response-host');
         host.dataset.locked = '0';
-        S.type.render(host, item, { submit: irSubmit });
+        S.type.render(host, item, { submit: irSubmit, mic: S.mic });
         if (S.type.focus) S.type.focus(host);
 
         $('ir-feedback').textContent = '';
@@ -131,6 +176,10 @@
         $('ir-submit').classList.toggle('hidden', !!S.type.autoSubmit);
         $('ir-next').classList.add('hidden');
         $('ir-hint').classList.toggle('hidden', !item.hint);
+        // Speaking the prompt of a read-aloud item would say the word, turning
+        // decoding into repetition. Hidden while the question is live, offered
+        // again once it has been graded — which is exactly when hearing it helps.
+        $('ir-speak').classList.toggle('hidden', item.type === 'speech' || item.type === 'sound');
 
         S.locked = false;
         S.shownAt = Date.now();
@@ -160,13 +209,20 @@
         host.dataset.locked = '1';
         if (S.type.reveal) S.type.reveal(host, item);
 
+        // A grader may decline to produce evidence — today only `spoken`, when
+        // the microphone heard nothing at all. Nothing is recorded, because a
+        // silence says something about the room and nothing about the reader.
+        if (verdict.evidence === false) return unheard(item);
+
         prRecord(item.node, {
             correct: verdict.correct,
             partial: verdict.partial,
             ms: ms,
-            src: 'runner',
+            src: (item.type === 'speech' || item.type === 'sound') ? 'runner-mic' : 'runner',
         });
         S.results.push({ node: item.node, correct: verdict.correct, partial: verdict.partial, ms: ms });
+
+        $('ir-speak').classList.remove('hidden');
 
         const fb = $('ir-feedback');
         if (verdict.correct) {
@@ -185,7 +241,46 @@
 
         // A correct answer moves on by itself; a wrong one waits, because the
         // correct answer sitting next to your own is most of the value.
-        if (verdict.correct) setTimeout(() => { if (S.locked) irNext(); }, 700);
+        //
+        // The handle matters. Pressing Next yourself before the beat is up used
+        // to leave this timer running, and if you then answered the NEXT item
+        // inside the same 700 ms it fired against that one and skipped it — a
+        // question silently lost, and more likely the faster you are.
+        if (verdict.correct) S.advanceAt = setTimeout(() => { if (S.locked) irNext(); }, 700);
+    }
+
+    /* The microphone heard nothing. Record nothing, add an item back so the run
+     * still asks as many real questions as it promised, and give up on the
+     * microphone entirely once it has failed enough times to be the problem. */
+    function unheard(item) {
+        S.unheard++;
+        if (S.reserve.length) S.items.push(S.reserve.shift());
+
+        const giveUp = (S.mic || S.sound) && S.unheard >= UNHEARD_LIMIT;
+        if (giveUp) {
+            S.mic = false;
+            S.sound = false;
+            // Swap every item that needs the microphone for a tap one.
+            const needsMic = (t) => t === 'speech' || t === 'sound';
+            for (let i = S.idx + 1; i < S.items.length; i++) {
+                if (needsMic(S.items[i].type) && S.reserve.length) S.items[i] = S.reserve.shift();
+            }
+            S.items = S.items.filter((it, i) => i <= S.idx || !needsMic(it.type));
+        }
+
+        $('ir-speak').classList.remove('hidden');
+        const fb = $('ir-feedback');
+        // The word itself is already shown by the type's own reveal, so this
+        // says only the part the learner cannot see: that it did not count.
+        fb.innerHTML = '<strong>I didn\'t hear that.</strong> '
+            + idrEscape(giveUp
+                ? 'Let\'s carry on by tapping instead.'
+                : 'It hasn\'t been counted against you.');
+        fb.className = 'ir-feedback ir-fb-nudge';
+
+        $('ir-submit').classList.add('hidden');
+        $('ir-next').classList.remove('hidden');
+        $('ir-next').focus();
     }
 
     function answerText(item) {
@@ -205,12 +300,15 @@
     function pickPraise() { return PRAISE[praiseAt++ % PRAISE.length]; }
 
     function irNext() {
+        clearTimeout(S.advanceAt);
+        S.advanceAt = null;
         S.locked = false;
         S.idx++;
         irRender();
     }
 
     function irEnd() {
+        teardown();
         const total = S.results.length;
         const right = S.results.filter((r) => r.correct).length;
         const secs = Math.round((Date.now() - S.startedAt) / 1000);
@@ -318,6 +416,7 @@
             fb.className = 'ir-feedback ir-fb-nudge';
         });
         $('ir-quit').addEventListener('click', () => {
+            teardown();
             prFlush();
             if (window.lbBack) lbBack(); else showScreen('home');
         });

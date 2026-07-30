@@ -292,6 +292,55 @@
         ],
     };
 
+    /*
+     * What a speech recogniser plausibly returns for a CORRECT reading.
+     *
+     * Read-aloud items measure decoding — did the child turn these letters into
+     * the right sounds. A recogniser returns *words*, so when two words sound
+     * identical it has to guess which one was meant, and it guesses on context
+     * we deliberately have not given it. A child who reads "knot" perfectly gets
+     * back "not", and marking that wrong would be marking the recogniser's
+     * ignorance against the child.
+     *
+     * Two rules keep this honest:
+     *
+     *   Only true homophones. Never a word that merely sounds similar. Accepting
+     *   "sheep" for "ship" would destroy the exact contrast the node measures.
+     *
+     *   Never on a spelling node. Telling "knot" from "not" is precisely what
+     *   spell.* and vocab.homophone assess, and a microphone cannot do it at
+     *   all — which is why those nodes are barred from read-aloud entirely.
+     *
+     * Digits are here for a duller reason: recognisers normalise number words to
+     * numerals, so "seven" comes back as "7" without anything having gone wrong.
+     *
+     * This is a first table built from predictable behaviour. Tuning it properly
+     * needs a real microphone and a real child, and the list should grow from
+     * transcripts rather than from guesses.
+     */
+    W.heard = {
+        // true homophones
+        know: ['no'], knot: ['not'], knew: ['new'], new: ['knew'],
+        night: ['knight'], write: ['right'], right: ['write', 'rite'], wrap: ['rap'],
+        won: ['one', '1'], some: ['sum'], sun: ['son'], for: ['four', '4'],
+        mail: ['male'], mane: ['main'], rain: ['reign', 'rein'], road: ['rode'],
+        beach: ['beech'], feet: ['feat'], flew: ['flu', 'flue'], through: ['threw'],
+        bread: ['bred'], red: ['read'], sight: ['site', 'cite'], sign: ['sine'],
+        horse: ['hoarse'], flower: ['flour'], cent: ['scent', 'sent'], sauce: ['source'],
+        which: ['witch'], whale: ['wail'], wheel: ["we'll"], wood: ['would'],
+        loud: ['allowed', 'aloud'], lie: ['lye'], tie: ['thai'], die: ['dye'],
+        died: ['dyed'], plane: ['plain'], sale: ['sail'], week: ['weak'],
+
+        // recognisers normalise number words to numerals, which is not an error
+        one: ['won', '1'], two: ['2'], ten: ['10'], seven: ['7'],
+        thirty: ['30'], third: ['3rd'], first: ['1st'],
+    };
+
+    /** Every spelling a correct reading of `word` might come back as. */
+    W.heardAs = function (word) {
+        return (W.heard[String(word).toLowerCase()] || []).slice();
+    };
+
     window.WORDS = W;
     if (typeof module !== 'undefined' && module.exports) module.exports = W;
 })();

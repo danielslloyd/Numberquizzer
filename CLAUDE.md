@@ -27,6 +27,8 @@ gen/                          item generators, lazily loaded; manifest.js is gen
 content/                      word and language banks
 item-draw.js item-types.js item-gen-helpers.js item-runner.js
 progress.js library.js learn.css storage.js
+speech.js                     THE page's one SpeechRecognition, claimed by token
+audio.js                      on-device vowel/sibilant analysis (no network)
 
 parser.js animator.js physics.js physics-worker.js   visualizer
 language-arts.js + .css       lazily loaded plug-in
@@ -63,11 +65,22 @@ Constraints:
 `bestTime_<sorted-ops-csv>_<max>` — one record per exact operation+range combination.
 
 ### Speech recognition
-- `continuous: true`, `interimResults: true`
-- `onresult` fires on every interim/final result; only the latest result is examined
+**One microphone, therefore one recogniser.** `speech.js` owns it; everything
+else borrows it by claim. **Never construct a second `SpeechRecognition`** — two
+instances fight over the input stream and the loser fails in a way that reads as
+the recogniser being flaky.
+
+```js
+const tok = spListen({ onText, onEnd, lang, alternatives, indicator });
+spRelease(tok);      // stale tokens are ignored, so releasing twice is safe
+```
+
+- A new claim supersedes the old one and tells it so via `onEnd('superseded')`
+- `onText` fires on every interim *and* final result, with all alternatives
+- Restarts are the module's problem, not the caller's; callers never see `onend`
 - `findNumberInSpeech()` scans all 1/2/3-word n-grams for a recognisable number
-- `onend` auto-restarts within 100ms while `state.quizActive`; stops cleanly on `endQuiz()`
-- Falls back to typed input (`#typed-section`) when `SpeechRecognition` is unavailable
+- Flash cards fall back to typed input (`#typed-section`) with no recogniser;
+  the Learn runner falls back to tap items — see `docs/learn.md`
 
 ### Card flip animation
 `flipCard(callback)`:
@@ -107,7 +120,8 @@ each plug-in's `injectTab` skips a button that already exists.
 ## Prefix table
 
 Every module namespaces its globals. Taken: `ws tg tt fr mn pv pg viz la gp sb`
-(activities) and `cur ir lb pr st idr gen` (Learn). Pick a free one.
+(activities), `cur ir lb pr st idr gen` (Learn), and `sp` (the shared
+recogniser) and `au` (on-device audio analysis). Pick a free one.
 
 ## Storage
 
