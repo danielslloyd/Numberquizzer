@@ -16,8 +16,8 @@ const { chromium } = require('playwright');
 const BASE = process.env.SMOKE_URL || 'http://localhost:8765/index.html';
 
 const EAGER_TABS = ['flashcards', 'worksheets', 'sorting', 'ciphers', 'make-ten',
-    'ten-frame', 'times-grid', 'fractions', 'money', 'visualizer', 'sudoku'];
-const LAZY_TABS = ['la-vocab', 'la-cap', 'la-punct', 'la-subj', 'la-diag', 'geo-proofs'];
+    'ten-frame', 'times-grid', 'fractions', 'money', 'visualizer', 'place-value', 'sudoku'];
+const LAZY_TABS = ['la-vocab', 'la-cap', 'la-punct', 'la-subj', 'la-diag', 'geo-proofs', 'polygons'];
 
 const results = [];
 function check(name, ok, detail) {
@@ -46,6 +46,7 @@ function check(name, ok, detail) {
     const fetched = (name) => requested.some((u) => u.includes(name));
     check('geometry-proofs.js not fetched at boot', !fetched('geometry-proofs.js'));
     check('language-arts.js not fetched at boot', !fetched('language-arts.js'));
+    check('polygons.js not fetched at boot', !fetched('polygons.js'));
     check('app.js fetched at boot', fetched('app.js'));
     check('nodes-math.js fetched at boot', fetched('nodes-math.js'));
 
@@ -74,7 +75,7 @@ function check(name, ok, detail) {
 
     // ---- tab bar ------------------------------------------------------
     const tabs = await page.$$eval('#tab-bar .tab-btn', (els) => els.map((e) => e.dataset.tab));
-    check('all 18 tabs present', tabs.length === 18, 'got ' + tabs.length + ': ' + tabs.join(','));
+    check('all 20 tabs present', tabs.length === 20, 'got ' + tabs.length + ': ' + tabs.join(','));
     check('no duplicate tab buttons', new Set(tabs).size === tabs.length);
     check('lazy tabs in place', LAZY_TABS.every((t) => tabs.includes(t)));
 
@@ -83,10 +84,14 @@ function check(name, ok, detail) {
     check('section bar has four sections',
         JSON.stringify(sections) === JSON.stringify(['learn', 'maths', 'english', 'tools']),
         JSON.stringify(sections));
-    check('app opens on Learn',
-        await page.evaluate(() => (document.querySelector('.screen.active') || {}).id === 'lb-strands-screen'));
+    check('app opens on Maths',
+        await page.evaluate(() => (document.querySelector('.screen.active') || {}).id === 'home-screen'
+            && document.querySelector('.section-btn.active').dataset.section === 'maths'));
     check('Learn hides the activity row entirely',
-        await page.evaluate(() => document.getElementById('tab-bar').classList.contains('hidden')));
+        await page.evaluate(() => {
+            lbApplySection('learn', { enter: true });
+            return document.getElementById('tab-bar').classList.contains('hidden');
+        }));
 
     // Every tab must be reachable through exactly one section, and an unlisted
     // tab must still land somewhere rather than vanishing.
@@ -99,7 +104,7 @@ function check(name, ok, detail) {
         return out;
     });
     const covered = Object.keys(coverage).reduce((n, k) => n + coverage[k].length, 0);
-    check('every tab belongs to a section', covered === 18, JSON.stringify(coverage));
+    check('every tab belongs to a section', covered === 20, JSON.stringify(coverage));
 
     // ---- every eager tab opens and highlights --------------------------
     for (const tab of EAGER_TABS) {
@@ -139,7 +144,7 @@ function check(name, ok, detail) {
     }));
     check('proofs screen opened after lazy load', gpState.screen === 'geo-proofs-screen', JSON.stringify(gpState));
     check('proofs tab highlighted', gpState.highlighted);
-    check('lazy load did not duplicate the tab', gpState.gpTabs === 1 && gpState.tabCount === 18,
+    check('lazy load did not duplicate the tab', gpState.gpTabs === 1 && gpState.tabCount === 20,
         JSON.stringify(gpState));
 
     await page.evaluate((t) => lbApplySection(window.ACTIVITY_SECTION[t] || 'tools'), 'la-vocab');
@@ -151,7 +156,187 @@ function check(name, ok, detail) {
         tabCount: document.querySelectorAll('#tab-bar .tab-btn').length,
     }));
     check('language-arts lazy load works', laState.screen === 'la-vocab-screen', JSON.stringify(laState));
-    check('language-arts did not duplicate tabs', laState.tabCount === 18, JSON.stringify(laState));
+    check('language-arts did not duplicate tabs', laState.tabCount === 20, JSON.stringify(laState));
+
+    // ---- Fractions: three modes, three tiers ---------------------------
+    // Round generation is the part with no visible failure mode: a compare pair
+    // that is secretly equal, or a simplify source already in lowest terms,
+    // looks like a working screen and is an unanswerable question.
+    await page.evaluate(() => lbApplySection('maths'));
+    await page.waitForTimeout(60);
+    await page.click('#tab-bar .tab-btn[data-tab="fractions"]');
+    await page.waitForTimeout(150);
+
+    const frGen = await page.evaluate(() => {
+        const gcd = (a, b) => (b ? gcd(b, a % b) : a);
+        const errs = [];
+        ['easy', 'medium', 'hard'].forEach((lvl) => {
+            frState.level = lvl;
+            const L = FR_LEVELS[lvl];
+            let equal = 0;
+            for (let i = 0; i < 300; i++) {
+                frState.mode = 'compare';
+                frNewCompare();
+                const [a, b] = frState.pair;
+                const diff = a.num / a.den - b.num / b.den;
+                const want = Math.abs(diff) < 1e-9 ? 0 : Math.sign(diff);
+                if (want !== frState.rel) errs.push(lvl + ': rel disagrees with the values');
+                if (frState.rel === 0) equal++;
+                else if (Math.abs(diff) < L.gap - 1e-9) errs.push(lvl + ': pair closer than the tier gap');
+                if (!L.dens.includes(a.den) || !L.dens.includes(b.den)) errs.push(lvl + ': denominator outside the tier pool');
+            }
+            if (!equal) errs.push(lvl + ': never produced an equal pair');
+            for (let i = 0; i < 200; i++) {
+                frState.mode = 'build';
+                frNewWork();
+                if (frState.target.den > frState.maxDen) errs.push(lvl + ': build target beyond the builder ceiling');
+                frState.mode = 'simplify';
+                frNewWork();
+                const t = frState.target;
+                if (gcd(t.num, t.den) === 1) errs.push(lvl + ': simplify source is already in lowest terms');
+                if (t.den > L.simpMax) errs.push(lvl + ': simplify source over simpMax');
+                if (frState.locked) errs.push(lvl + ': simplify round is already won at the start');
+            }
+        });
+        return [...new Set(errs)];
+    });
+    check('fractions: every tier generates sound rounds', frGen.length === 0, frGen.join(' | '));
+
+    const frUI = await page.evaluate(() => {
+        document.querySelector('.fr-mode-btn[data-fr-mode="compare"]').click();
+        // Pin a known unequal pair so the expected operator is decidable.
+        frState.locked = false;
+        frState.pair = [{ num: 3, den: 4 }, { num: 1, den: 4 }];
+        frState.rel = 1;
+        document.querySelectorAll('#fr-versus .fr-shape-card').forEach((c, i) => {
+            const f = frState.pair[i];
+            c.className = 'fr-shape-card';
+            c.innerHTML = frRenderPie(f.num, f.den) +
+                `<div class="fr-label">${frFracHTML(f.num, f.den)}</div>`;
+        });
+        const box = (el) => el.getBoundingClientRect();
+        const f = document.querySelector('#fr-versus .fr-frac');
+        const n = box(f.querySelector('.fr-frac-n'));
+        const bar = box(f.querySelector('.fr-frac-bar'));
+        const d = box(f.querySelector('.fr-frac-d'));
+        const cards = [...document.querySelectorAll('#fr-versus .fr-shape-card')].map(box);
+        const slot = box(document.querySelector('.fr-op-slot'));
+        const circle = box(document.getElementById('fr-eq-btn'));
+
+        document.querySelectorAll('#fr-versus .fr-shape-card')[0].click();
+        const op = document.getElementById('fr-op');
+        const r = box(op);
+        return {
+            stacked: n.bottom <= bar.top + 1 && bar.bottom <= d.top + 1,
+            sideBySide: cards[0].right <= slot.left + 1 && slot.right <= cards[1].left + 1,
+            slashed: /\//.test(document.querySelector('#fr-versus .fr-label').textContent),
+            text: op.textContent,
+            size: parseFloat(getComputedStyle(op).fontSize),
+            inSlot: Math.abs((r.left + r.width / 2) - (circle.left + circle.width / 2)) < 2,
+        };
+    });
+    check('fractions: labels are stacked over/under, never a/b', frUI.stacked && !frUI.slashed, JSON.stringify(frUI));
+    check('fractions: compare puts the two shapes side by side', frUI.sideBySide, JSON.stringify(frUI));
+    check('fractions: picking a card reveals a big operator in the slot',
+        frUI.text === '>' && frUI.size >= 40 && frUI.inSlot, JSON.stringify(frUI));
+
+    // ---- Polygons ------------------------------------------------------
+    await page.evaluate(() => lbApplySection('maths'));
+    await page.waitForTimeout(60);
+    await page.click('#tab-bar .tab-btn[data-tab="polygons"]');
+    await page.waitForFunction(() => !!window.__PY && !!document.getElementById('py-draw-stage'), { timeout: 15000 })
+        .catch(() => {});
+    await page.waitForTimeout(300);
+    check('polygons.js fetched on click', fetched('polygons.js'));
+
+    const pyState = await page.evaluate(() => {
+        const P = window.__PY;
+        const errs = [];
+        const state = {
+            screen: (document.querySelector('.screen.active') || {}).id,
+            highlighted: !!document.querySelector('.tab-btn[data-tab="polygons"].active'),
+            tabCount: document.querySelectorAll('#tab-bar .tab-btn').length,
+        };
+        // Draw mode: the overlays must match the maths for every side count.
+        const slider = document.getElementById('py-slider');
+        P.state.show.symmetry = true;
+        P.state.show.diagonals = true;
+        for (let n = 3; n <= 20; n++) {
+            slider.value = n;
+            slider.dispatchEvent(new Event('input'));
+            const svg = document.querySelector('#py-draw-stage svg');
+            if (svg.querySelectorAll('.py-sym').length !== n) errs.push('n=' + n + ': symmetry axes != n');
+            if (svg.querySelectorAll('.py-diag').length !== (n * (n - 3)) / 2) errs.push('n=' + n + ': diagonal count wrong');
+            const lens = P.pySideLengths(P.pyRegularPts(n));
+            if (Math.max(...lens) / Math.min(...lens) > 1.0001) errs.push('n=' + n + ': regular sides unequal');
+        }
+        P.state.show.symmetry = false;
+        P.state.show.diagonals = false;
+
+        // Irregular polygons must stay simple — a self-crossing outline is not
+        // a polygon at all, and the jitter is what could produce one.
+        const crosses = (a, b, c, d) => {
+            const o = (p, q, r) => Math.sign((q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]));
+            return o(a, b, c) !== o(a, b, d) && o(c, d, a) !== o(c, d, b);
+        };
+        for (let t = 0; t < 200; t++) {
+            const n = 3 + Math.floor(Math.random() * 6);
+            const pts = P.pyIrregularPts(n);
+            const lens = P.pySideLengths(pts);
+            if (Math.max(...lens) / Math.min(...lens) < 1.25) errs.push('irregular polygon looks regular');
+            for (let i = 0; i < n; i++) {
+                for (let j = i + 2; j < n; j++) {
+                    if (i === 0 && j === n - 1) continue;
+                    if (crosses(pts[i], pts[(i + 1) % n], pts[j], pts[(j + 1) % n])) {
+                        errs.push('irregular polygon self-intersects');
+                    }
+                }
+            }
+        }
+
+        // Quiz: every question must have its answer among the choices, exactly
+        // one of them, and that answer must be the true one.
+        const NAMES = P.PY_NAMES;
+        const deg = (v) => (Number.isInteger(v) ? v : Number(v.toFixed(1))) + '°';
+        const truth = (q) => {
+            const n = q.n;
+            if (/called/.test(q.text)) return (q.regular && (n === 3 ? 'Equilateral triangle' : n === 4 ? 'Square' : null)) || NAMES[n];
+            if (/how many sides/i.test(q.text)) return String(n);
+            if (/regular\?$/.test(q.text)) return q.regular ? 'Regular' : 'Irregular';
+            if (/lines of symmetry/.test(q.text)) return String(n);
+            if (/add up to/.test(q.text)) return deg((n - 2) * 180);
+            if (/how big is each angle/i.test(q.text)) return deg(((n - 2) * 180) / n);
+            if (/how far do you turn/i.test(q.text)) return deg(360 / n);
+            if (/diagonals/.test(q.text)) return String((n * (n - 3)) / 2);
+            return '??';
+        };
+        ['easy', 'medium', 'hard'].forEach((lvl) => {
+            [false, true].forEach((irr) => {
+                P.state.level = lvl;
+                P.state.irregular = irr;
+                const L = P.PY_LEVELS[lvl];
+                for (let i = 0; i < 250; i++) {
+                    const q = P.pyMakeQuestion();
+                    if (lvl !== 'hard' && /°/.test(q.correct)) errs.push(lvl + ': a question answered in degrees outside Hard');
+                    if (q.n < L.min || q.n > L.max) errs.push(lvl + ': side count outside the tier');
+                    if (new Set(q.choices).size !== q.choices.length) errs.push(lvl + ': duplicate choices');
+                    if (q.choices.indexOf(q.correct) === -1) errs.push(lvl + ': correct answer missing from the choices');
+                    if (truth(q) !== q.correct) errs.push(lvl + ': "' + q.text.slice(0, 20) + '" answer is wrong');
+                    if (!irr && !q.regular) errs.push(lvl + ': irregular shape drawn with irregulars off');
+                    if (/symmetry|each angle|do you turn/i.test(q.text) && !q.regular) {
+                        errs.push(lvl + ': regular-only question asked of an irregular shape');
+                    }
+                }
+            });
+        });
+        P.state.irregular = false;
+        return { state, errs: [...new Set(errs)] };
+    });
+    check('polygons screen opened after lazy load',
+        pyState.state.screen === 'polygons-screen' && pyState.state.highlighted, JSON.stringify(pyState.state));
+    check('polygons lazy load did not duplicate the tab', pyState.state.tabCount === 20, JSON.stringify(pyState.state));
+    check('polygons: drawing and quiz are mathematically sound',
+        pyState.errs.length === 0, pyState.errs.join(' | '));
 
     // ---- Learn: browse a ladder and run an assessment -------------------
     await page.evaluate(() => lbApplySection('learn', { enter: true }));
@@ -466,7 +651,7 @@ function check(name, ok, detail) {
         layout.stageTop < 200, JSON.stringify(layout));
 
     // ---- phone viewport ---------------------------------------------------
-    // Two stacked nav rows and 19 activities is exactly the shape that overflows
+    // Two stacked nav rows and 21 activities is exactly the shape that overflows
     // a narrow screen, so this is checked rather than assumed.
     await page.setViewportSize({ width: 375, height: 700 });
     await page.waitForTimeout(250);

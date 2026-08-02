@@ -1,0 +1,262 @@
+/* ============================================================================
+ * polygons.css — Regular Polygons plug-in.
+ *
+ * Loaded by polygons.js on first click of the Polygons tab. Everything here is
+ * prefixed `py-` so it cannot collide with the core stylesheet.
+ * ==========================================================================*/
+
+.py-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.9rem;
+    width: 100%;
+    max-width: 720px;
+}
+
+.py-config {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.py-mode-btn.active,
+.py-level-btn.active {
+    background: #000;
+    color: #fff;
+}
+
+/* ---- shared stage ---- */
+
+.py-stage {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+}
+
+.py-svg {
+    width: clamp(200px, 62vw, 340px);
+    height: auto;
+    overflow: visible;
+}
+
+.py-shape {
+    stroke: #000;
+    stroke-width: 3;
+    stroke-linejoin: round;
+}
+
+.py-diag {
+    stroke: #7e57c2;
+    stroke-width: 1.5;
+    opacity: 0.55;
+}
+
+.py-sym {
+    stroke: #e53935;
+    stroke-width: 2;
+    stroke-dasharray: 7 5;
+    opacity: 0.8;
+}
+
+.py-arc {
+    fill: none;
+    stroke: #1e88e5;
+    stroke-width: 2.5;
+}
+
+.py-angle-text {
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    fill: #1565c0;
+    text-anchor: middle;
+    dominant-baseline: middle;
+}
+
+.py-vertex {
+    fill: #000;
+}
+
+/* The spin is a toy, not information — it turns the whole group about the
+   polygon's own centre, which the group's transform-origin fixes at 50% 50%. */
+.py-spin {
+    transform-origin: 50% 50%;
+    animation: py-turn 9s linear infinite;
+}
+
+@keyframes py-turn {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+}
+
+/* ---- draw mode ---- */
+
+.py-sides-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.7rem;
+    flex-wrap: wrap;
+}
+
+.py-sides-val {
+    min-width: 2.6rem;
+    font-size: 2rem;
+    font-weight: 800;
+    text-align: center;
+}
+
+.py-round-btn {
+    width: 2.4rem;
+    height: 2.4rem;
+    padding: 0;
+    font-size: 1.4rem;
+    font-weight: 800;
+    line-height: 1;
+    border: 2px solid #000;
+    border-radius: 50%;
+    background: #fff;
+    cursor: pointer;
+    transition: background 0.12s, transform 0.08s;
+}
+
+.py-round-btn:hover:not(:disabled) { background: #eee; }
+.py-round-btn:active:not(:disabled) { transform: scale(0.9); }
+.py-round-btn:disabled { opacity: 0.25; cursor: default; }
+
+.py-slider {
+    width: min(260px, 60vw);
+    accent-color: #000;
+}
+
+.py-name {
+    font-size: 1.7rem;
+    font-weight: 800;
+    text-align: center;
+}
+
+.py-toggles {
+    display: flex;
+    gap: 0.4rem;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.py-chip {
+    padding: 0.35rem 0.8rem;
+    font: inherit;
+    font-size: 0.9rem;
+    font-weight: 700;
+    border: 2px solid #000;
+    border-radius: 999px;
+    background: #fff;
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+}
+
+.py-chip.active {
+    background: #000;
+    color: #fff;
+}
+
+.py-facts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 0.5rem;
+    width: 100%;
+}
+
+.py-fact {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: 0.55rem 0.7rem;
+    border: 2px solid #e0e0e0;
+    border-radius: 10px;
+    background: #fafafa;
+}
+
+.py-fact-k {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    opacity: 0.55;
+}
+
+.py-fact-v {
+    font-size: 1.25rem;
+    font-weight: 800;
+}
+
+/* ---- quiz mode ---- */
+
+.py-score-bar {
+    font-size: 1rem;
+    font-weight: 700;
+    opacity: 0.7;
+}
+
+.py-question {
+    font-size: 1.35rem;
+    font-weight: 800;
+    text-align: center;
+    min-height: 2.4em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.py-choices {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.6rem;
+    width: 100%;
+    max-width: 460px;
+}
+
+.py-choice {
+    padding: 0.8rem 0.6rem;
+    font: inherit;
+    font-size: 1.1rem;
+    font-weight: 700;
+    border: 3px solid #000;
+    border-radius: 12px;
+    background: #fff;
+    cursor: pointer;
+    transition: background 0.12s, border-color 0.12s, transform 0.08s;
+}
+
+.py-choice:hover:not(:disabled) { background: #f2f2f2; }
+.py-choice:active:not(:disabled) { transform: scale(0.97); }
+
+.py-choice.py-right {
+    border-color: #2e7d32;
+    background: #e8f5e9;
+    color: #2e7d32;
+}
+
+.py-choice.py-wrong {
+    border-color: #cc0000;
+    background: #ffe5e5;
+    color: #cc0000;
+}
+
+.py-choice:disabled { cursor: default; }
+
+.py-explain {
+    min-height: 1.5em;
+    font-size: 1.05rem;
+    font-weight: 600;
+    text-align: center;
+    color: #555;
+}
+
+@media (max-width: 420px) {
+    .py-container { padding-left: 0.75rem; padding-right: 0.75rem; }
+    .py-choices { grid-template-columns: 1fr; }
+}

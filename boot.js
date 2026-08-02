@@ -26,7 +26,7 @@
 
     // Bump on ANY change to a local .js or .css file. This is the only version
     // number in the project — CLAUDE.md's per-file ?v=N rule is retired.
-    const ASSET_V = '59';
+    const ASSET_V = '62';
     window.ASSET_V = ASSET_V;
 
     // Order matters: storage and the curriculum registry come first so the node
@@ -76,6 +76,10 @@
         {
             file: 'geometry-proofs.js',
             tabs: [['geo-proofs', 'Proofs']],
+        },
+        {
+            file: 'polygons.js',
+            tabs: [['polygons', 'Polygons']],
         },
     ];
 
@@ -150,6 +154,11 @@
                 TAB_ENTRY[tab] = stub;
             });
         });
+
+        // These buttons were appended after the section bar filtered the row,
+        // so they carry no hidden class and would appear under whatever section
+        // is open. One more pass puts them where they belong.
+        if (typeof window.lbRefilterTabs === 'function') window.lbRefilterTabs();
     }
 
     loadAll(EAGER)

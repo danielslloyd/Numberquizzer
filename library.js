@@ -355,7 +355,7 @@
     /* ====================================================================
      * SECTION BAR
      *
-     * Nineteen activities do not fit on one row, least of all on a phone. A
+     * Twenty-one activities do not fit on one row, least of all on a phone. A
      * second level above the tab bar groups them, and the tab bar itself is
      * filtered rather than rebuilt — so the contract the two plug-ins rely on
      * (append a .tab-btn to #tab-bar and it works) is completely untouched.
@@ -374,8 +374,9 @@
     const ACTIVITY_SECTION = {
         learn: 'learn',
         flashcards: 'maths', 'make-ten': 'maths', 'ten-frame': 'maths', 'times-grid': 'maths',
-        fractions: 'maths', money: 'maths', visualizer: 'maths', worksheets: 'maths',
-        'geo-proofs': 'maths',
+        fractions: 'maths', money: 'maths', visualizer: 'maths', 'place-value': 'maths',
+        worksheets: 'maths',
+        'geo-proofs': 'maths', polygons: 'maths',
         sorting: 'english', 'la-vocab': 'english', 'la-cap': 'english', 'la-punct': 'english',
         'la-subj': 'english', 'la-diag': 'english',
         ciphers: 'tools', sudoku: 'tools',
@@ -383,7 +384,7 @@
 
     function sectionOf(tab) { return ACTIVITY_SECTION[tab] || 'tools'; }
 
-    let activeSection = 'learn';
+    let activeSection = 'maths';
 
     function injectSectionBar() {
         const tabBar = document.getElementById('tab-bar');
@@ -539,13 +540,17 @@
         SCREENS.forEach((n) => { SCREEN_TAB[n] = 'learn'; });
         TAB_ENTRY.learn = () => { lbRoute(); };
         wire();
-        // Open on Learn — it is the point of the app, and it is the only screen
-        // that answers "what should we do next".
-        lbApplySection('learn', { enter: true });
+        // Open on Maths — the activity everyone arrives for. Learn is one tap
+        // away in the section row above.
+        lbApplySection('maths', { enter: true });
     }
 
     window.lbApplySection = lbApplySection;
     window.lbSyncSection = lbSyncSection;
+    // boot.js calls this once the lazy tab buttons exist — they are appended
+    // after this file has already filtered the row, so without a second pass
+    // they show up in whichever section happens to be open.
+    window.lbRefilterTabs = () => lbApplySection(activeSection);
     window.ACTIVITY_SECTION = ACTIVITY_SECTION;
     window.lbBack = lbBack;
     window.lbGo = lbGo;

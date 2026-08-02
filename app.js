@@ -483,6 +483,7 @@ const SCREEN_TAB = {
     'tap-game-results':  'make-ten',
     'ten-frame':         'ten-frame',
     'visualizer':        'visualizer',
+    'place-value':       'place-value',
     'sudoku':            'sudoku',
     // These three had TAB_ENTRY entries but no mapping back, so showScreen()
     // resolved tab === undefined and cleared the active class from every button.
@@ -2803,19 +2804,35 @@ function ttSubmitQuiz() {
 // FRACTIONS — COMPARE TWO
 // ============================================
 
-const frState = {
-    mode:   'compare',  // 'compare' | 'identify'
-    maxDen: 6,
-    shape:  'bar',
-    score:  0,
-    bigger: 0,   // index (0 or 1) of the larger fraction
-    idFrac: null, // {num, den} for identify mode
-    locked: false,
+/* Difficulty tiers, replacing the old "up to <denominator>" select. A tier is
+ * the pool of denominators plus how the round is drawn from it:
+ *   gap       minimum value difference for a NON-equal compare pair, so easy
+ *             never asks you to eyeball 6/11 against 7/12
+ *   eqChance  how often a compare round is a genuinely equal pair
+ *   simpMax   ceiling on the denominator a Simplify round may present, which
+ *             is above the compare pool because 18/24 needs room to exist */
+const FR_LEVELS = {
+    easy:   { dens: [2, 3, 4],                            gap: 0.12, eqChance: 0.20, simpMax: 8  },
+    medium: { dens: [2, 3, 4, 5, 6, 8, 10],               gap: 0.05, eqChance: 0.30, simpMax: 12 },
+    hard:   { dens: [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12], gap: 0,    eqChance: 0.35, simpMax: 24 },
 };
 
+const frState = {
+    mode:   'compare',        // 'compare' | 'build' | 'simplify'
+    level:  'easy',           // key into FR_LEVELS
+    score:  0,
+    locked: false,
+    pair:   null,             // [{num,den}, {num,den}] — the two compared
+    rel:    0,                // sign(a - b): 1, -1, or 0 for equal
+    target: null,             // {num,den} — the example in Build / Simplify
+    build:  { num: 1, den: 1 },  // the live preview, always starts at 1/1
+    maxDen: 4,                // builder ceiling for the current round
+};
+
+function frLevel() { return FR_LEVELS[frState.level]; }
+
 function frInit() {
-    frState.maxDen = parseInt(document.getElementById('fr-max-den').value, 10);
-    frState.score  = 0;
+    frState.score = 0;
     frUpdateScore();
     document.getElementById('fr-feedback').textContent = '';
     frNewRound();
@@ -2826,100 +2843,312 @@ function frSetMode(mode) {
     document.querySelectorAll('.fr-mode-btn').forEach(b =>
         b.classList.toggle('active', b.dataset.frMode === mode));
     document.getElementById('fr-compare').classList.toggle('hidden', mode !== 'compare');
-    document.getElementById('fr-identify').classList.toggle('hidden', mode !== 'identify');
+    document.getElementById('fr-work').classList.toggle('hidden', mode === 'compare');
     frNewRound();
 }
 
-function frSetShape(shape) {
-    frState.shape = shape;
-    document.querySelectorAll('.fr-shape-btn').forEach(b =>
-        b.classList.toggle('active', b.dataset.frShape === shape));
+function frSetLevel(level) {
+    frState.level = level;
+    document.querySelectorAll('.fr-level-btn').forEach(b =>
+        b.classList.toggle('active', b.dataset.frLevel === level));
     frNewRound();
-}
-
-function frRandFraction() {
-    const den = 2 + Math.floor(Math.random() * (frState.maxDen - 1)); // 2..maxDen
-    const num = 1 + Math.floor(Math.random() * (den - 1));            // 1..den-1
-    return { num, den };
-}
-
-function frNewRound() {
-    document.getElementById('fr-feedback').textContent = '';
-    if (frState.mode === 'identify') return frNewIdentify();
-    return frNewCompare();
-}
-
-function frNewIdentify() {
-    frState.locked = false;
-    const f = frRandFraction();
-    frState.idFrac = f;
-    document.getElementById('fr-id-shape').innerHTML = frRenderShape(f.num, f.den, frState.shape);
-    document.getElementById('fr-id-num').value = '';
-    document.getElementById('fr-id-den').value = '';
-    document.getElementById('fr-id-num').focus();
 }
 
 function frGcd(a, b) { return b ? frGcd(b, a % b) : a; }
 
-function frCheckIdentify() {
-    if (frState.locked) return;
-    const num = parseInt(document.getElementById('fr-id-num').value, 10);
-    const den = parseInt(document.getElementById('fr-id-den').value, 10);
-    const fb = document.getElementById('fr-feedback');
-    const f = frState.idFrac;
-    // Any equivalent fraction is correct (cross-multiply), e.g. 1/2 for 3/6.
-    const valid = Number.isInteger(num) && Number.isInteger(den) && num > 0 && den > 0;
-    if (valid && num * f.den === den * f.num) {
-        frState.locked = true;
-        // Show the shape's own fraction and, when it isn't already lowest terms,
-        // its simplest form too — so both correct answers are visible.
-        const g = frGcd(f.num, f.den);
-        const simplest = g > 1 ? ` = ${f.num / g}/${f.den / g}` : '';
-        fb.textContent = `✓ ${f.num}/${f.den}${simplest}`;
-        fb.className = 'feedback-display fr-fb-correct';
-        frState.score++;
-        frUpdateScore();
-        recordPractice('frac.aOverB', true, 'fractions');
-        setTimeout(frNewRound, g > 1 ? 1400 : 800);
-    } else {
-        recordPractice('frac.aOverB', false, 'fractions');
-        fb.textContent = '✗ Try again';
-        fb.className = 'feedback-display fr-fb-wrong';
-    }
+function frPick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+// Every proper fraction available at a tier. Small enough (66 at the top tier)
+// that round generation can enumerate rather than reject-sample, which is what
+// makes "an equal pair, sometimes" exact instead of a retry loop that may fail.
+function frAllFractions(dens) {
+    const out = [];
+    dens.forEach(d => { for (let n = 1; n < d; n++) out.push({ num: n, den: d }); });
+    return out;
 }
+
+// A fraction written strictly over/under, never a/b on one line.
+function frFracHTML(num, den) {
+    return '<span class="fr-frac">' +
+        `<span class="fr-frac-n">${num}</span>` +
+        '<span class="fr-frac-bar"></span>' +
+        `<span class="fr-frac-d">${den}</span>` +
+        '</span>';
+}
+
+function frRandFraction() {
+    const den = frPick(frLevel().dens);
+    const num = 1 + Math.floor(Math.random() * (den - 1));   // 1..den-1
+    return { num, den };
+}
+
+// Two different ways of writing the same amount, e.g. 1/2 and 2/4. Groups all
+// the tier's fractions by lowest terms and picks from a group with more than
+// one member, so the two always differ in how they are cut up.
+function frEqualPair(dens) {
+    const groups = new Map();
+    frAllFractions(dens).forEach(f => {
+        const g = frGcd(f.num, f.den);
+        const key = `${f.num / g}/${f.den / g}`;
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(f);
+    });
+    const usable = [...groups.values()].filter(g => g.length > 1);
+    if (!usable.length) return null;
+    const g = frPick(usable);
+    const i = Math.floor(Math.random() * g.length);
+    let j = Math.floor(Math.random() * (g.length - 1));
+    if (j >= i) j++;                       // any member but the one already taken
+    return [g[i], g[j]];
+}
+
+function frUnequalPair(dens, gap) {
+    const all = frAllFractions(dens);
+    const cands = [];
+    for (let i = 0; i < all.length; i++) {
+        for (let j = 0; j < all.length; j++) {
+            if (i === j) continue;
+            const d = Math.abs(all[i].num / all[i].den - all[j].num / all[j].den);
+            if (d > 1e-9 && d >= gap) cands.push([all[i], all[j]]);
+        }
+    }
+    return cands.length ? frPick(cands) : null;
+}
+
+function frNewRound() {
+    const fb = document.getElementById('fr-feedback');
+    fb.textContent = '';
+    fb.className = 'feedback-display';
+    if (frState.mode === 'compare') return frNewCompare();
+    return frNewWork();
+}
+
+/* ---- Compare -------------------------------------------------------------*/
 
 function frNewCompare() {
     frState.locked = false;
-    document.getElementById('fr-feedback').textContent = '';
+    const L = frLevel();
 
-    let a, b, va, vb;
-    do {
-        a = frRandFraction();
-        b = frRandFraction();
-        va = a.num / a.den;
-        vb = b.num / b.den;
-    } while (Math.abs(va - vb) < 1e-9); // reject equal values
+    let pair = null;
+    if (Math.random() < L.eqChance) pair = frEqualPair(L.dens);
+    if (!pair) pair = frUnequalPair(L.dens, L.gap) || frUnequalPair(L.dens, 0);
 
-    frState.bigger = va > vb ? 0 : 1;
+    const [a, b] = pair;
+    const va = a.num / a.den, vb = b.num / b.den;
+    frState.pair = pair;
+    frState.rel = Math.abs(va - vb) < 1e-9 ? 0 : (va > vb ? 1 : -1);
 
-    const wrap = document.getElementById('fr-shapes');
-    wrap.innerHTML = '';
-    [a, b].forEach((f, i) => {
-        const card = document.createElement('div');
+    const cards = document.querySelectorAll('#fr-versus .fr-shape-card');
+    cards.forEach((card, i) => {
+        const f = pair[i];
         card.className = 'fr-shape-card';
-        card.dataset.idx = i;
-        card.innerHTML = frRenderShape(f.num, f.den, frState.shape) +
-            `<div class="fr-label">${f.num}/${f.den}</div>`;
-        card.addEventListener('click', () => frAnswer(i, card));
-        wrap.appendChild(card);
+        card.innerHTML = frRenderPie(f.num, f.den) +
+            `<div class="fr-label">${frFracHTML(f.num, f.den)}</div>`;
+    });
+
+    const op = document.getElementById('fr-op');
+    op.textContent = '';
+    op.className = 'fr-op';
+    const eq = document.getElementById('fr-eq-btn');
+    eq.className = 'fr-eq-btn';
+}
+
+// Which proficiency this comparison exercises — the same question is a very
+// different skill depending on what the two fractions have in common.
+function frCompareNode() {
+    const [a, b] = frState.pair;
+    if (frState.rel === 0) return 'frac.equivalent.recognise';
+    if (a.den === b.den) return 'frac.compare.sameDen';
+    if (a.num === b.num) return 'frac.compare.sameNum';
+    return 'frac.compare.unlike';
+}
+
+// pick is '0', '1' (that card is bigger) or 'eq' (they are the same).
+function frComparePick(pick) {
+    if (frState.locked) return;
+    frState.locked = true;
+
+    const rel = frState.rel;
+    const correct = pick === 'eq' ? rel === 0 : (pick === '0' ? rel === 1 : rel === -1);
+    const cards = document.querySelectorAll('#fr-versus .fr-shape-card');
+    const eq = document.getElementById('fr-eq-btn');
+    const op = document.getElementById('fr-op');
+    const fb = document.getElementById('fr-feedback');
+
+    // The operator is the answer, so it is revealed either way — a wrong guess
+    // still gets to see which way the sign points.
+    op.textContent = rel === 0 ? '=' : (rel === 1 ? '>' : '<');
+    op.className = 'fr-op fr-op-show ' + (correct ? 'fr-op-right' : 'fr-op-wrong');
+    eq.classList.add('fr-eq-gone');
+
+    if (rel === 0) cards.forEach(c => c.classList.add('fr-correct'));
+    else cards[rel === 1 ? 0 : 1].classList.add('fr-correct');
+    if (!correct && pick !== 'eq') cards[Number(pick)].classList.add('fr-wrong');
+
+    recordPractice(frCompareNode(), correct, 'fractions');
+
+    if (correct) {
+        fb.textContent = '✓';
+        fb.className = 'feedback-display fr-fb-correct';
+        frState.score++;
+        frUpdateScore();
+        setTimeout(frNewRound, 1000);
+    } else {
+        fb.textContent = '✗';
+        fb.className = 'feedback-display fr-fb-wrong';
+        setTimeout(frNewRound, 1800);
+    }
+}
+
+/* ---- Build / Simplify ----------------------------------------------------*/
+
+// A fraction that is deliberately not in lowest terms: a lowest-terms base
+// scaled by k, so there is always something real to simplify away.
+function frSimplifiable() {
+    const L = frLevel();
+    const cands = [];
+    L.dens.forEach(d => {
+        for (let n = 1; n < d; n++) {
+            if (frGcd(n, d) !== 1) continue;               // base must be lowest terms
+            for (let k = 2; d * k <= L.simpMax; k++) cands.push({ num: n * k, den: d * k });
+        }
+    });
+    return frPick(cands);
+}
+
+function frNewWork() {
+    frState.locked = false;
+    const L = FR_LEVELS[frState.level];
+    const build = frState.mode === 'build';
+
+    frState.target = build ? frRandFraction() : frSimplifiable();
+    // The builder must be able to reach the answer and no further than it needs.
+    frState.maxDen = build ? Math.max(...L.dens) : frState.target.den;
+    // Build starts from nothing at 1/1. Simplify starts holding a copy of the
+    // fraction it is being asked to reduce — otherwise the sweep up from 1/1
+    // passes straight through every unit fraction, and every source equivalent
+    // to a half is solved by one press before the learner has done anything.
+    frState.build = build ? { num: 1, den: 1 }
+        : { num: frState.target.num, den: frState.target.den };
+
+    document.getElementById('fr-work-prompt').textContent =
+        build ? 'Build this fraction' : 'Build the same amount, simplified';
+    document.getElementById('fr-target-label').textContent = build ? 'Example' : 'Simplify this';
+    document.getElementById('fr-build-pane').classList.remove('fr-win');
+    frRenderWork();
+    frCheckWork();      // show the standing hint straight away
+}
+
+function frRenderWork() {
+    const t = frState.target, b = frState.build;
+    document.getElementById('fr-target-shape').innerHTML = frRenderPie(t.num, t.den);
+    // Build hides the example's numbers — reading the picture is the exercise.
+    // Simplify shows them, because there the numbers are the exercise.
+    document.getElementById('fr-target-frac').innerHTML =
+        frState.mode === 'build' ? frFracHTML('?', '?') : frFracHTML(t.num, t.den);
+
+    document.getElementById('fr-build-shape').innerHTML = frRenderPie(b.num, b.den);
+    document.getElementById('fr-build-num').textContent = b.num;
+    document.getElementById('fr-build-den').textContent = b.den;
+
+    // Live relation glyph — the preview is always telling you where you stand.
+    const same = b.num * t.den === t.num * b.den;
+    const rel = document.getElementById('fr-rel');
+    rel.textContent = same ? '=' : '≠';
+    rel.classList.toggle('fr-rel-eq', same);
+
+    const at = {
+        'n-1': b.num <= 0, 'n1': b.num >= b.den,
+        'd-1': b.den <= 1, 'd1': b.den >= frState.maxDen,
+    };
+    document.querySelectorAll('#fr-builder .fr-step').forEach(btn => {
+        btn.disabled = frState.locked || !!at[btn.dataset.frStep];
     });
 }
 
-function frRenderShape(num, den, shape) {
-    if (shape === 'pie') return frRenderPie(num, den);
-    return frRenderBar(num, den);
+function frStep(code) {
+    if (frState.locked) return;
+    const b = frState.build;
+    const d = code.slice(1) === '-1' ? -1 : 1;
+    if (code[0] === 'n') {
+        b.num = Math.max(0, Math.min(b.den, b.num + d));
+    } else {
+        b.den = Math.max(1, Math.min(frState.maxDen, b.den + d));
+        if (b.num > b.den) b.num = b.den;     // keep it a real fraction
+    }
+    frRenderWork();
+    frCheckWork();
 }
 
+// No submit button: the round ends the moment the preview is right.
+function frCheckWork() {
+    const t = frState.target, b = frState.build;
+    const fb = document.getElementById('fr-feedback');
+    const equalValue = b.num > 0 && b.num * t.den === t.num * b.den;
+
+    if (frState.mode === 'build') {
+        if (b.num === t.num && b.den === t.den) {
+            return frWorkWin(`✓ ${frFracHTML(t.num, t.den)}`, 'frac.aOverB');
+        }
+        frWorkHint(equalValue ? 'Same amount — now match the pieces' : '');
+    } else {
+        if (equalValue && frGcd(b.num, b.den) === 1) {
+            return frWorkWin(`✓ ${frFracHTML(t.num, t.den)} = ${frFracHTML(b.num, b.den)}`, 'frac.simplify');
+        }
+        frWorkHint(equalValue ? 'Equal — but it can go simpler' : '');
+    }
+}
+
+/* Press-and-hold on the steppers. Simplifying 14/20 at the top tier is thirteen
+ * presses, which is a chore with a mouse and worse with a thumb; holding turns
+ * it into one gesture. The click event still supplies the first step, so the
+ * repeat only starts after the hold delay. */
+function frWireHold() {
+    const builder = document.getElementById('fr-builder');
+    let delay = null, repeat = null;
+    const stop = () => {
+        clearTimeout(delay);
+        clearInterval(repeat);
+        delay = repeat = null;
+    };
+    builder.addEventListener('pointerdown', (e) => {
+        const btn = e.target.closest('.fr-step');
+        if (!btn || btn.disabled) return;
+        stop();
+        delay = setTimeout(() => {
+            repeat = setInterval(() => {
+                if (btn.disabled || frState.locked) stop();
+                else frStep(btn.dataset.frStep);
+            }, 90);
+        }, 400);
+    });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach(ev =>
+        builder.addEventListener(ev, stop));
+}
+
+function frWorkHint(text) {
+    const fb = document.getElementById('fr-feedback');
+    fb.innerHTML = text;
+    fb.className = 'feedback-display fr-fb-hint';
+}
+
+function frWorkWin(html, node) {
+    frState.locked = true;
+    const fb = document.getElementById('fr-feedback');
+    fb.innerHTML = html;
+    fb.className = 'feedback-display fr-fb-correct';
+    document.getElementById('fr-build-pane').classList.add('fr-win');
+    document.querySelectorAll('#fr-builder .fr-step').forEach(btn => { btn.disabled = true; });
+    frState.score++;
+    frUpdateScore();
+    recordPractice(node, true, 'fractions');
+    setTimeout(frNewRound, 1400);
+}
+
+/* ---- Shapes --------------------------------------------------------------*/
+
+/* The Fractions tab draws pies only. This stays because item-draw.js renders
+ * Learn's fraction items with it — do not delete it as dead code. */
 function frRenderBar(num, den) {
     const W = 160, H = 120;
     const segW = W / den;
@@ -2933,6 +3162,14 @@ function frRenderBar(num, den) {
 
 function frRenderPie(num, den) {
     const R = 58, cx = 60, cy = 60;
+    // One slice is the whole circle, and its arc would start and end at the same
+    // point — which SVG renders as nothing at all. Reachable since the Build
+    // preview starts at 1/1, so draw the circle directly.
+    if (den === 1) {
+        const fill = num >= 1 ? 'var(--fr-fill, #2e7d32)' : '#fff';
+        return `<svg viewBox="0 0 120 120" class="fr-svg" xmlns="http://www.w3.org/2000/svg">` +
+            `<circle cx="${cx}" cy="${cy}" r="${R}" fill="${fill}" stroke="#000" stroke-width="2"/></svg>`;
+    }
     let paths = '';
     for (let i = 0; i < den; i++) {
         const a0 = (i / den) * 2 * Math.PI - Math.PI / 2;
@@ -2946,43 +3183,8 @@ function frRenderPie(num, den) {
     return `<svg viewBox="0 0 120 120" class="fr-svg" xmlns="http://www.w3.org/2000/svg">${paths}</svg>`;
 }
 
-function frAnswer(idx, card) {
-    if (frState.locked) return;
-    frState.locked = true;
-    const fb = document.getElementById('fr-feedback');
-    const cards = document.querySelectorAll('.fr-shape-card');
-
-    if (idx === frState.bigger) {
-        card.classList.add('fr-correct');
-        fb.textContent = '✓';
-        fb.className = 'feedback-display fr-fb-correct';
-        frState.score++;
-        frUpdateScore();
-        setTimeout(frNewRound, 700);
-    } else {
-        card.classList.add('fr-wrong');
-        cards[frState.bigger].classList.add('fr-correct');
-        fb.textContent = '✗';
-        fb.className = 'feedback-display fr-fb-wrong';
-        setTimeout(frNewRound, 1300);
-    }
-}
-
 function frUpdateScore() {
     document.getElementById('fr-score').textContent = `Score: ${frState.score}`;
-}
-
-// ============================================
-// VISUALIZER — MAIN MODE TOGGLE
-// ============================================
-
-function vizSetMainMode(mode) {
-    document.querySelectorAll('.viz-mode-btn').forEach(b =>
-        b.classList.toggle('active', b.dataset.vizMode === mode));
-    const isPlace = mode === 'place';
-    document.getElementById('viz-multiply-mode').classList.toggle('hidden', isPlace);
-    document.getElementById('viz-place-mode').classList.toggle('hidden', !isPlace);
-    if (isPlace) pvRender(document.getElementById('pv-input').value);
 }
 
 // ============================================
@@ -3832,10 +4034,13 @@ const TAB_ENTRY = {
     'ten-frame':  () => { showScreen('ten-frame'); tfClear(); },
     'visualizer': () => {
         showScreen('visualizer');
-        vizSetMainMode('multiply');
         initVisualizer();
         handleVisualizerClear();
         vizSetPhase('idle');
+    },
+    'place-value': () => {
+        showScreen('place-value');
+        pvRender(document.getElementById('pv-input').value);
     },
     'sudoku':     () => showScreen('sudoku'),
     'times-grid': () => { showScreen('times-grid'); ttInit(); },
@@ -4054,16 +4259,21 @@ const appBoot = () => {
         const btn = e.target.closest('.fr-mode-btn');
         if (btn) frSetMode(btn.dataset.frMode);
     });
-    document.getElementById('fr-shape-group').addEventListener('click', (e) => {
-        const btn = e.target.closest('.fr-shape-btn');
-        if (btn) frSetShape(btn.dataset.frShape);
+    document.getElementById('fr-level-group').addEventListener('click', (e) => {
+        const btn = e.target.closest('.fr-level-btn');
+        if (btn) frSetLevel(btn.dataset.frLevel);
     });
-    document.getElementById('fr-max-den').addEventListener('change', frInit);
-    document.getElementById('fr-id-check').addEventListener('click', frCheckIdentify);
-    ['fr-id-num', 'fr-id-den'].forEach(id =>
-        document.getElementById(id).addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') frCheckIdentify();
-        }));
+    // One listener for both cards and the dashed equals circle — they are the
+    // three answers to the same question.
+    document.getElementById('fr-versus').addEventListener('click', (e) => {
+        const el = e.target.closest('[data-fr-pick]');
+        if (el) frComparePick(el.dataset.frPick);
+    });
+    document.getElementById('fr-builder').addEventListener('click', (e) => {
+        const btn = e.target.closest('.fr-step');
+        if (btn) frStep(btn.dataset.frStep);
+    });
+    frWireHold();
 
     // ---- Money visualizer ----
     document.getElementById('mn-mode-group').addEventListener('click', (e) => {
@@ -4118,10 +4328,6 @@ const appBoot = () => {
     window.addEventListener('resize', mnRefit);
 
     // ---- Place-value visualizer ----
-    document.getElementById('viz-mode-toggle').addEventListener('click', (e) => {
-        const btn = e.target.closest('.viz-mode-btn');
-        if (btn) vizSetMainMode(btn.dataset.vizMode);
-    });
     document.getElementById('pv-input').addEventListener('input', (e) => {
         // Auto-reject input after 4 digits
         const str = String(e.target.value).replace(/\D/g, '');

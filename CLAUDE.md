@@ -8,7 +8,7 @@ work-streams avoid conflicts *depends* on classic scripts sharing one global sco
 
 Two halves:
 
-- **Practice** — eighteen bespoke activity modes. Detail in `docs/modes.md`.
+- **Practice** — twenty bespoke activity modes. Detail in `docs/modes.md`.
 - **Learn** — a curated proficiency graph, a generic assessment runner, and a
   mastery model. Detail in `docs/learn.md`.
 
@@ -33,6 +33,7 @@ audio.js                      on-device vowel/sibilant analysis (no network)
 parser.js animator.js physics.js physics-worker.js   visualizer
 language-arts.js + .css       lazily loaded plug-in
 geometry-proofs.js + .css     lazily loaded plug-in
+polygons.js + .css            lazily loaded plug-in
 tools/                        manually-run validators; never a build gate
 netlify.toml                  publish = ".", must-revalidate on everything
 ```
@@ -113,13 +114,13 @@ on any change to a local `.js` or `.css`. Do not add `<script>` tags to
 `index.html` — adding a file is a one-line append to an array in `boot.js`, which
 is also what stopped `index.html` being a merge-conflict hotspot.
 
-`language-arts.js` and `geometry-proofs.js` are fetched on first tab click, not
-at boot. Their tab buttons are created up front so the bar behaves identically;
+`language-arts.js`, `geometry-proofs.js` and `polygons.js` are fetched on first
+tab click, not at boot. Their tab buttons are created up front so the bar behaves identically;
 each plug-in's `injectTab` skips a button that already exists.
 
 ## Prefix table
 
-Every module namespaces its globals. Taken: `ws tg tt fr mn pv pg viz la gp sb`
+Every module namespaces its globals. Taken: `ws tg tt fr mn pv pg py viz la gp sb`
 (activities), `cur ir lb pr st idr gen` (Learn), and `sp` (the shared
 recogniser) and `au` (on-device audio analysis). Pick a free one.
 
@@ -150,6 +151,34 @@ migration copies rather than moves and nothing is ever deleted.
 - An item's `sig` is a de-duplication key. Pass the *kind* of item; the
   helpers append the answer. A sig coarser than the item makes the runner
   throw away good questions as repeats.
+
+### Fractions
+- **Every fraction is written over/under** (`frFracHTML` / `.fr-frac`). There is
+  no `a/b` slashed form anywhere in the tab, including feedback lines.
+- **Every shape is a pie.** `frRenderBar` stays only because `item-draw.js`
+  draws Learn's fraction items with it — it is not dead code.
+- A one-piece pie is a plain `<circle>`: an SVG arc whose start and end
+  coincide renders nothing, and the Build preview starts at 1/1.
+- **Build and Simplify have no submit button** — `frCheckWork()` runs on every
+  stepper press and the round ends the instant the preview is right.
+- Compare's dashed circle is on **every** round. Showing it only when the pair
+  is equal announces the answer.
+- Simplify's builder starts holding a **copy of the source**, not 1/1. Sweeping
+  up from 1/1 passes through every unit fraction, so any source equal to a half
+  would be solved by the first press.
+
+### Polygons
+- Vertices start at `90 + 180/n` **in SVG screen space** (y down), which puts a
+  flat edge along the bottom at every side count. At `-90` a square renders as
+  a diamond.
+- Irregular polygons jitter radius and angle but **keep the angles sorted**, so
+  the outline is star-shaped and therefore cannot self-intersect.
+- Questions whose answer depends on regularity (interior angle, exterior angle,
+  symmetry) are never asked of an irregular shape. Angle *sum* may be — that it
+  holds for any polygon is the point.
+- Wrong answers are the right answers for a neighbouring side count, plus the
+  classic misconception for that question type.
+- **Anything answered in degrees is Hard only.** Easy and Medium count and name.
 
 ### Visualizer
 - **Canvas sizing** (`animator.js`) — camera aspect from the *container's* real

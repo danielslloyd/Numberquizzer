@@ -595,6 +595,9 @@ class MathAnimator {
 
         await this.physics.waitReady();
         this.physics.reset();
+        // `friction` is block-on-block grip only — how much the blocks stick to
+        // each other on landing. Nothing here damps motion through the air.
+        this.physics.setBlockFriction(friction);
 
         // Group cubes by y-row (round to nearest 0.5), sort bottom (lowest y) first
         const rowMap = new Map();
@@ -616,7 +619,7 @@ class MathAnimator {
                 const data = this.cubeData[idx];
                 this.physics.addCube(
                     data.position.x, data.position.y, data.position.z,
-                    1, friction, friction, spin
+                    1, spin
                 );
             }
         };

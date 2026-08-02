@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=57">
+    <link rel="stylesheet" href="styles.css?v=62">
 </head>
 <body>
 
@@ -22,7 +22,8 @@
         <button class="tab-btn" data-tab="times-grid">Times Tables</button>
         <button class="tab-btn" data-tab="fractions">Fractions</button>
         <button class="tab-btn" data-tab="money">Money</button>
-        <button class="tab-btn" data-tab="visualizer">Visualizer</button>
+        <button class="tab-btn" data-tab="visualizer">Multiply</button>
+        <button class="tab-btn" data-tab="place-value">Place Value</button>
         <button class="tab-btn" data-tab="sudoku">Sudoku</button>
     </nav>
 
@@ -577,15 +578,11 @@
     </div>
 
     <!-- =====================================================
-         VISUALIZER TAB
+         MULTIPLY (3D BLOCKS) TAB
          ===================================================== -->
 
     <div id="visualizer-screen" class="screen">
         <div class="visualizer-container">
-            <div class="viz-mode-toggle" id="viz-mode-toggle">
-                <button class="btn btn-secondary viz-mode-btn active" data-viz-mode="multiply">Multiply</button>
-                <button class="btn btn-secondary viz-mode-btn" data-viz-mode="place">Place Value</button>
-            </div>
           <div id="viz-multiply-mode">
             <div class="visualizer-input-bar">
                 <div class="visualizer-inputs-row">
@@ -620,7 +617,16 @@
             <div id="visualizer-canvas-container" class="visualizer-canvas-container"></div>
             <div id="visualizer-answer" class="visualizer-answer hidden"></div>
           </div>
-          <div id="viz-place-mode" class="hidden">
+        </div>
+    </div>
+
+    <!-- =====================================================
+         PLACE VALUE TAB
+         ===================================================== -->
+
+    <div id="place-value-screen" class="screen">
+        <div class="visualizer-container">
+          <div id="viz-place-mode">
             <div class="pv-input-row">
                 <input type="number" id="pv-input" class="visualizer-input-field pv-input" autocomplete="off" min="0" max="9999" placeholder="123">
             </div>
@@ -722,38 +728,62 @@
             <div class="fr-config">
                 <div class="tt-btn-group" id="fr-mode-group">
                     <button class="btn btn-secondary fr-mode-btn active" data-fr-mode="compare">Compare</button>
-                    <button class="btn btn-secondary fr-mode-btn" data-fr-mode="identify">Identify</button>
+                    <button class="btn btn-secondary fr-mode-btn" data-fr-mode="build">Build</button>
+                    <button class="btn btn-secondary fr-mode-btn" data-fr-mode="simplify">Simplify</button>
                 </div>
-                <div class="setting-row">
-                    <label>Up to</label>
-                    <select id="fr-max-den" class="setting-select">
-                        <option value="6" selected>Sixths</option>
-                        <option value="10">Tenths</option>
-                        <option value="12">Twelfths</option>
-                    </select>
-                </div>
-                <div class="tt-btn-group" id="fr-shape-group">
-                    <button class="btn btn-secondary fr-shape-btn active" data-fr-shape="bar">Bar</button>
-                    <button class="btn btn-secondary fr-shape-btn" data-fr-shape="pie">Pie</button>
+                <div class="tt-btn-group" id="fr-level-group">
+                    <button class="btn btn-secondary fr-level-btn active" data-fr-level="easy">Easy</button>
+                    <button class="btn btn-secondary fr-level-btn" data-fr-level="medium">Medium</button>
+                    <button class="btn btn-secondary fr-level-btn" data-fr-level="hard">Hard</button>
                 </div>
             </div>
             <div class="fr-score-bar">
                 <span id="fr-score" class="fr-score">Score: 0</span>
             </div>
+
+            <!-- Compare: two shapes side by side with the operator slot between
+                 them. The dashed circle is on every question, not only the equal
+                 ones — showing it selectively would give the answer away. -->
             <div id="fr-compare">
                 <div class="fr-prompt">Which is bigger?</div>
-                <div id="fr-shapes" class="fr-shapes"></div>
-            </div>
-            <div id="fr-identify" class="hidden">
-                <div class="fr-prompt">Name this fraction</div>
-                <div id="fr-id-shape" class="fr-id-shape"></div>
-                <div class="fr-id-inputs">
-                    <div class="fr-id-fraction">
-                        <input type="number" id="fr-id-num" class="fr-id-input" inputmode="numeric" placeholder="?" aria-label="Numerator">
-                        <span class="fr-id-bar"></span>
-                        <input type="number" id="fr-id-den" class="fr-id-input" inputmode="numeric" placeholder="?" aria-label="Denominator">
+                <div class="fr-versus" id="fr-versus">
+                    <div class="fr-shape-card" data-fr-pick="0"></div>
+                    <div class="fr-op-slot">
+                        <button id="fr-eq-btn" class="fr-eq-btn" data-fr-pick="eq" aria-label="They are equal"></button>
+                        <span id="fr-op" class="fr-op"></span>
                     </div>
-                    <button id="fr-id-check" class="btn btn-primary fr-id-check">✓</button>
+                    <div class="fr-shape-card" data-fr-pick="1"></div>
+                </div>
+            </div>
+
+            <!-- Build / Simplify share one workbench: an example on the left, a
+                 live preview on the right, and a relation glyph between them. -->
+            <div id="fr-work" class="hidden">
+                <div class="fr-prompt" id="fr-work-prompt">Build this fraction</div>
+                <div class="fr-work-row">
+                    <div class="fr-pane">
+                        <div class="fr-pane-label" id="fr-target-label">Example</div>
+                        <div id="fr-target-shape" class="fr-shape-box"></div>
+                        <div id="fr-target-frac" class="fr-frac-slot"></div>
+                    </div>
+                    <div id="fr-rel" class="fr-rel">≠</div>
+                    <div class="fr-pane" id="fr-build-pane">
+                        <div class="fr-pane-label">Yours</div>
+                        <div id="fr-build-shape" class="fr-shape-box"></div>
+                        <div class="fr-builder" id="fr-builder">
+                            <div class="fr-build-row">
+                                <button class="fr-step" data-fr-step="n-1" aria-label="One fewer part filled">−</button>
+                                <span id="fr-build-num" class="fr-build-val">1</span>
+                                <button class="fr-step" data-fr-step="n1" aria-label="One more part filled">+</button>
+                            </div>
+                            <span class="fr-build-bar"></span>
+                            <div class="fr-build-row">
+                                <button class="fr-step" data-fr-step="d-1" aria-label="Fewer pieces">−</button>
+                                <span id="fr-build-den" class="fr-build-val">1</span>
+                                <button class="fr-step" data-fr-step="d1" aria-label="More pieces">+</button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div id="fr-feedback" class="feedback-display"></div>

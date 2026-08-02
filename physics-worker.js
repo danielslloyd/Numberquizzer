@@ -5,6 +5,8 @@
 importScripts('https://cdnjs.cloudflare.com/ajax/libs/cannon.js/0.6.2/cannon.min.js');
 
 let world = null;
+let cubeMaterial = null;
+let cubeContact = null;
 const dynamicBodies = [];
 
 function init() {
@@ -12,6 +14,18 @@ function init() {
     world.gravity.set(0, -9.82 * 2, 0);
     world.defaultContactMaterial.friction = 0.3;
     world.defaultContactMaterial.restitution = 0.2;
+
+    // No air: bodies carry zero damping, so sleeping is what brings a pile to
+    // rest. See physics.js — the two backends must behave identically.
+    world.allowSleep = true;
+
+    // Block-on-block grip, the only friction the slider drives.
+    cubeMaterial = new CANNON.Material('cube');
+    cubeContact = new CANNON.ContactMaterial(cubeMaterial, cubeMaterial, {
+        friction: 0.5,
+        restitution: 0.2,
+    });
+    world.addContactMaterial(cubeContact);
 
     if (typeof CANNON.SAPBroadphase === 'function') {
         world.broadphase = new CANNON.SAPBroadphase(world);
@@ -48,6 +62,12 @@ function setupEnvironment() {
     back.addShape(new CANNON.Box(new CANNON.Vec3(30, 30, wallThickness)));
     back.position.set(0, 0, -15);
     world.addBody(back);
+
+    // Fixed, slider-independent environment contacts.
+    world.addContactMaterial(new CANNON.ContactMaterial(
+        cubeMaterial, floorMaterial, { friction: 0.4, restitution: 0.2 }));
+    world.addContactMaterial(new CANNON.ContactMaterial(
+        cubeMaterial, wallMaterial, { friction: 0.4, restitution: 0.2 }));
 }
 
 function reset() {
@@ -57,12 +77,18 @@ function reset() {
     dynamicBodies.length = 0;
 }
 
-function addCube(x, y, z, size, linearDamping = 0.3, angularDamping = 0.3, spin = 0) {
+function addCube(x, y, z, size, spin = 0) {
     const half = size / 2;
     const shape = new CANNON.Box(new CANNON.Vec3(half, half, half));
-    const body = new CANNON.Body({ mass: 1, shape });
-    body.linearDamping = linearDamping;
-    body.angularDamping = angularDamping;
+    const body = new CANNON.Body({ mass: 1, shape, material: cubeMaterial });
+    // Damping is drag against a medium; there is no medium. Contact friction
+    // is the only brake.
+    body.linearDamping = 0;
+    body.angularDamping = 0;
+    // Must match physics.js — below ~0.15 a zero-damping pile never settles.
+    body.allowSleep = true;
+    body.sleepSpeedLimit = 0.25;
+    body.sleepTimeLimit = 0.5;
     body.position.set(x, y, z);
     body.velocity.set(
         (Math.random() - 0.5) * 2,
@@ -97,7 +123,9 @@ function step() {
         states[base + 4] = b.quaternion.y;
         states[base + 5] = b.quaternion.z;
         states[base + 6] = b.quaternion.w;
-        if (b.velocity.length() > 0.01 || b.angularVelocity.length() > 0.05) settled = false;
+        // Sleeping is rest — without this a settled pile never reads as settled.
+        const asleep = b.sleepState === CANNON.Body.SLEEPING;
+        if (!asleep && (b.velocity.length() > 0.01 || b.angularVelocity.length() > 0.05)) settled = false;
     }
     return { states, settled };
 }
@@ -114,7 +142,10 @@ self.onmessage = (event) => {
             self.postMessage({ type: 'resetDone' });
             break;
         case 'addCube':
-            addCube(msg.x, msg.y, msg.z, msg.size || 1, msg.linearDamping, msg.angularDamping, msg.spin);
+            addCube(msg.x, msg.y, msg.z, msg.size || 1, msg.spin);
+            break;
+        case 'setBlockFriction':
+            if (cubeContact) cubeContact.friction = msg.friction;
             break;
         case 'step': {
             const result = step();
