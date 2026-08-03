@@ -8,7 +8,7 @@ work-streams avoid conflicts *depends* on classic scripts sharing one global sco
 
 Two halves:
 
-- **Practice** — twenty bespoke activity modes. Detail in `docs/modes.md`.
+- **Practice** — twenty-two bespoke activity modes. Detail in `docs/modes.md`.
 - **Learn** — a curated proficiency graph, a generic assessment runner, and a
   mastery model. Detail in `docs/learn.md`.
 
@@ -34,6 +34,8 @@ parser.js animator.js physics.js physics-worker.js   visualizer
 language-arts.js + .css       lazily loaded plug-in
 geometry-proofs.js + .css     lazily loaded plug-in
 polygons.js + .css            lazily loaded plug-in
+sounds.js + .css              lazily loaded plug-in (vowel sandbox over audio.js)
+patterns.js + .css            lazily loaded plug-in (number sequences)
 tools/                        manually-run validators; never a build gate
 netlify.toml                  publish = ".", must-revalidate on everything
 ```
@@ -114,13 +116,13 @@ on any change to a local `.js` or `.css`. Do not add `<script>` tags to
 `index.html` — adding a file is a one-line append to an array in `boot.js`, which
 is also what stopped `index.html` being a merge-conflict hotspot.
 
-`language-arts.js`, `geometry-proofs.js` and `polygons.js` are fetched on first
-tab click, not at boot. Their tab buttons are created up front so the bar behaves identically;
+`language-arts.js`, `geometry-proofs.js`, `polygons.js`, `sounds.js` and
+`patterns.js` are fetched on first tab click, not at boot. Their tab buttons are created up front so the bar behaves identically;
 each plug-in's `injectTab` skips a button that already exists.
 
 ## Prefix table
 
-Every module namespaces its globals. Taken: `ws tg tt fr mn pv pg py viz la gp sb`
+Every module namespaces its globals. Taken: `ws tg tt fr mn pv pg py vs np viz la gp sb`
 (activities), `cur ir lb pr st idr gen` (Learn), and `sp` (the shared
 recogniser) and `au` (on-device audio analysis). Pick a free one.
 
@@ -155,6 +157,11 @@ migration copies rather than moves and nothing is ever deleted.
 ### Fractions
 - **Every fraction is written over/under** (`frFracHTML` / `.fr-frac`). There is
   no `a/b` slashed form anywhere in the tab, including feedback lines.
+- The compare operator lines up with the **fractions**, not the pies. That is
+  held by three CSS variables — `--fr-card-pad`, `--fr-card-border` and
+  `--fr-label-h` — shared by the card's label row and the operator slot. Change
+  the card's padding or border without changing the slot's offset and the
+  operator drifts by exactly that much.
 - **Every shape is a pie.** `frRenderBar` stays only because `item-draw.js`
   draws Learn's fraction items with it — it is not dead code.
 - A one-piece pie is a plain `<circle>`: an SVG arc whose start and end
@@ -179,6 +186,44 @@ migration copies rather than moves and nothing is ever deleted.
 - Wrong answers are the right answers for a neighbouring side count, plus the
   classic misconception for that question type.
 - **Anything answered in degrees is Hard only.** Easy and Medium count and name.
+
+### Place value
+- The count-up frame reserves **ten slots in every place the target uses**, not
+  the target's own digits. A place must be able to hold ten before it can spill,
+  and a frame that resized mid-count would move everything under the eye.
+- Every merge is a **pure translation plus a colour fade** — nothing resizes.
+  Ten cubes with their gaps closed *are* a rod; ten rods with their gaps closed
+  *are* a flat. `pvClosedXY` and `PV_GEOM` encode that identity and the smoke
+  test asserts it; break it and merges need resizing, which looks wrong.
+- A tween completes on a **timeout as well as on rAF**. requestAnimationFrame
+  does not fire in a hidden tab and the driver only advances from a tween's
+  callback, so without it a carry begun as the user switched tabs would hang
+  the whole count.
+
+### Patterns
+- **A generated sequence is not trusted.** Every family carries a `holds`
+  predicate that re-derives the pattern from the finished terms, and `npMake`
+  throws the sequence away if its own family cannot see the pattern in it.
+- **Exactly one option may fit.** For a next/missing question no distractor may
+  sit in the blank and leave `holds` true; for a rule question no distractor
+  may be a true description of the terms. Two defensible answers is the failure
+  mode this mode has, and the smoke test asserts against it directly.
+- Every "add N / subtract N" string comes from `arithRule`. Built by hand it
+  reads "add -9 each time" the moment a step goes negative — a different claim
+  from the one being made.
+- The step labels between the tiles are computed from the **terms on screen**
+  (`npStepLabels`), never from the generator's intent. They are the explanation,
+  so they stay true even if a generator is wrong.
+
+### Sounds
+- The sandbox writes the same `voice.v1` anchors the Learn runner reads, so a
+  recalibration here fixes vowel items everywhere.
+- A **degenerate calibration is discarded, not saved** — three noises that are
+  not three different noises leave a space in which every later reading is
+  meaningless, and silently keeping it is worse than staying uncalibrated.
+- A frame that is silent or unvoiced **must not move the dot**. Its formant
+  estimate is not a quiet reading, it is a meaningless one, and letting it in
+  sends the dot to a corner every time the speaker breathes.
 
 ### Visualizer
 - **Canvas sizing** (`animator.js`) — camera aspect from the *container's* real

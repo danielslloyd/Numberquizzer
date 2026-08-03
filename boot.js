@@ -26,7 +26,7 @@
 
     // Bump on ANY change to a local .js or .css file. This is the only version
     // number in the project — CLAUDE.md's per-file ?v=N rule is retired.
-    const ASSET_V = '62';
+    const ASSET_V = '64';
     window.ASSET_V = ASSET_V;
 
     // Order matters: storage and the curriculum registry come first so the node
@@ -80,6 +80,14 @@
         {
             file: 'polygons.js',
             tabs: [['polygons', 'Polygons']],
+        },
+        {
+            file: 'sounds.js',
+            tabs: [['sounds', 'Sounds']],
+        },
+        {
+            file: 'patterns.js',
+            tabs: [['patterns', 'Patterns']],
         },
     ];
 

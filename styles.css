@@ -1616,7 +1616,13 @@ body {
     align-items: center;
     gap: 1rem;
     width: 100%;
-    max-width: 620px;
+    max-width: 760px;
+
+    /* Both the card and the operator slot key off these, which is what makes
+       the operator line up with the fractions rather than with the pies. */
+    --fr-card-pad: 0.8rem;
+    --fr-card-border: 3px;
+    --fr-label-h: 6.6rem;
 }
 
 .fr-config {
@@ -1665,19 +1671,22 @@ body {
 
 .fr-versus {
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     justify-content: center;
     gap: 0.5rem;
     width: 100%;
 }
 
+/* Two rows: the pie, then a label row of a KNOWN height. The operator slot is
+   given that same height and the same bottom inset, so the two centres line up
+   without measuring anything. */
 .fr-shape-card {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-rows: auto var(--fr-label-h);
+    justify-items: center;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.8rem;
-    border: 3px solid transparent;
+    padding: var(--fr-card-pad);
+    border: var(--fr-card-border) solid transparent;
     border-radius: 12px;
     cursor: pointer;
     transition: border-color 0.12s, background 0.12s;
@@ -1691,7 +1700,7 @@ body {
 }
 
 .fr-label {
-    font-size: 1.4rem;
+    font-size: 2.8rem;
     font-weight: 800;
 }
 
@@ -1717,8 +1726,11 @@ body {
     position: relative;
     display: grid;
     place-items: center;
-    width: 4rem;
-    height: 4rem;
+    width: 4.5rem;
+    height: var(--fr-label-h);
+    /* The card's own padding AND its transparent border sit below its label
+       row, so the slot has to clear both or it lands 3px low. */
+    margin-bottom: calc(var(--fr-card-pad) + var(--fr-card-border));
     flex: 0 0 auto;
 }
 
@@ -1810,9 +1822,9 @@ body {
 }
 
 .fr-frac-slot {
-    font-size: 1.5rem;
+    font-size: 3rem;
     font-weight: 800;
-    min-height: 2.6em;
+    min-height: var(--fr-label-h);
     display: flex;
     align-items: center;
 }
@@ -1845,16 +1857,16 @@ body {
 }
 
 .fr-build-val {
-    min-width: 1.8rem;
-    font-size: 1.6rem;
+    min-width: 3.2rem;
+    font-size: 3rem;
     font-weight: 800;
     text-align: center;
 }
 
 .fr-build-bar {
     width: 100%;
-    min-width: 5.5rem;
-    height: 3px;
+    min-width: 8rem;
+    height: 5px;
     background: #000;
     border-radius: 2px;
 }
@@ -1881,6 +1893,25 @@ body {
     cursor: default;
 }
 
+/* Two cards plus the operator slot want 376px at the 2x size, against about
+   351px of usable width on a 375px phone, so the numerals and the slot step
+   down together. Because the alignment is driven by --fr-label-h and the
+   shared padding/border variables, it stays lined up at either size.
+
+   This block must stay AFTER the rules it overrides: the selectors have equal
+   specificity, so source order decides, and a media query earlier in the file
+   loses to the plain rule below it. */
+@media (max-width: 480px) {
+    /* The numerals keep their full size on a phone; the PIE gives up the room
+       instead. Two cards, the slot and the gaps come to 339px of the ~351px a
+       375px screen has, so nothing has to shrink to fit. */
+    .fr-svg        { width: clamp(84px, 28vw, 170px); }
+    .fr-versus     { gap: 0.25rem; }
+    .fr-op-slot    { width: 3.6rem; }
+    .fr-build-val  { min-width: 2.6rem; }
+    .fr-build-bar  { min-width: 6.5rem; }
+}
+
 /* ============================================================
    PLACE-VALUE BLOCK VISUALIZER
    ============================================================ */
@@ -1895,6 +1926,55 @@ body {
     width: 8rem;
     text-align: center;
     font-size: 2rem;
+}
+
+/* ---- Place value: animated count-up ---- */
+
+.pv-anim-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.7rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.8rem;
+}
+
+.pv-anim-btn {
+    padding: 0.4rem 0.9rem;
+    font-size: 1rem;
+    min-width: 8.5rem;
+}
+
+.pv-speed-label {
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    opacity: 0.55;
+}
+
+.pv-speed {
+    width: min(180px, 40vw);
+    accent-color: #000;
+}
+
+.pv-anim-count {
+    min-width: 6.5rem;
+    font-size: 1rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    opacity: 0.7;
+}
+
+/* A cube arrives rather than blinking into place. Opacity only — the
+   transform attribute is carrying the piece's position. */
+.pv-piece-new {
+    animation: pv-arrive 0.18s ease-out;
+}
+
+@keyframes pv-arrive {
+    from { opacity: 0; }
+    to   { opacity: 1; }
 }
 
 .pv-svg-wrap {

@@ -17,7 +17,8 @@ const BASE = process.env.SMOKE_URL || 'http://localhost:8765/index.html';
 
 const EAGER_TABS = ['flashcards', 'worksheets', 'sorting', 'ciphers', 'make-ten',
     'ten-frame', 'times-grid', 'fractions', 'money', 'visualizer', 'place-value', 'sudoku'];
-const LAZY_TABS = ['la-vocab', 'la-cap', 'la-punct', 'la-subj', 'la-diag', 'geo-proofs', 'polygons'];
+const LAZY_TABS = ['la-vocab', 'la-cap', 'la-punct', 'la-subj', 'la-diag', 'geo-proofs', 'polygons', 'sounds',
+    'patterns'];
 
 const results = [];
 function check(name, ok, detail) {
@@ -47,6 +48,8 @@ function check(name, ok, detail) {
     check('geometry-proofs.js not fetched at boot', !fetched('geometry-proofs.js'));
     check('language-arts.js not fetched at boot', !fetched('language-arts.js'));
     check('polygons.js not fetched at boot', !fetched('polygons.js'));
+    check('sounds.js not fetched at boot', !fetched('sounds.js'));
+    check('patterns.js not fetched at boot', !fetched('patterns.js'));
     check('app.js fetched at boot', fetched('app.js'));
     check('nodes-math.js fetched at boot', fetched('nodes-math.js'));
 
@@ -75,7 +78,7 @@ function check(name, ok, detail) {
 
     // ---- tab bar ------------------------------------------------------
     const tabs = await page.$$eval('#tab-bar .tab-btn', (els) => els.map((e) => e.dataset.tab));
-    check('all 20 tabs present', tabs.length === 20, 'got ' + tabs.length + ': ' + tabs.join(','));
+    check('all 22 tabs present', tabs.length === 22, 'got ' + tabs.length + ': ' + tabs.join(','));
     check('no duplicate tab buttons', new Set(tabs).size === tabs.length);
     check('lazy tabs in place', LAZY_TABS.every((t) => tabs.includes(t)));
 
@@ -104,7 +107,7 @@ function check(name, ok, detail) {
         return out;
     });
     const covered = Object.keys(coverage).reduce((n, k) => n + coverage[k].length, 0);
-    check('every tab belongs to a section', covered === 20, JSON.stringify(coverage));
+    check('every tab belongs to a section', covered === 22, JSON.stringify(coverage));
 
     // ---- every eager tab opens and highlights --------------------------
     for (const tab of EAGER_TABS) {
@@ -144,7 +147,7 @@ function check(name, ok, detail) {
     }));
     check('proofs screen opened after lazy load', gpState.screen === 'geo-proofs-screen', JSON.stringify(gpState));
     check('proofs tab highlighted', gpState.highlighted);
-    check('lazy load did not duplicate the tab', gpState.gpTabs === 1 && gpState.tabCount === 20,
+    check('lazy load did not duplicate the tab', gpState.gpTabs === 1 && gpState.tabCount === 22,
         JSON.stringify(gpState));
 
     await page.evaluate((t) => lbApplySection(window.ACTIVITY_SECTION[t] || 'tools'), 'la-vocab');
@@ -156,7 +159,7 @@ function check(name, ok, detail) {
         tabCount: document.querySelectorAll('#tab-bar .tab-btn').length,
     }));
     check('language-arts lazy load works', laState.screen === 'la-vocab-screen', JSON.stringify(laState));
-    check('language-arts did not duplicate tabs', laState.tabCount === 20, JSON.stringify(laState));
+    check('language-arts did not duplicate tabs', laState.tabCount === 22, JSON.stringify(laState));
 
     // ---- Fractions: three modes, three tiers ---------------------------
     // Round generation is the part with no visible failure mode: a compare pair
@@ -222,6 +225,9 @@ function check(name, ok, detail) {
         const cards = [...document.querySelectorAll('#fr-versus .fr-shape-card')].map(box);
         const slot = box(document.querySelector('.fr-op-slot'));
         const circle = box(document.getElementById('fr-eq-btn'));
+        const labels = [...document.querySelectorAll('#fr-versus .fr-label')].map(box);
+        const pies = [...document.querySelectorAll('#fr-versus .fr-svg')].map(box);
+        const mid = (b) => b.top + b.height / 2;
 
         document.querySelectorAll('#fr-versus .fr-shape-card')[0].click();
         const op = document.getElementById('fr-op');
@@ -232,13 +238,24 @@ function check(name, ok, detail) {
             slashed: /\//.test(document.querySelector('#fr-versus .fr-label').textContent),
             text: op.textContent,
             size: parseFloat(getComputedStyle(op).fontSize),
+            labelSize: parseFloat(getComputedStyle(document.querySelector('#fr-versus .fr-label')).fontSize),
             inSlot: Math.abs((r.left + r.width / 2) - (circle.left + circle.width / 2)) < 2,
+            // The dashed circle and the revealed operator both belong on the
+            // FRACTIONS' centre line, which is nowhere near the pies' centre.
+            onLabelLine: Math.abs(mid(circle) - mid(labels[0])) < 1.5
+                && Math.abs(mid(circle) - mid(labels[1])) < 1.5
+                && Math.abs(mid(r) - mid(labels[0])) < 1.5,
+            notOnPieLine: Math.abs(mid(circle) - mid(pies[0])) > 20,
         };
     });
     check('fractions: labels are stacked over/under, never a/b', frUI.stacked && !frUI.slashed, JSON.stringify(frUI));
     check('fractions: compare puts the two shapes side by side', frUI.sideBySide, JSON.stringify(frUI));
     check('fractions: picking a card reveals a big operator in the slot',
         frUI.text === '>' && frUI.size >= 40 && frUI.inSlot, JSON.stringify(frUI));
+    check('fractions: the operator sits on the fractions, not the pies',
+        frUI.onLabelLine && frUI.notOnPieLine, JSON.stringify(frUI));
+    check('fractions: labels are drawn at the larger size',
+        frUI.labelSize >= 36, 'got ' + frUI.labelSize + 'px');
 
     // ---- Polygons ------------------------------------------------------
     await page.evaluate(() => lbApplySection('maths'));
@@ -334,9 +351,358 @@ function check(name, ok, detail) {
     });
     check('polygons screen opened after lazy load',
         pyState.state.screen === 'polygons-screen' && pyState.state.highlighted, JSON.stringify(pyState.state));
-    check('polygons lazy load did not duplicate the tab', pyState.state.tabCount === 20, JSON.stringify(pyState.state));
+    check('polygons lazy load did not duplicate the tab', pyState.state.tabCount === 22, JSON.stringify(pyState.state));
     check('polygons: drawing and quiz are mathematically sound',
         pyState.errs.length === 0, pyState.errs.join(' | '));
+
+    // ---- Place value: the animated count-up ----------------------------
+    // The carry is the whole point and it is pure model: ten pieces in a place
+    // become one in the next. Driven directly rather than by waiting out 999
+    // real steps, and seeded at 999 so the triple cascade is exercised too.
+    await page.evaluate(() => lbApplySection('maths'));
+    await page.waitForTimeout(60);
+    await page.click('#tab-bar .tab-btn[data-tab="place-value"]');
+    await page.waitForTimeout(150);
+
+    const pvGeom = await page.evaluate(() => {
+        const errs = [];
+        [7, 23, 456, 1234].forEach((t) => {
+            const L = pvAnimLayout(t);
+            L.used.forEach((def) => {
+                const p = def.name, g = L.groups[p];
+                const s0 = pvSlotXY(L, p, 0);
+                if (Math.abs(s0.y + g.ph - L.totalH) > 0.01) errs.push(t + ' ' + p + ': does not fill from the bottom');
+                if (Math.abs(s0.x - g.x) > 0.01) errs.push(t + ' ' + p + ': does not fill from the left');
+                for (let k = 0; k < PV_SLOTS[p]; k++) {
+                    const s = pvSlotXY(L, p, k);
+                    if (s.x < g.x - 0.01 || s.x + g.pw > g.x + g.w + 0.01) errs.push(t + ' ' + p + ': slot outside its group');
+                    if (s.y < -0.01 || s.y + g.ph > L.totalH + 0.01) errs.push(t + ' ' + p + ': slot outside the frame');
+                }
+                // Ten pieces with their gaps closed must be EXACTLY the piece they
+                // turn into — that identity is what lets a merge be a pure
+                // translation with nothing resizing.
+                if (!PV_ABOVE[p]) return;
+                const cl = [];
+                for (let k = 0; k < 10; k++) cl.push(pvClosedXY(L, p, k));
+                const x0 = Math.min.apply(null, cl.map((c) => c.x));
+                const x1 = Math.max.apply(null, cl.map((c) => c.x)) + g.pw;
+                const y0 = Math.min.apply(null, cl.map((c) => c.y));
+                const y1 = Math.max.apply(null, cl.map((c) => c.y)) + g.ph;
+                const up = PV_GEOM[PV_ABOVE[p]];
+                if (Math.abs((x1 - x0) - up.pw) > 0.01 || Math.abs((y1 - y0) - up.ph) > 0.01) {
+                    errs.push(t + ' ' + p + ': closed block is not a ' + PV_ABOVE[p] + ' piece');
+                }
+                if (Math.abs(10 * g.pw * g.ph - (x1 - x0) * (y1 - y0)) > 0.01) errs.push(t + ' ' + p + ': closed block has gaps');
+            });
+        });
+        return Array.from(new Set(errs));
+    });
+    check('place value: count-up frame geometry is exact', pvGeom.length === 0, pvGeom.join(' | '));
+
+    const pvCascade = await page.evaluate(() => new Promise((resolve) => {
+        const log = [];
+        document.getElementById('pv-input').value = '1000';
+        document.getElementById('pv-speed').value = '40';
+        document.getElementById('pv-speed').dispatchEvent(new Event('input'));
+        pvAnimStart();
+        pvAnimStop();
+        // Seed at 999 — nine of everything — so one more cube carries three times.
+        pvAnim.on = true;
+        pvAnim.count = 999;
+        ['Hundreds', 'Tens', 'Ones'].forEach((p) => {
+            for (let k = 0; k < 9; k++) pvMakePiece(p, k);
+            pvAnim.counts[p] = 9;
+        });
+        pvAnimReadout();
+        let last = '';
+        const iv = setInterval(() => {
+            const key = pvAnim.count + JSON.stringify(pvAnim.counts);
+            if (key !== last) {
+                last = key;
+                log.push({ n: pvAnim.count, c: Object.assign({}, pvAnim.counts),
+                    dom: document.querySelectorAll('#pv-anim-layer .pv-piece').length });
+            }
+            if (!pvAnim.on && log.length > 2) {
+                clearInterval(iv);
+                resolve({ log: log, words: document.getElementById('pv-words').textContent,
+                    btn: document.getElementById('pv-animate').textContent });
+            }
+        }, 12);
+        setTimeout(() => { clearInterval(iv); resolve({ log: log, timedOut: true }); }, 15000);
+        pvAnimStep();
+    }));
+    const cascadeOk = (function () {
+        const l = pvCascade.log;
+        if (!l || !l.length || pvCascade.timedOut) return false;
+        const end = l[l.length - 1];
+        return end.c.Thousands === 1 && end.c.Hundreds === 0 && end.c.Tens === 0
+            && end.c.Ones === 0 && end.dom === 1
+            && l.some((e) => e.c.Ones === 10) && l.some((e) => e.c.Tens === 10)
+            && l.some((e) => e.c.Hundreds === 10);
+    }());
+    check('place value: 999 + 1 carries three times into one thousand-cube',
+        cascadeOk, JSON.stringify(pvCascade));
+    check('place value: the count-up settles and releases the button',
+        pvCascade.words === 'one thousand' && /Count up/.test(pvCascade.btn || ''),
+        JSON.stringify({ words: pvCascade.words, btn: pvCascade.btn }));
+
+    // ---- Sounds: the vowel sandbox --------------------------------------
+    await page.evaluate(() => lbApplySection('english'));
+    await page.waitForTimeout(60);
+    await page.click('#tab-bar .tab-btn[data-tab="sounds"]');
+    await page.waitForFunction(() => !!window.__VS && !!document.getElementById('vs-plot'), { timeout: 15000 })
+        .catch(() => {});
+    await page.waitForTimeout(300);
+    check('sounds.js fetched on click', fetched('sounds.js'));
+
+    const vsState = await page.evaluate(() => {
+        const V = window.__VS, S = V.state, errs = [];
+        const frame = (f1, f2, o) => Object.assign(
+            { rms: 0.05, f0: 200, voiced: true, f1: f1, f2: f2, centroid: 3000 }, o || {});
+
+        // Smoothing: 0 is raw, 100 is heavy, and it only ever gets smoother.
+        const alphas = [0, 25, 50, 75, 100].map((n) => { S.smoothing = n; return V.vsAlpha(); });
+        if (Math.abs(alphas[0] - 1) > 1e-9) errs.push('smoothing 0 is not raw');
+        if (alphas[4] > 0.05) errs.push('smoothing 100 is not heavy');
+        for (let i = 1; i < alphas.length; i++) if (alphas[i] >= alphas[i - 1]) errs.push('alpha is not monotonic');
+
+        S.smoothing = 0; S.pt = null; S.trail.length = 0;
+        const want = auNormalise(300, 2300, S.anchors);
+        const raw = V.vsPush(frame(300, 2300));
+        if (Math.abs(raw.x - want.x) > 1e-9) errs.push('unsmoothed dot did not land on the reading');
+
+        S.smoothing = 100; S.pt = { x: 0, y: 0 }; S.trail.length = 0;
+        const one = V.vsPush(frame(300, 2300));
+        if (Math.hypot(one.x, one.y) > Math.hypot(want.x, want.y) * 0.1) errs.push('heavy smoothing jumped');
+        for (let i = 0; i < 400; i++) V.vsPush(frame(300, 2300));
+        if (Math.hypot(S.pt.x - want.x, S.pt.y - want.y) > 0.01) errs.push('smoothed dot never converged');
+
+        // A frame with no vowel in it is meaningless, not quiet — it must not
+        // move the dot, or the dot bolts for a corner on every breath.
+        const held = Object.assign({}, S.pt);
+        [frame(300, 2300, { voiced: false }), frame(300, 2300, { rms: 0.001 }),
+            frame(0, 2300), frame(300, 0), null].forEach((f) => {
+            if (V.vsPush(f) !== null) errs.push('a frame with no vowel moved the dot');
+        });
+        if (Math.abs(S.pt.x - held.x) > 1e-9) errs.push('the dot drifted on a dead frame');
+
+        for (let i = 0; i < 500; i++) V.vsPush(frame(400 + (i % 40), 1900));
+        if (S.trail.length > 45) errs.push('the trail grows without bound');
+
+        // Calibration, end to end.
+        if (typeof stRemove === 'function') stRemove('voice.v1');
+        window.irVoiceAnchors = null;
+        S.anchors = null;
+        S.on = false;
+        V.vsCalibrateStart();
+        if (S.mode === 'calibrating') errs.push('calibration started with the microphone off');
+
+        S.on = true;
+        V.vsCalibrateStart();
+        const SAY = { i: frame(300, 2300), a: frame(750, 1100), u: frame(320, 850) };
+        const order = [];
+        let guard = 0;
+        while (S.mode === 'calibrating' && guard++ < 300) {
+            const key = auCalibrationSteps[S.cal.step].key;
+            if (order[order.length - 1] !== key) order.push(key);
+            V.vsCalibrateFrame(SAY[key]);
+        }
+        if (order.join(',') !== 'i,a,u') errs.push('calibration steps ran out of order: ' + order.join(','));
+        if (!S.anchors) errs.push('calibration produced no anchors');
+        const saved = typeof stJSON === 'function' ? stJSON('voice.v1', null) : null;
+        if (!saved || !saved.i || !saved.a || !saved.u) errs.push('anchors were not persisted to voice.v1');
+        if (!window.irVoiceAnchors) errs.push('anchors were not published for the Learn runner');
+
+        // The same noise three times is a degenerate space. It must be refused,
+        // and it must not destroy anchors that already worked.
+        const good = JSON.stringify(S.anchors);
+        V.vsCalibrateStart();
+        guard = 0;
+        while (S.mode === 'calibrating' && guard++ < 300) V.vsCalibrateFrame(frame(500, 1500));
+        if (JSON.stringify(S.anchors) !== good) errs.push('a degenerate calibration overwrote good anchors');
+        if (JSON.stringify(stJSON('voice.v1', null)) !== good) errs.push('a degenerate calibration was saved');
+
+        // The plot: every vowel on the canvas, and the axes the right way round.
+        const cv = document.getElementById('vs-plot');
+        V.vsDraw();
+        const P = V.vsProject(cv);
+        const at = {};
+        (window.auVowels || []).forEach((v) => {
+            const t = auTarget(v.id);
+            at[v.id] = { x: P.x(t), y: P.y(t) };
+            if (at[v.id].x < 0 || at[v.id].x > cv.width || at[v.id].y < 0 || at[v.id].y > cv.height) {
+                errs.push(v.id + ' is plotted off the canvas');
+            }
+        });
+        if (!(at['long-e'].x > at['long-oo'].x)) errs.push('the front/back axis is reversed');
+        if (!(at['short-o'].y > at['long-e'].y)) errs.push('the close/open axis is reversed');
+
+        return { errs: Array.from(new Set(errs)), screen: (document.querySelector('.screen.active') || {}).id,
+            tabCount: document.querySelectorAll('#tab-bar .tab-btn').length };
+    });
+    check('sounds screen opened after lazy load', vsState.screen === 'sounds-screen', JSON.stringify(vsState));
+    check('sounds lazy load did not duplicate the tab', vsState.tabCount === 22, JSON.stringify(vsState));
+    check('sounds: smoothing, calibration and the vowel plot are sound',
+        vsState.errs.length === 0, vsState.errs.join(' | '));
+
+    // The microphone must not be left open against a screen nobody is on.
+    const vsMic = await page.evaluate(() => {
+        const V = window.__VS, S = V.state;
+        let stops = 0;
+        const realStop = window.auStop, realStart = window.auStart, realAvail = window.auAvailable;
+        window.auStop = () => { stops++; };
+        window.auAvailable = () => true;
+        window.auStart = () => Promise.resolve(true);
+        window.auFrame = () => ({ rms: 0.05, f0: 200, voiced: true, f1: 400, f2: 2000, centroid: 3000 });
+        V.vsMicOn();
+        return new Promise((resolve) => setTimeout(() => {
+            const wasOn = S.on;
+            document.querySelector('.tab-btn[data-tab="fractions"]').click();
+            V.vsLoop();
+            const out = { wasOn: wasOn, stillOn: S.on, stops: stops };
+            window.auStop = realStop; window.auStart = realStart; window.auAvailable = realAvail;
+            resolve(out);
+        }, 150));
+    });
+    check('sounds: the microphone closes when its tab is left',
+        vsMic.wasOn && !vsMic.stillOn && vsMic.stops > 0, JSON.stringify(vsMic));
+
+    // ---- Patterns -------------------------------------------------------
+    await page.evaluate(() => lbApplySection('maths'));
+    await page.waitForTimeout(60);
+    await page.click('#tab-bar .tab-btn[data-tab="patterns"]');
+    await page.waitForFunction(() => !!window.__NP && !!document.getElementById('np-seq'), { timeout: 15000 })
+        .catch(() => {});
+    await page.waitForTimeout(300);
+    check('patterns.js fetched on click', fetched('patterns.js'));
+
+    const npState = await page.evaluate(() => {
+        const N = window.__NP, errs = [];
+        const state = {
+            screen: (document.querySelector('.screen.active') || {}).id,
+            highlighted: !!document.querySelector('.tab-btn[data-tab="patterns"].active'),
+            tabCount: document.querySelectorAll('#tab-bar .tab-btn').length,
+        };
+        const kinds = {};
+
+        // Decide independently whether a rule STRING is true of some terms.
+        // The generator's word for what it did is not evidence that it did it.
+        const ruleTrue = (rule, t) => {
+            const d = t.slice(1).map((v, i) => v - t[i]);
+            const dd = d.slice(1).map((v, i) => v - d[i]);
+            const same = (a) => a.every((v) => v === a[0]);
+            let m;
+            if ((m = /^add (\d+) each time$/.exec(rule))) return same(d) && d[0] === +m[1];
+            if ((m = /^subtract (\d+) each time$/.exec(rule))) return same(d) && d[0] === -+m[1];
+            if ((m = /^multiply by ([\d.]+) each time$/.exec(rule))) {
+                return t.every((v) => v !== 0) && t.slice(1).every((v, i) => Math.abs(v / t[i] - +m[1]) < 1e-9);
+            }
+            if (/^halve it each time$/.test(rule)) {
+                return t.every((v) => v !== 0) && t.slice(1).every((v, i) => Math.abs(v / t[i] - 0.5) < 1e-9);
+            }
+            if ((m = /^the step grows by (\d+) each time$/.exec(rule))) return same(dd) && dd[0] === +m[1];
+            if (/^add one more each time/.test(rule)) return same(dd) && dd[0] === 1;
+            if (/^square numbers$/.test(rule)) {
+                return t.every((v) => v > 0 && Number.isInteger(Math.sqrt(v))) && same(dd);
+            }
+            if (/^add the two before it$/.test(rule)) {
+                for (let i = 2; i < t.length; i++) if (t[i] !== t[i - 1] + t[i - 2]) return false;
+                return true;
+            }
+            if ((m = /^add (\d+), then subtract (\d+)/.exec(rule))) {
+                return d.every((v, i) => (i % 2 === 0 ? v === +m[1] : v === -+m[2]));
+            }
+            if (/two patterns taking turns/.test(rule)) {
+                const ev = t.filter((_, i) => i % 2 === 0), od = t.filter((_, i) => i % 2 === 1);
+                return same(ev.slice(1).map((v, i) => v - ev[i])) && same(od.slice(1).map((v, i) => v - od[i]));
+            }
+            return null;      // no parser for it — a rule string nobody checks
+        };
+
+        ['easy', 'medium', 'hard'].forEach((level) => {
+            for (let i = 0; i < 600; i++) {
+                const q = N.npMake(level);
+                const F = N.FAMILIES[q.family];
+                const key = level + ' ' + q.family + '/' + q.kind;
+                kinds[level + ':' + q.kind] = (kinds[level + ':' + q.kind] || 0) + 1;
+
+                if (!F.holds(q.terms)) errs.push(key + ': the family cannot see its own pattern');
+                if (q.terms.some((v) => !Number.isInteger(v) || Math.abs(v) > 9999)) errs.push(key + ': term out of range');
+                if (level === 'easy' && q.terms.some((v) => v < 0)) errs.push('easy: a negative term');
+                if (level === 'easy' && q.family !== 'arith') errs.push('easy: not plain counting');
+                if (q.choices.length !== 4) errs.push(key + ': wrong number of choices');
+                if (new Set(q.choices.map(String)).size !== 4) errs.push(key + ': duplicate choices');
+                if (q.choices.filter((c) => c === q.answer).length !== 1) errs.push(key + ': answer not present exactly once');
+
+                // The step labels ARE the explanation, so they must be true of
+                // the numbers on screen, not of what the generator meant.
+                q.steps.forEach((lab, j) => {
+                    const a = q.terms[j], b = q.terms[j + 1];
+                    const want = q.family === 'geom'
+                        ? (b / a === 0.5 ? '÷2' : '×' + (b / a))
+                        : (b - a >= 0 ? '+' + (b - a) : '−' + Math.abs(b - a));
+                    if (lab !== want) errs.push(key + ': step label "' + lab + '" is not "' + want + '"');
+                });
+
+                if (q.kind === 'next' && q.at !== q.terms.length - 1) errs.push(key + ': next did not hide the last term');
+                if (q.kind === 'missing' && (q.at < 1 || q.at > q.terms.length - 2)) errs.push(key + ': missing hid an end term');
+                if (q.kind === 'rule' && q.at !== -1) errs.push(key + ': a rule question hid a tile');
+
+                if (q.kind === 'rule') {
+                    // The stated rule must be true, and no other option may be.
+                    if (ruleTrue(q.answer, q.terms) !== true) errs.push(key + ': the stated rule is not true of the terms');
+                    q.choices.forEach((c) => {
+                        if (c === q.answer) return;
+                        const v = ruleTrue(c, q.terms);
+                        if (v === null) errs.push(key + ': unparsed rule option "' + c + '"');
+                        else if (v === true) errs.push(key + ': a distractor is also true — "' + c + '"');
+                    });
+                } else {
+                    // Exactly one option may sit in the blank and leave the
+                    // pattern intact. Two would be two defensible answers.
+                    const fits = q.choices.filter((c) => {
+                        const t = q.terms.slice();
+                        t[q.at] = c;
+                        return F.holds(t);
+                    });
+                    if (fits.length !== 1) errs.push(key + ': ' + fits.length + ' options satisfy the pattern');
+                }
+            }
+        });
+        return { state: state, errs: Array.from(new Set(errs)), kinds: kinds };
+    });
+    check('patterns screen opened after lazy load',
+        npState.state.screen === 'patterns-screen' && npState.state.highlighted, JSON.stringify(npState.state));
+    check('patterns lazy load did not duplicate the tab', npState.state.tabCount === 22, JSON.stringify(npState.state));
+    check('patterns: every sequence has exactly one defensible answer',
+        npState.errs.length === 0, npState.errs.slice(0, 4).join(' | '));
+    check('patterns: easy is only counting on, harder tiers ask all three ways',
+        !npState.kinds['easy:missing'] && !npState.kinds['easy:rule']
+        && npState.kinds['hard:next'] && npState.kinds['hard:missing'] && npState.kinds['hard:rule'],
+        JSON.stringify(npState.kinds));
+
+    const npPlay = await page.evaluate(() => {
+        const N = window.__NP, S = N.state, errs = [];
+        const btn = (v) => Array.from(document.querySelectorAll('.np-choice'))
+            .find((b) => b.dataset.npChoice === String(v));
+        const q = S.q;
+        const before = S.score;
+        btn(q.answer).click();
+        if (S.score !== before + 1) errs.push('a correct answer did not score');
+        if (q.kind !== 'rule' && document.querySelectorAll('#np-seq .np-tile')[q.at].textContent === '?') {
+            errs.push('the blank was not filled in');
+        }
+        if (!Array.from(document.querySelectorAll('#np-seq .np-step')).every((s) => s.classList.contains('np-step-show'))) {
+            errs.push('the steps between the tiles were not revealed');
+        }
+        if (!Array.from(document.querySelectorAll('.np-choice')).every((b) => b.disabled)) {
+            errs.push('choices stayed live after answering');
+        }
+        btn(q.answer).click();
+        if (S.score !== before + 1) errs.push('a second click scored twice');
+        return errs;
+    });
+    check('patterns: answering scores once and reveals the pattern', npPlay.length === 0, npPlay.join(' | '));
 
     // ---- Learn: browse a ladder and run an assessment -------------------
     await page.evaluate(() => lbApplySection('learn', { enter: true }));
@@ -651,7 +1017,7 @@ function check(name, ok, detail) {
         layout.stageTop < 200, JSON.stringify(layout));
 
     // ---- phone viewport ---------------------------------------------------
-    // Two stacked nav rows and 21 activities is exactly the shape that overflows
+    // Two stacked nav rows and 23 activities is exactly the shape that overflows
     // a narrow screen, so this is checked rather than assumed.
     await page.setViewportSize({ width: 375, height: 700 });
     await page.waitForTimeout(250);

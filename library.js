@@ -355,7 +355,7 @@
     /* ====================================================================
      * SECTION BAR
      *
-     * Twenty-one activities do not fit on one row, least of all on a phone. A
+     * Twenty-three activities do not fit on one row, least of all on a phone. A
      * second level above the tab bar groups them, and the tab bar itself is
      * filtered rather than rebuilt — so the contract the two plug-ins rely on
      * (append a .tab-btn to #tab-bar and it works) is completely untouched.
@@ -376,9 +376,9 @@
         flashcards: 'maths', 'make-ten': 'maths', 'ten-frame': 'maths', 'times-grid': 'maths',
         fractions: 'maths', money: 'maths', visualizer: 'maths', 'place-value': 'maths',
         worksheets: 'maths',
-        'geo-proofs': 'maths', polygons: 'maths',
+        'geo-proofs': 'maths', polygons: 'maths', patterns: 'maths',
         sorting: 'english', 'la-vocab': 'english', 'la-cap': 'english', 'la-punct': 'english',
-        'la-subj': 'english', 'la-diag': 'english',
+        'la-subj': 'english', 'la-diag': 'english', sounds: 'english',
         ciphers: 'tools', sudoku: 'tools',
     };
 

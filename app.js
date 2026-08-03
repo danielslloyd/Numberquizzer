@@ -3201,6 +3201,9 @@ const PV_PLACES = [
 const pvState = { speech: '' };  // last number in words, for the read-aloud button
 
 function pvRender(raw) {
+    // The static picture is authoritative: whatever asked for it — a keystroke,
+    // a tab entry, the end of the count-up — wins over an animation in flight.
+    if (pvAnim.on) pvAnimStop();
     const wrap = document.getElementById('pv-svg-wrap');
     const str = String(raw).replace(/\D/g, '');
     if (!str.length) {
@@ -3345,6 +3348,303 @@ function pvSpeak() {
                voices.find(v => /United Kingdom|British|Daniel|Kate|Serena|Arthur|Oliver/i.test(v.name));
     if (gb) u.voice = gb;
     speechSynthesis.speak(u);
+}
+
+/* ============================================================================
+ * PLACE VALUE — animated count-up
+ *
+ * Counts from zero to the number one unit cube at a time, and each time a place
+ * reaches ten, those ten pieces close ranks into the next piece up, take that
+ * place's colour, and slide across into it. The carry IS base ten, and it is
+ * the one thing the static picture cannot show.
+ *
+ * Two things make the animation simple enough to trust:
+ *
+ *   The frame is sized for TEN slots in every place the target uses, not for
+ *   the target's own digits. A place has to be able to hold ten before it can
+ *   spill, and a frame that resized mid-count would move everything under the
+ *   eye exactly when the eye is meant to be following one thing.
+ *
+ *   Every merge is a pure translation plus a colour fade — nothing resizes.
+ *   Ten 1x1 cubes with their gaps closed ARE a 1x10 rod; ten rods with their
+ *   gaps closed ARE a 10x10 flat. So the pieces are swapped for the single
+ *   real piece only once they are stacked and parked, where it cannot be seen.
+ * ==========================================================================*/
+
+// Reserved slots per place. Thousands never carries — the input caps at 9999.
+const PV_SLOTS = { Thousands: 9, Hundreds: 10, Tens: 10, Ones: 10 };
+
+// Piece size (pw x ph) and the stride from one slot to the next (sx, sy).
+const PV_GEOM = {
+    Thousands: { pw: 10, ph: 100, sx: 11, sy: 0,  layers: 10 },
+    Hundreds:  { pw: 10, ph: 10,  sx: 0,  sy: 11 },
+    Tens:      { pw: 1,  ph: 10,  sx: 2,  sy: 0  },
+    Ones:      { pw: 1,  ph: 1,   sx: 0,  sy: 2  },
+};
+
+const PV_ABOVE = { Ones: 'Tens', Tens: 'Hundreds', Hundreds: 'Thousands' };
+
+const pvAnim = {
+    on: false, target: 0, count: 0,
+    counts: null, L: null, pieces: null,
+    speed: 8,                       // unit cubes placed per second
+    timer: null, raf: null, job: null, jobTimer: null,
+};
+
+function pvAnimLayout(target) {
+    // Two places minimum: counting to 7 with nowhere for a ten to go reads as a
+    // bare column, and the empty tens frame is where the ten *would* land.
+    const nPlaces = Math.max(2, Math.min(4, String(target).length));
+    const used = PV_PLACES.slice(4 - nPlaces);
+    const GAP = 4;
+    const groups = {};
+    let x = 0;
+    used.forEach((def) => {
+        const g = PV_GEOM[def.name], n = PV_SLOTS[def.name];
+        const w = g.sx ? (n - 1) * g.sx + g.pw : g.pw;
+        const h = g.sy ? (n - 1) * g.sy + g.ph : g.ph;
+        groups[def.name] = { x, w, h, color: def.color, pw: g.pw, ph: g.ph,
+            sx: g.sx, sy: g.sy, layers: g.layers };
+        x += w + GAP;
+    });
+    const totalH = Math.max(...used.map((d) => groups[d.name].h));
+    return { groups, used, totalW: x - GAP, totalH };
+}
+
+// Where slot `k` of a place sits. Places fill from the bottom and from the left,
+// because that is the direction counting goes.
+function pvSlotXY(L, place, k) {
+    const g = L.groups[place];
+    return { x: g.x + k * g.sx, y: L.totalH - k * g.sy - g.ph };
+}
+
+// Where piece `k` sits once the ranks have closed — same order, stride reduced
+// to the piece's own size, so ten of them become one solid next-place piece.
+function pvClosedXY(L, place, k) {
+    const g = L.groups[place];
+    return {
+        x: g.x + (g.sx ? k * g.pw : 0),
+        y: L.totalH - (g.sy ? k * g.ph : 0) - g.ph,
+    };
+}
+
+function pvAnimSvg() {
+    const L = pvAnim.L;
+    const pad = 3, LABEL = 22;
+    const wrap = document.getElementById('pv-svg-wrap');
+    wrap.innerHTML =
+        `<svg viewBox="${-pad} ${-pad} ${(L.totalW + pad * 2).toFixed(2)} ` +
+        `${(L.totalH + LABEL + pad * 2).toFixed(2)}" preserveAspectRatio="xMidYMax meet" ` +
+        `class="pv-svg" xmlns="http://www.w3.org/2000/svg">` +
+        `<defs><pattern id="pvgrid" width="1" height="1" patternUnits="userSpaceOnUse">` +
+        `<rect width="1" height="1" fill="none" stroke="rgba(0,0,0,0.28)" stroke-width="0.06"/></pattern></defs>` +
+        `<g id="pv-anim-layer"></g><g id="pv-anim-digits"></g></svg>`;
+    pvAnimDigits();
+}
+
+// The running digit under each place. Watching a 9 roll to 0 as the carry
+// leaves is the same event as the blocks sliding, said in numerals.
+function pvAnimDigits() {
+    const L = pvAnim.L;
+    const host = document.getElementById('pv-anim-digits');
+    if (!host) return;
+    host.innerHTML = L.used.map((def) => {
+        const g = L.groups[def.name];
+        return `<text x="${(g.x + g.w / 2).toFixed(2)}" y="${L.totalH + 15}" text-anchor="middle" ` +
+            `class="pv-digit" fill="${g.color}">${pvAnim.counts[def.name]}</text>`;
+    }).join('');
+}
+
+function pvMakePiece(place, k) {
+    const L = pvAnim.L, g = L.groups[place];
+    const p = pvSlotXY(L, place, k);
+    const el = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    el.setAttribute('class', 'pv-piece pv-piece-new');
+    el.setAttribute('transform', `translate(${p.x} ${p.y})`);
+    el.innerHTML = pvBlock(0, 0, g.pw, g.ph, g.color, g.layers);
+    document.getElementById('pv-anim-layer').appendChild(el);
+    const piece = { el, place, x: p.x, y: p.y, color: g.color };
+    pvAnim.pieces[place].push(piece);
+    return piece;
+}
+
+/* ---- tweening ---------------------------------------------------------*/
+
+function pvHexLerp(a, b, t) {
+    const h = (c) => [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)];
+    const A = h(a), B = h(b);
+    const c = A.map((v, i) => Math.round(v + (B[i] - v) * t));
+    return '#' + c.map((v) => v.toString(16).padStart(2, '0')).join('');
+}
+
+const pvEase = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+
+/* One job at a time — the driver is strictly sequential, so a single job is
+ * also a single thing to cancel when the user hits stop.
+ *
+ * The timeout beside the rAF loop is not belt-and-braces. requestAnimationFrame
+ * does not fire AT ALL in a hidden tab, and the driver only advances from a
+ * job's done() callback — so a carry that began just as the user switched tabs
+ * would hang the whole count until they came back. The timeout lands the job on
+ * its end state regardless; rAF only supplies the frames in between.
+ */
+function pvRunTween(list, dur, done) {
+    const job = { list, t0: performance.now(), dur, done, finished: false };
+    pvAnim.job = job;
+
+    const paint = (e) => {
+        list.forEach((m) => {
+            const x = m.from.x + (m.to.x - m.from.x) * e;
+            const y = m.from.y + (m.to.y - m.from.y) * e;
+            m.piece.el.setAttribute('transform', `translate(${x.toFixed(3)} ${y.toFixed(3)})`);
+            if (m.toColor) {
+                const rect = m.piece.el.querySelector('rect');
+                if (rect) rect.setAttribute('fill', pvHexLerp(m.fromColor, m.toColor, e));
+            }
+        });
+    };
+
+    const finish = () => {
+        if (job.finished || pvAnim.job !== job) return;
+        job.finished = true;
+        clearTimeout(pvAnim.jobTimer);
+        if (pvAnim.raf) cancelAnimationFrame(pvAnim.raf);
+        pvAnim.jobTimer = pvAnim.raf = null;
+        paint(1);
+        list.forEach((m) => {
+            m.piece.x = m.to.x; m.piece.y = m.to.y;
+            if (m.toColor) m.piece.color = m.toColor;
+        });
+        pvAnim.job = null;
+        if (pvAnim.on) done();
+    };
+
+    const frame = (now) => {
+        if (job.finished || pvAnim.job !== job || !pvAnim.on) return;
+        const t = Math.min(1, (now - job.t0) / job.dur);
+        if (t >= 1) return finish();
+        paint(pvEase(t));
+        pvAnim.raf = requestAnimationFrame(frame);
+    };
+
+    pvAnim.raf = requestAnimationFrame(frame);
+    pvAnim.jobTimer = setTimeout(finish, dur + 60);
+}
+
+/* ---- the driver -------------------------------------------------------*/
+
+const pvStepMs  = () => 1000 / pvAnim.speed;
+// A carry is the thing worth watching, so it never collapses to nothing at
+// speed — but it must not stall the count at the slow end either.
+const pvMergeMs = () => Math.max(220, Math.min(900, pvStepMs() * 2.5));
+
+function pvAnimSchedule(fn, ms) {
+    clearTimeout(pvAnim.timer);
+    pvAnim.timer = setTimeout(() => { if (pvAnim.on) fn(); }, ms);
+}
+
+function pvAnimStep() {
+    if (!pvAnim.on) return;
+    if (pvAnim.count >= pvAnim.target) return pvAnimFinish();
+
+    pvAnim.count++;
+    pvMakePiece('Ones', pvAnim.counts.Ones);
+    pvAnim.counts.Ones++;
+    pvAnimReadout();
+
+    if (pvAnim.counts.Ones >= 10) pvAnimSchedule(() => pvAnimMerge('Ones'), pvStepMs());
+    else pvAnimSchedule(pvAnimStep, pvStepMs());
+}
+
+function pvAnimMerge(place) {
+    if (!pvAnim.on) return;
+    const L = pvAnim.L;
+    const up = PV_ABOVE[place];
+    const group = pvAnim.pieces[place];
+    const upColor = L.groups[up] ? L.groups[up].color : group[0].color;
+    const destSlot = pvAnim.counts[up];
+
+    // 1. close ranks, taking the colour of the place they are becoming
+    const closing = group.map((piece, k) => ({
+        piece, from: { x: piece.x, y: piece.y }, to: pvClosedXY(L, place, k),
+        fromColor: piece.color, toColor: upColor,
+    }));
+    pvRunTween(closing, pvMergeMs() * 0.45, () => {
+        // 2. slide the block into its slot in the place above, each piece
+        //    keeping its offset within the block
+        const blockAt = pvClosedXY(L, place, 0);
+        const blockTop = pvClosedXY(L, place, group.length - 1);
+        const origin = { x: Math.min(blockAt.x, blockTop.x), y: Math.min(blockAt.y, blockTop.y) };
+        const dest = pvSlotXY(L, up, destSlot);
+        const sliding = group.map((piece) => ({
+            piece,
+            from: { x: piece.x, y: piece.y },
+            to: { x: dest.x + (piece.x - origin.x), y: dest.y + (piece.y - origin.y) },
+        }));
+        pvRunTween(sliding, pvMergeMs() * 0.55, () => {
+            // 3. swap the ten parked pieces for the one real piece
+            group.forEach((p) => p.el.remove());
+            pvAnim.pieces[place] = [];
+            pvAnim.counts[place] = 0;
+            pvMakePiece(up, destSlot);
+            pvAnim.counts[up]++;
+            pvAnimReadout();
+            // A cascade: 999 + 1 carries three times before the count moves on.
+            if (pvAnim.counts[up] >= 10 && PV_ABOVE[up]) {
+                pvAnimSchedule(() => pvAnimMerge(up), pvStepMs());
+            } else if (pvAnim.count >= pvAnim.target) {
+                pvAnimSchedule(pvAnimFinish, pvStepMs());
+            } else {
+                pvAnimSchedule(pvAnimStep, pvStepMs());
+            }
+        });
+    });
+}
+
+function pvAnimReadout() {
+    pvAnimDigits();
+    document.getElementById('pv-anim-count').textContent = pvAnim.count + ' / ' + pvAnim.target;
+    pvRenderWords(pvAnim.count);
+}
+
+function pvAnimStart() {
+    const target = parseInt(String(document.getElementById('pv-input').value).replace(/\D/g, ''), 10);
+    if (!(target > 0)) return;
+    pvAnimStop();
+    pvAnim.on = true;
+    pvAnim.target = Math.min(9999, target);
+    pvAnim.count = 0;
+    pvAnim.counts = { Thousands: 0, Hundreds: 0, Tens: 0, Ones: 0 };
+    pvAnim.pieces = { Thousands: [], Hundreds: [], Tens: [], Ones: [] };
+    pvAnim.L = pvAnimLayout(pvAnim.target);
+    pvAnimSvg();
+    pvAnimReadout();
+    pvAnimButton();
+    pvAnimSchedule(pvAnimStep, pvStepMs());
+}
+
+function pvAnimStop() {
+    pvAnim.on = false;
+    clearTimeout(pvAnim.timer);
+    clearTimeout(pvAnim.jobTimer);
+    if (pvAnim.raf) cancelAnimationFrame(pvAnim.raf);
+    pvAnim.timer = pvAnim.jobTimer = pvAnim.raf = pvAnim.job = null;
+    pvAnimButton();
+}
+
+function pvAnimFinish() {
+    pvAnimStop();
+    document.getElementById('pv-anim-count').textContent = '';
+    // Settle onto the canonical picture, so the number looks the same however
+    // you arrived at it.
+    setTimeout(() => {
+        if (!pvAnim.on) pvRender(pvAnim.target);
+    }, 450);
+}
+
+function pvAnimButton() {
+    const btn = document.getElementById('pv-animate');
+    if (btn) btn.textContent = pvAnim.on ? '■ Stop' : '▶ Count up';
 }
 
 // A single base-ten piece: colored fill + unit-cell grid overlay + bold border.
@@ -4054,6 +4354,9 @@ function onTabLeave(fromTab) {
         state.visualizerAnimator.dispose();
         state.visualizerAnimator = null;
     }
+    // A count-up left running would keep a timer and a rAF alive against a
+    // screen nobody is looking at.
+    if (fromTab === 'place-value') pvAnimStop();
 }
 
 // boot.js injects this file dynamically, and dynamically inserted scripts do not
@@ -4328,6 +4631,13 @@ const appBoot = () => {
     window.addEventListener('resize', mnRefit);
 
     // ---- Place-value visualizer ----
+    document.getElementById('pv-animate').addEventListener('click', () => {
+        if (pvAnim.on) pvAnimStop();
+        else pvAnimStart();
+    });
+    document.getElementById('pv-speed').addEventListener('input', (e) => {
+        pvAnim.speed = parseInt(e.target.value, 10) || 8;
+    });
     document.getElementById('pv-input').addEventListener('input', (e) => {
         // Auto-reject input after 4 digits
         const str = String(e.target.value).replace(/\D/g, '');

@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=62">
+    <link rel="stylesheet" href="styles.css?v=64">
 </head>
 <body>
 
@@ -629,6 +629,12 @@
           <div id="viz-place-mode">
             <div class="pv-input-row">
                 <input type="number" id="pv-input" class="visualizer-input-field pv-input" autocomplete="off" min="0" max="9999" placeholder="123">
+            </div>
+            <div class="pv-anim-row">
+                <button id="pv-animate" class="btn btn-secondary pv-anim-btn">▶ Count up</button>
+                <label class="pv-speed-label" for="pv-speed">Speed</label>
+                <input type="range" id="pv-speed" class="pv-speed" min="1" max="40" step="1" value="8" aria-label="Counting speed">
+                <span id="pv-anim-count" class="pv-anim-count"></span>
             </div>
             <div class="pv-words-row">
                 <div id="pv-words" class="pv-words"></div>

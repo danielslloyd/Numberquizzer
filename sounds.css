@@ -1,0 +1,180 @@
+/* ============================================================================
+ * sounds.css — Vowel sandbox plug-in.
+ *
+ * Loaded by sounds.js on first click of the Sounds tab. Everything is prefixed
+ * `vs-` so it cannot collide with the core stylesheet.
+ * ==========================================================================*/
+
+.vs-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.9rem;
+    width: 100%;
+    max-width: 720px;
+}
+
+.vs-controls {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.7rem;
+    flex-wrap: wrap;
+}
+
+.vs-btn {
+    padding: 0.45rem 1rem;
+    font-size: 1rem;
+}
+
+.vs-btn.vs-live {
+    background: #c62828;
+    color: #fff;
+    border-color: #c62828;
+}
+
+.vs-slider-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.vs-slider-label {
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    opacity: 0.55;
+}
+
+.vs-slider {
+    width: min(170px, 38vw);
+    accent-color: #000;
+}
+
+.vs-slider-val {
+    min-width: 2.2rem;
+    font-size: 0.9rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    opacity: 0.7;
+}
+
+/* ---- the plot ---- */
+
+.vs-plot-wrap {
+    position: relative;
+    width: 100%;
+    max-width: 520px;
+    aspect-ratio: 1 / 1;
+}
+
+.vs-plot {
+    width: 100%;
+    height: 100%;
+    display: block;
+    border: 3px solid #000;
+    border-radius: 14px;
+    background: #fff;
+}
+
+/* Sits over the plot only while the microphone is off or calibrating, so the
+   picture underneath stays visible rather than being replaced. */
+.vs-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    padding: 1.2rem;
+    text-align: center;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.9);
+}
+
+.vs-overlay.hidden { display: none; }
+
+.vs-overlay-say {
+    font-size: 3.2rem;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.vs-overlay-as {
+    font-size: 1.1rem;
+    font-weight: 600;
+    opacity: 0.7;
+}
+
+.vs-overlay-note {
+    font-size: 1rem;
+    font-weight: 600;
+    max-width: 22rem;
+    opacity: 0.75;
+}
+
+.vs-hold {
+    width: 12rem;
+    height: 10px;
+    border: 2px solid #000;
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.vs-hold-fill {
+    height: 100%;
+    width: 0%;
+    background: #2e7d32;
+    transition: width 0.08s linear;
+}
+
+/* ---- readouts ---- */
+
+.vs-readouts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    gap: 0.5rem;
+    width: 100%;
+    max-width: 520px;
+}
+
+.vs-read {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: 0.5rem 0.65rem;
+    border: 2px solid #e0e0e0;
+    border-radius: 10px;
+    background: #fafafa;
+}
+
+.vs-read-k {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    opacity: 0.55;
+}
+
+.vs-read-v {
+    font-size: 1.15rem;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+}
+
+.vs-status {
+    min-height: 1.4em;
+    font-size: 1rem;
+    font-weight: 600;
+    text-align: center;
+    color: #555;
+}
+
+.vs-status.vs-warn { color: #cc0000; }
+.vs-status.vs-good { color: #2e7d32; }
+
+@media (max-width: 420px) {
+    .vs-container { padding-left: 0.75rem; padding-right: 0.75rem; }
+}
