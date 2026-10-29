@@ -83,15 +83,16 @@
     // when auto steps a slow device down to Low. `flashLight` is a point
     // light at the muzzle for a frame or two after each shot, lighting the
     // barrels and anything near; every lit material pays for it, so High only.
-    // `rockDetail` is the rock icosphere's subdivision: 80, 180 or 500 faces.
+    // `thrustLight` makes each fighter's thrusters a real light; below High
+    // they only glow. `rockDetail` is the rock icosphere's subdivision.
     const TIERS = {
-        low:  { label: 'Low',  scale: 0.6,  stars: 300, enemies: 3, rocks: 12, shiny: false, flashLight: false, rockDetail: 1 },
-        med:  { label: 'Med',  scale: 0.75, stars: 500, enemies: 4, rocks: 20, shiny: true, flashLight: false, rockDetail: 2 },
-        high: { label: 'High', scale: 1.0,  stars: 900, enemies: 5, rocks: 28, shiny: true, flashLight: true, rockDetail: 4 },
+        low:  { label: 'Low',  scale: 0.6,  stars: 300, enemies: 3, rocks: 12, shiny: false, flashLight: false, thrustLight: false, rockDetail: 2 },
+        med:  { label: 'Med',  scale: 0.75, stars: 500, enemies: 4, rocks: 20, shiny: true, flashLight: false, thrustLight: false, rockDetail: 3 },
+        high: { label: 'High', scale: 1.0,  stars: 900, enemies: 5, rocks: 28, shiny: true, flashLight: true, thrustLight: true, rockDetail: 5 },
     };
     const TIER_ORDER = ['low', 'med', 'high'];
     const MAX_STARS = 900, MAX_ENEMIES = 5, MAX_ROCKS = 40;
-    const MAX_BOLTS = 24, MAX_ZAPS = 16, MAX_PUFFS = 40;
+    const MAX_BOLTS = 24, MAX_ZAPS = 16, MAX_PUFFS = 56;
     const HALO_K = 2;                       // a shape texture's disc is half its width; the rest is halo
 
     const BG = 0x05060d;
@@ -113,7 +114,12 @@
     const SHIP_SPEC = 0xd8d0c8, SHIP_SHINE = 70;
     // Debug: how much of its height a fighter loses, its accent colour, and
     // how strongly the darker panels shine (Phong tiers only).
-    const SHIPS = { squish: 0.25, accent: '#d8352a', shine: 1.5 };
+    const SHIPS = { squish: 0.55, accent: '#cc3300', shine: 2.5, thrust: true, thrustColor: '#5fd0ff' };
+    // Thruster light (High): reach, brightness, and how far behind the tail it
+    // sits — behind, so it lights what is behind the fighter and its own back
+    // panels, not the whole hull from inside it.
+    const THRUST_RANGE = 9, THRUST_I = 0.9, THRUST_BACK = 2.2;
+    const BITE_ON = true;                   // explosion discs are eaten from inside (trBiteShader)
     const SHIP_SCALE = 1.6;                 // a fighter at 60 units is a speck on a 7-inch screen otherwise
     const BOLT_SPEED = 110;                 // defaults; the debug panel can change both
     const MUZZLE_S = 0.09, MUZZLE_I = 3.2;  // muzzle light: how long, how bright
@@ -127,7 +133,7 @@
     // far in from the window's edge grime may show, `soft` how soft its inner
     // boundary is — both as fractions of the stage's short side, so the
     // border is as deep down the sides as across the top.
-    const GRIME = { on: true, color: '#ffffff', min: 0.02, max: 0.6, inset: 0.16, soft: 0.07, hurt: '#ff2a1a' };
+    const GRIME = { on: true, color: '#efe3d7', min: 0.05, max: 1, inset: 0.16, soft: 0.07, hurt: '#71150e' };
     const HURT_IN = 0.06, HURT_OUT = 0.6;   // hit flash: rise and fall, real seconds
     const TAP_SLOP = 10, TAP_MS = 400;      // a press that moves less, and lifts sooner, is a tap
 
@@ -221,7 +227,7 @@
         boom: 0, nearPx: NEAR_PX, sfx: {}, dbgOpen: false, mouse: null, shiny: null,
         grime: null, grimeImg: null, grimeW: 0, grimeH: 0, glassOp: [-1, -1, -1],
         hurtAge: 9, hurtK: 0, boltSpeed: BOLT_SPEED, zapSpeed: ZAP_SPEED, dbgCats: [],
-        muzzleLight: null, muzzleK: 0, ships: null, shipShineK: null, rockDetail: 0,
+        muzzleLight: null, muzzleK: 0, bite: true, ships: null, shipShineK: null, shipThrust: null, thrustLights: [], rockDetail: 0,
         pilot: null, spawnAt: 0, rockAt: 0, lockFoe: null, barrel: 1, hits: 0,
         deflector: 100, hudLeft: 0, hud: null,
         running: false, lost: false, raf: 0, last: 0, wt: 0, timeScale: 1,
@@ -265,6 +271,7 @@
         // Kept by name: the list is renumbered when a style comes or goes. An
         // old numeric choice meant a different list, so it starts over.
         tr.boom = Math.max(0, BOOMS.findIndex(([label]) => label === dbg.boom));
+        tr.bite = dbg.bite === undefined ? BITE_ON : !!dbg.bite;
         // `near` replaced an older radius-round-the-tap setting; that one is ignored.
         tr.nearPx = Number.isFinite(dbg.near) ? clamp(dbg.near, NEAR_MIN, NEAR_MAX) : NEAR_PX;
         const g = dbg.grime || {};
@@ -280,7 +287,8 @@
         };
         if (tr.grime.min > tr.grime.max) tr.grime.min = tr.grime.max;
         const s = dbg.ships || {};
-        tr.ships = { squish: num(s.squish, 0, 0.8, SHIPS.squish), accent: hex(s.accent, SHIPS.accent), shine: num(s.shine, 0, 3, SHIPS.shine) };
+        tr.ships = { squish: num(s.squish, 0, 0.8, SHIPS.squish), accent: hex(s.accent, SHIPS.accent), shine: num(s.shine, 0, 3, SHIPS.shine),
+            thrust: s.thrust === undefined ? SHIPS.thrust : !!s.thrust, thrustColor: hex(s.thrustColor, SHIPS.thrustColor) };
         tr.boltSpeed = num(dbg.bolt, 30, 300, BOLT_SPEED);
         tr.zapSpeed = num(dbg.zap, 20, 200, ZAP_SPEED);
         tr.dbgCats = Array.isArray(dbg.open) ? dbg.open.filter((k) => typeof k === 'string') : [];
@@ -292,7 +300,7 @@
     }
 
     function trSaveDebug() {
-        stSetJSON('turret.debug', { boom: BOOMS[tr.boom][0], near: tr.nearPx, sfx: tr.sfx, grime: tr.grime, ships: tr.ships,
+        stSetJSON('turret.debug', { boom: BOOMS[tr.boom][0], bite: tr.bite, near: tr.nearPx, sfx: tr.sfx, grime: tr.grime, ships: tr.ships,
             bolt: tr.boltSpeed, zap: tr.zapSpeed, open: tr.dbgCats });
     }
 
@@ -642,9 +650,9 @@
         if (ring === 'thin') {
             // A thin ring's halo hugs it, or the halo is the ring.
             grad.addColorStop(0, clear);
-            grad.addColorStop(0.42, clear);
+            grad.addColorStop(0.47, clear);
             grad.addColorStop(0.5, halo);
-            grad.addColorStop(0.64, clear);
+            grad.addColorStop(0.535, clear);
             grad.addColorStop(1, clear);
         } else if (ring) {
             grad.addColorStop(0, clear);
@@ -658,7 +666,7 @@
         }
         g.fillStyle = grad;
         g.fillRect(0, 0, size, size);
-        const w = Math.max(1.5, R * (ring === 'thin' ? 0.035 : ring ? 0.1 : 0.08));
+        const w = Math.max(1.5, R * (ring === 'thin' ? 0.012 : ring ? 0.1 : 0.08));
         g.beginPath();
         g.arc(R, R, r - w / 2, 0, Math.PI * 2);
         if (fill) { g.fillStyle = fill; g.fill(); }
@@ -757,20 +765,49 @@
     }
 
     // A lumpy rock: an icosphere with each vertex pushed in or out by a
-    // smooth function of its direction — a few broad lobes and some finer
-    // ones. Smooth, so every tier's subdivision is the same rock resolved
-    // more finely, not a noisier one; and a function of position, so the
-    // copies of a shared corner (the geometry is non-indexed) move alike.
-    const ROCK_LOBES = [[0.9, 0.3, -0.4, 1.7, 0.16], [-0.2, 0.95, 0.3, 2.3, 0.12], [0.4, -0.5, 0.8, 3.1, 0.09],
-        [-0.7, -0.2, -0.6, 4.6, 0.06], [0.1, 0.6, -0.8, 6.8, 0.04], [0.8, -0.6, 0.1, 9.5, 0.025]];
+    // fractal function of its direction (trRockShape).
 
+    // Value noise on an integer lattice, smoothly interpolated: 0..1.
+    function trLattice(i, j, k) {
+        let h = (Math.imul(i, 374761393) + Math.imul(j, 668265263) + Math.imul(k, 1274126177)) | 0;
+        h = Math.imul(h ^ (h >>> 13), 1274126177);
+        return ((h ^ (h >>> 16)) >>> 0) / 4294967295;
+    }
+
+    function trValueNoise(x, y, z) {
+        const i = Math.floor(x), j = Math.floor(y), k = Math.floor(z);
+        const s = (t) => t * t * (3 - 2 * t);
+        const u = s(x - i), v = s(y - j), w = s(z - k);
+        const L = (a, b, c) => trLattice(i + a, j + b, k + c);
+        const lerp = (a, b, t) => a + (b - a) * t;
+        return lerp(lerp(lerp(L(0, 0, 0), L(1, 0, 0), u), lerp(L(0, 1, 0), L(1, 1, 0), u), v),
+            lerp(lerp(L(0, 0, 1), L(1, 0, 1), u), lerp(L(0, 1, 1), L(1, 1, 1), u), v), w);
+    }
+
+    // Craters: a dish with a raised lip, at fixed directions on the rock.
+    const ROCK_CRATERS = [[0.5, 0.7, 0.5, 0.42, 0.16], [-0.8, -0.1, 0.6, 0.3, 0.11], [0.1, -0.9, -0.4, 0.5, 0.14],
+        [-0.3, 0.4, -0.85, 0.24, 0.08]].map(([x, y, z, r, d]) => { const l = Math.hypot(x, y, z); return [x / l, y / l, z / l, r, d]; });
+
+    /* How far out the rock's surface is in direction (x, y, z) — a unit
+     * vector. Fractal: six octaves of value noise, each twice the frequency
+     * and a little over half the height of the last, so there are lumps on
+     * the lumps; one octave is folded into ridges; craters dent it. A
+     * function of direction, so every tier's mesh samples the same rock and
+     * the copies of a shared corner move alike. */
     function trRockShape(x, y, z) {
-        let f = 1;
-        for (const [a, b, c, k, amp] of ROCK_LOBES) {
-            const t = (a * x + b * y + c * z) * k;
-            f += amp * Math.sin(t + k) * Math.cos(t * 0.7 + a * 3 + y * k * 0.5);
+        let sum = 0, amp = 0.5, fq = 1.35;
+        for (let o = 0; o < 6; o++) {
+            sum += amp * (trValueNoise(x * fq + 11.3, y * fq + 3.7, z * fq + o * 7.1) * 2 - 1);
+            amp *= 0.56; fq *= 2.03;
         }
-        return f;
+        const ridge = 1 - Math.abs(trValueNoise(x * 2.6 + 40, y * 2.6, z * 2.6) * 2 - 1);
+        let r = 1 + 0.62 * sum + 0.16 * ridge * ridge;
+        for (const [cx, cy, cz, cr, cd] of ROCK_CRATERS) {
+            const t = Math.acos(clamp(x * cx + y * cy + z * cz, -1, 1)) / cr;
+            if (t < 1) r -= cd * (1 - t * t);
+            else if (t < 1.4) r += cd * 0.35 * Math.sin((t - 1) / 0.4 * Math.PI);
+        }
+        return Math.max(0.45, r);
     }
 
     function trRockGeometry(detail) {
@@ -778,18 +815,24 @@
         const pos = Float32Array.from(src.attributes.position.array);
         src.dispose();
         for (let i = 0; i < pos.length; i += 3) {
-            const f = trRockShape(pos[i], pos[i + 1], pos[i + 2]);
-            pos[i] *= f; pos[i + 1] *= f * 0.85; pos[i + 2] *= f;
+            const l = Math.hypot(pos[i], pos[i + 1], pos[i + 2]);
+            const f = trRockShape(pos[i] / l, pos[i + 1] / l, pos[i + 2] / l) / l;
+            // Stretched a little, so no two views of it look like a ball.
+            pos[i] *= f * 1.18; pos[i + 1] *= f * 0.82; pos[i + 2] *= f;
         }
         // Colour follows the shape too — the bumps a touch lighter than the
         // hollows — plus a little per face, so the facets still read.
         const hash = (k) => { const h = Math.sin(k * 12.9898 + 4.1) * 43758.5453; return h - Math.floor(h); };
         const c = new THREE.Vector3();
+        // The icosphere is wound outward, and pushing its corners in and out
+        // along their own directions cannot turn a face round as seen from
+        // the middle: its winding is trusted. The centre test would misread
+        // the steep side of a crater.
         return trFaceted(pos, (k) => {
             c.fromArray(pos, k * 9).add(V1.fromArray(pos, k * 9 + 3)).add(V1.fromArray(pos, k * 9 + 6)).divideScalar(3);
-            const v = 0.7 + 1.4 * (c.length() - 0.85) + 0.12 * hash(k);
+            const v = clamp(0.78 + 0.9 * (c.length() - 1) + 0.14 * (hash(k) - 0.5), 0.45, 1.15);
             return [0.62 * v, 0.55 * v, 0.47 * v];
-        }, new THREE.Vector3());
+        }, null);
     }
 
     /* ---- scene: sky -------------------------------------------------------*/
@@ -902,13 +945,16 @@
         return tr.shipMats[tr.shiny ? 'shiny' : 'matte'][kind];
     }
 
-    /* Two per-vertex attributes the stock materials do not have:
+    /* Three per-vertex attributes the stock materials do not have:
      *   accent  1 where the instance colour paints the face, 0 where the
      *           face keeps its own colour
      *   shine   how strongly the face takes the Phong highlight, before the
      *           debug slider's `shineK` scales it
-     * The chunks replaced are r128's color_vertex and specularmap_fragment. */
-    const SHIP_VERT_HEAD = 'attribute float accent;\nattribute float shine;\nvarying float vShine;\n';
+     *   glow    1 on a thruster face: with thrusters on it is the thruster
+     *           colour, flat — no diffuse, no highlight, lit by nothing
+     * The chunks replaced are r128's color_vertex, color_fragment,
+     * specularmap_fragment and emissivemap_fragment. */
+    const SHIP_VERT_HEAD = 'attribute float accent;\nattribute float shine;\nattribute float glow;\nvarying float vShine;\nvarying float vGlow;\n';
     const SHIP_COLOR_VERTEX = [
         '#if defined( USE_COLOR ) || defined( USE_INSTANCING_COLOR )',
         '  vColor = vec3( 1.0 );',
@@ -919,25 +965,52 @@
         '#ifdef USE_INSTANCING_COLOR',
         '  vColor.xyz *= mix( vec3( 1.0 ), instanceColor.xyz, accent );',
         '#endif',
-        'vShine = shine;'].join('\n');
+        'vShine = shine;',
+        'vGlow = glow;'].join('\n');
 
     function trShipShader(shader) {
         shader.uniforms.shineK = tr.shipShineK;
+        shader.uniforms.thrustK = tr.shipThrust.k;
+        shader.uniforms.thrustColor = tr.shipThrust.color;
         shader.vertexShader = shader.vertexShader
             .replace('#include <common>', '#include <common>\n' + SHIP_VERT_HEAD)
             .replace('#include <color_vertex>', SHIP_COLOR_VERTEX);
         shader.fragmentShader = shader.fragmentShader
-            .replace('#include <common>', '#include <common>\nuniform float shineK;\nvarying float vShine;')
-            .replace('#include <specularmap_fragment>', 'float specularStrength = vShine * shineK;');
+            .replace('#include <common>', '#include <common>\nuniform float shineK;\nuniform float thrustK;\n'
+                + 'uniform vec3 thrustColor;\nvarying float vShine;\nvarying float vGlow;')
+            .replace('#include <color_fragment>', '#include <color_fragment>\ndiffuseColor.rgb *= 1.0 - vGlow * thrustK;')
+            .replace('#include <specularmap_fragment>', 'float specularStrength = vShine * shineK * ( 1.0 - vGlow * thrustK );')
+            .replace('#include <emissivemap_fragment>',
+                '#include <emissivemap_fragment>\ntotalEmissiveRadiance = mix( totalEmissiveRadiance, thrustColor, vGlow * thrustK );');
+    }
+
+    // Thruster faces: in the rear quarter of the hull, facing straight back.
+    // Found from the geometry, so every model — and the dart — has its own.
+    const THRUST_REAR = 0.25, THRUST_FACING = 0.7;
+
+    function trThrustFaces(geo) {
+        const p = geo.attributes.position.array, nr = geo.attributes.normal.array;
+        let lo = Infinity, hi = -Infinity;
+        for (let i = 2; i < p.length; i += 3) { lo = Math.min(lo, p[i]); hi = Math.max(hi, p[i]); }
+        const cut = lo + (hi - lo) * THRUST_REAR;
+        return (k) => {
+            const z = (p[k * 9 + 2] + p[k * 9 + 5] + p[k * 9 + 8]) / 3;
+            return z <= cut && nr[k * 9 + 2] <= -THRUST_FACING ? 1 : 0;
+        };
     }
 
     // A ship geometry's extra attributes: per face, then copied to its corners.
     function trShipAttrs(geo, accentOf, shineOf) {
         const n = geo.attributes.position.count;
-        const acc = new Float32Array(n), shn = new Float32Array(n);
-        for (let i = 0; i < n; i++) { acc[i] = accentOf((i / 3) | 0); shn[i] = shineOf((i / 3) | 0); }
+        const acc = new Float32Array(n), shn = new Float32Array(n), glw = new Float32Array(n);
+        const glowOf = trThrustFaces(geo);
+        for (let i = 0; i < n; i++) {
+            const k = (i / 3) | 0;
+            acc[i] = accentOf(k); shn[i] = shineOf(k); glw[i] = glowOf(k);
+        }
         geo.setAttribute('accent', new THREE.BufferAttribute(acc, 1));
         geo.setAttribute('shine', new THREE.BufferAttribute(shn, 1));
+        geo.setAttribute('glow', new THREE.BufferAttribute(glw, 1));
         return geo;
     }
 
@@ -954,6 +1027,11 @@
 
     function trShipColours() {
         if (FOE_COL) FOE_COL.set(tr.ships.accent);
+        if (tr.shipThrust) {
+            tr.shipThrust.color.value.set(tr.ships.thrustColor);
+            tr.shipThrust.k.value = tr.ships.thrust ? 1 : 0;
+            tr.thrustLights.forEach((l) => l.color.set(tr.ships.thrustColor));
+        }
     }
 
     function trShipMesh(geo, kind) {
@@ -1067,6 +1145,7 @@
             },
         };
         tr.shipShineK = { value: tr.ships.shine };
+        tr.shipThrust = { k: { value: 0 }, color: { value: new THREE.Color() } };
         ['matte', 'shiny'].forEach((k) => ['dart', 'model'].forEach((m) => { tr.shipMats[k][m].onBeforeCompile = trShipShader; }));
         trShipColours();
         tr.shiny = TIERS[tr.tier].shiny;
@@ -1100,12 +1179,15 @@
         // each can fade, recolour and change blending on its own.
         tr.puffs = [];
         for (let i = 0; i < MAX_PUFFS; i++) {
-            const sp = new THREE.Sprite(new THREE.SpriteMaterial({
-                map: tr.discTex, transparent: true, depthWrite: false, fog: false,
-            }));
+            const mat = new THREE.SpriteMaterial({ map: tr.discTex, transparent: true, depthWrite: false, fog: false });
+            const sp = new THREE.Sprite(mat);
             sp.visible = false;
-            tr.puffs.push({ sp, life: 0, max: 1, delay: 0, r0: 1, r1: 2, curve: 0, fade: 0.6,
-                vel: new THREE.Vector3(), c0: new THREE.Color(), c1: new THREE.Color() });
+            const p = { sp, life: 0, max: 1, delay: 0, r0: 1, r1: 2, curve: 0, fade: 0.6, bite: false,
+                biteC: { value: new THREE.Vector2(0.5, 0.5) }, biteR: { value: 0 },
+                vel: new THREE.Vector3(), c0: new THREE.Color(), c1: new THREE.Color() };
+            // Same source for every puff, so one program; the uniforms are each puff's own.
+            mat.onBeforeCompile = (sh) => trBiteShader(sh, p);
+            tr.puffs.push(p);
         }
 
         // The guns: children of the camera, so they turn with the turret. A
@@ -1158,7 +1240,7 @@
         tr.glowTex = trGlowTexture(64, 0.3);
         tr.discTex = trShapeTexture(128, '#d4d4d4', '#ffffff', 'rgba(255,255,255,0.32)', false);
         tr.ringTex = trShapeTexture(128, null, '#ffffff', 'rgba(255,255,255,0.4)', true);
-        tr.thinRingTex = trShapeTexture(256, null, '#ffffff', 'rgba(255,255,255,0.35)', 'thin');
+        tr.thinRingTex = trShapeTexture(512, null, '#ffffff', 'rgba(255,255,255,0.5)', 'thin');
         tr.boltTex = trShapeTexture(64, '#f0ffff', '#3fd2ff', 'rgba(63,210,255,0.45)', false);
         tr.zapTex = trShapeTexture(64, '#fff2ea', '#ff4a30', 'rgba(255,74,48,0.45)', false);
         tr.sky = new THREE.Group();
@@ -1178,6 +1260,15 @@
         tr.muzzleLight.visible = TIERS[tr.tier].flashLight;
         tr.muzzleK = 0;
         tr.scene.add(tr.muzzleLight);
+        // One per fighter, for the same reason: always there, shown on High,
+        // dark (intensity 0) when nobody is flying it or thrusters are off.
+        tr.thrustLights = [];
+        for (let i = 0; i < MAX_ENEMIES; i++) {
+            const l = new THREE.PointLight(0xffffff, 0, THRUST_RANGE, 2);
+            l.visible = TIERS[tr.tier].thrustLight;
+            tr.thrustLights.push(l);
+            tr.scene.add(l);
+        }
         trBuildPools();
         [tr.rockMesh, tr.shipMeshes[0], tr.glows, tr.boltPts, tr.zapPts].forEach((o) => tr.scene.add(o));
         trLoadGrime();
@@ -1270,6 +1361,7 @@
             // Swapping a material compiles its program the first time: a
             // hitch once, when auto steps down, not a cost every frame.
             tr.muzzleLight.visible = T.flashLight;
+            tr.thrustLights.forEach((l) => { l.visible = T.thrustLight; });
             // Same attributes, same material: a new rock geometry is an
             // upload, not a recompile.
             if (tr.rockDetail !== T.rockDetail) {
@@ -1778,8 +1870,12 @@
             gpos[n * 3] = V1.x; gpos[n * 3 + 1] = V1.y; gpos[n * 3 + 2] = V1.z;
             const g = e.ace ? ACE_GLOW : FOE_GLOW;
             gcol[n * 3] = g[0]; gcol[n * 3 + 1] = g[1]; gcol[n * 3 + 2] = g[2];
+            const tl = tr.thrustLights[n];
+            tl.position.copy(V1).addScaledVector(V4, -THRUST_BACK * SHIP_SCALE);
+            tl.intensity = tr.ships.thrust ? THRUST_I : 0;
             n++;
         }
+        for (let i = n; i < MAX_ENEMIES; i++) tr.thrustLights[i].intensity = 0;
         for (let m = 0; m < tr.shipMeshes.length; m++) {
             const mesh = tr.shipMeshes[m];
             mesh.count = N[m];
@@ -1976,7 +2072,7 @@
         trAimGuns(V6);
         const muzzle = trGunTip(gun, V1);
         gun.recoil = GUN_KICK;
-        trPuff({ at: muzzle, c0: 0xeaffff, c1: 0x3fd2ff, r0: 0.1, r1: 0.26, life: 0.07, add: true, fade: 0.3 });
+        trPuff({ at: muzzle, c0: 0xeaffff, c1: 0x3fd2ff, r0: 0.1, r1: 0.26, life: 0.07, add: true, fade: 0.3, noBite: true });
         if (tr.muzzleLight.visible) { tr.muzzleLight.position.copy(muzzle); tr.muzzleK = 1; }
 
         if (foe) { trOnLock(foe, muzzle, trLead(foe, muzzle)); return; }
@@ -2389,6 +2485,35 @@
         // Later shapes draw over earlier ones, so smoke covers the core.
         p.sp.renderOrder = o.order || 0;
         p.sp.visible = false;
+        // A bite starts a little off the middle, so for a moment it leaves
+        // a crescent. Rings and the muzzle flash are never bitten.
+        p.bite = tr.bite && !o.ring && !o.noBite;
+        p.biteR.value = 0;
+        if (p.bite) {
+            const a = Math.random() * Math.PI * 2, d = rand(BITE_OFF[0], BITE_OFF[1]);
+            p.biteC.value.set(0.5 + d * Math.cos(a), 0.5 + d * Math.sin(a));
+        }
+    }
+
+    /* The bite: a circle cut out of a puff, centred at biteC in the sprite's
+     * texture space (the disc is radius 0.25 there, its halo out to 0.5). It
+     * waits BITE_AT of the puff's life, then grows to BITE_R by BITE_END —
+     * faster than the disc, so it eats the disc from the inside out. The
+     * edge is softened by a pixel or two's worth, not blurred. */
+    const BITE_AT = 0.18, BITE_END = 0.7, BITE_R = 0.62, BITE_OFF = [0.05, 0.09];
+    const BITE_FRAG = [
+        '#include <alphatest_fragment>',
+        'if ( biteR > 0.0 ) {',
+        '  diffuseColor.a *= smoothstep( biteR - 0.01, biteR + 0.01, distance( vUv, biteC ) );',
+        '  if ( diffuseColor.a < 0.004 ) discard;',
+        '}'].join('\n');
+
+    function trBiteShader(sh, p) {
+        sh.uniforms.biteC = p.biteC;
+        sh.uniforms.biteR = p.biteR;
+        sh.fragmentShader = sh.fragmentShader
+            .replace('#include <common>', '#include <common>\nuniform vec2 biteC;\nuniform float biteR;')
+            .replace('#include <alphatest_fragment>', BITE_FRAG);
     }
 
     function trUpdatePuffs(wdt) {
@@ -2410,6 +2535,7 @@
             p.sp.scale.setScalar(Math.max(0.001, r * 2 * HALO_K));
             p.sp.material.color.copy(p.c0).lerp(p.c1, f);
             p.sp.material.opacity = f < p.fade ? 1 : 1 - (f - p.fade) / (1 - p.fade);
+            if (p.bite) p.biteR.value = BITE_R * Math.pow(clamp((f - BITE_AT) / (BITE_END - BITE_AT), 0, 1), 0.8);
         }
     }
 
@@ -2468,9 +2594,13 @@
         }],
     ];
 
-    // The shockwave: a thin blue-white ring that races out and is gone.
+    // The shockwave: a thin blue-white ring that races out and is gone. Two
+    // coincident copies, because additive blending of two is the only way
+    // past the colour's own brightness.
     function trShock(at, R) {
-        trPuff({ at, ring: 'thin', add: true, c0: 0xe0f0ff, c1: 0x6a8cff, r0: 0.3 * R, r1: 5.5 * R, life: 0.32, fade: 0.25 });
+        for (let k = 0; k < 2; k++) {
+            trPuff({ at, ring: 'thin', add: true, c0: 0xffffff, c1: 0x8fb4ff, r0: 0.3 * R, r1: 5.5 * R, life: 0.3, fade: 0.4 });
+        }
     }
 
     function trExplode(at, dir) {
@@ -2482,6 +2612,7 @@
 
     // A rock crumbles: a pale flash and dusty discs, whatever the style.
     function trRockBoom(at, r, count) {
+        trShock(at, 0.8 * r);
         trPuff({ at, c0: 0xffe6b0, c1: 0xcc7a33, r0: 0.6 * r, r1: 1.8 * r, life: 0.32 });
         const dust = [[0xc7a885, 0x524840], [0x9e8d78, 0x38332e]];
         for (let k = 1; k < count; k++) {
@@ -3035,6 +3166,8 @@
         });
         boom.value = String(tr.boom);
         r.append(boom, trDbgBtn('Test', 'boom'));
+        r = row(d);
+        check(r, 'bite', 'Bitten circles — each disc is eaten from inside by a faster circle', tr.bite);
         head(d, 'Window grime');
         note(d, 'On the glass round the edges. Strength runs from the low end facing away from the sun to the high end facing it.');
         r = row(d);
@@ -3074,6 +3207,10 @@
         r.append(trDbgBtn('Swoop', 'swoop'));
         slider(d, 'squish');
         slider(d, 'shine');
+        r = row(d);
+        check(r, 'thrust', 'Thrusters', tr.ships.thrust);
+        color(r, 'thrustColor', tr.ships.thrustColor);
+        note(d, 'Thrusters: the back-facing panels of each fighter\'s rear quarter glow. On High they are real lights; below that, flat colour.');
 
         d = cat('sound', 'Sound');
         note(d, 'Changing one plays it.');
@@ -3163,6 +3300,9 @@
         if (key === 'grimeColor') { tr.grime.color = t.value; trBakeGrime(); trSaveDebug(); return; }
         if (key === 'hurtColor') { tr.grime.hurt = t.value; trBakeGrime(); trSaveDebug(); return; }
         if (key === 'shipAccent') { tr.ships.accent = t.value; trShipColours(); trSaveDebug(); return; }
+        if (key === 'thrust') { tr.ships.thrust = t.checked; trShipColours(); trSaveDebug(); return; }
+        if (key === 'thrustColor') { tr.ships.thrustColor = t.value; trShipColours(); trSaveDebug(); return; }
+        if (key === 'bite') { tr.bite = t.checked; trSaveDebug(); return; }
         if (key === 'probe') {
             $('tr-probe').classList.toggle('hidden', !t.checked);
             stSet('turret.probe', t.checked ? '1' : '0');
@@ -3193,7 +3333,7 @@
         const act = b.dataset.trDbgAct;
         if (act === 'play') { trPreview(b.dataset.trDbgSfxPlay); return; }
         if (act === 'reset') {
-            tr.boom = 0; tr.nearPx = NEAR_PX; tr.sfx = {};
+            tr.boom = 0; tr.bite = BITE_ON; tr.nearPx = NEAR_PX; tr.sfx = {};
             tr.boltSpeed = BOLT_SPEED; tr.zapSpeed = ZAP_SPEED;
             tr.grime = Object.assign({}, GRIME);
             tr.ships = Object.assign({}, SHIPS);

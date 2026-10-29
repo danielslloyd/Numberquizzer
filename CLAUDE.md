@@ -275,9 +275,12 @@ migration copies rather than moves and nothing is ever deleted.
   (`trBoxHalf`), not from the fighter's centre: a tap locks when it lands
   within `nearPx` of the box's edge. Rocks have their own fixed reach.
 - **Quality features belong to a tier.** Shiny (Phong) fighters are on Medium
-  and High; the muzzle light is High only; rocks are 80, 180 or 500 faces. The
-  rock shape is a smooth function of direction (`trRockShape`), so a finer
-  tier is the same rock, not a noisier one. The light stays in the scene and is
+  and High; the muzzle light and the thruster lights are High only (below it
+  thrusters only glow); rocks are 180, 320 or 720 faces. The rock shape is a
+  fractal function of direction (`trRockShape`), so a finer tier is the same
+  rock resolved more finely, and its icosphere winding is trusted — the centre
+  test misreads a crater's steep side. The thruster lights are a fixed pool
+  of `MAX_ENEMIES`, dark when unused, for the same reason as the muzzle light. The light stays in the scene and is
   hidden, because the light count is part of every lit shader: toggling it
   recompiles once on a tier change, adding and removing it would on every shot.
 - **The glass is baked, not drawn.** Grime, its hit-coloured twin and the hit
@@ -290,8 +293,8 @@ migration copies rather than moves and nothing is ever deleted.
   goes across (`trFov`), so the guns stay in view, and the grime is turned
   a quarter so it is not cropped to a strip.
 - **Fighters keep the kit's colours.** Only accent faces (`metalRed`) take
-  the instance colour; the `accent` and `shine` attributes and the
-  r128 chunks `trShipShader` replaces carry that. Squish is in the instance
+  the instance colour; the `accent`, `shine` and `glow` (thruster)
+  attributes and the r128 chunks `trShipShader` replaces carry that. Squish is in the instance
   matrix, never baked into the geometry.
 - **A tap is never swallowed.** A full bolt pool gives up its oldest free
   shot; a locked bolt is never taken. Taps fire once a card is answered —
