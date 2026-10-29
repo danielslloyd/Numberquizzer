@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=64">
+    <link rel="stylesheet" href="styles.css?v=65">
 </head>
 <body>
 
@@ -71,6 +71,13 @@
                     <span class="toggle-track"></span>
                 </label>
             </div>
+            <div class="panel-row">
+                <span>Speech debug</span>
+                <label class="toggle-switch">
+                    <input type="checkbox" id="speech-debug-toggle">
+                    <span class="toggle-track"></span>
+                </label>
+            </div>
         </div>
     </div>
 
@@ -129,13 +136,24 @@
                 <div id="question-display" class="question-display"></div>
             </div>
             <div class="answer-row hidden" id="typed-section">
-                <input type="number" id="answer-input" class="answer-input" placeholder="?" min="0" autocomplete="off">
+                <input type="number" id="answer-input" class="answer-input" inputmode="numeric" placeholder="?" min="0" autocomplete="off">
                 <button id="submit-btn" class="btn btn-primary submit-btn">OK</button>
             </div>
             <div id="feedback-display" class="feedback-display"></div>
         </div>
         <div id="transcript-bar" class="transcript-bar">
             <p id="listening-text" class="listening-text"></p>
+        </div>
+        <!-- Speech debugger: every reading the recogniser offered, and what it
+             parsed to. Overlays the quiz screen; empty and hidden unless the
+             setting is on. -->
+        <div id="speech-debug" class="speech-debug hidden">
+            <div class="sd-head">
+                <span class="sd-title">speech debug</span>
+                <span id="sd-target" class="sd-target"></span>
+                <button id="sd-clear" class="sd-clear" type="button">clear</button>
+            </div>
+            <div id="sd-log" class="sd-log"></div>
         </div>
     </div>
 
@@ -418,6 +436,7 @@
                             <option value="letter" selected>Letter → Letter</option>
                             <option value="number">Letter → Number</option>
                             <option value="glyph">Letter → Glyph</option>
+                            <option value="logo">Letter → Team Logo</option>
                         </select>
                     </div>
                     <div id="pg-cipher-method-row" class="setting-row">
@@ -430,14 +449,50 @@
                     </div>
                     <div id="pg-cipher-shift-row" class="setting-row hidden">
                         <label for="pg-cipher-shift">Shift by</label>
-                        <input type="number" id="pg-cipher-shift" class="setting-select" min="1" max="25" value="3">
+                        <select id="pg-cipher-shift" class="setting-select">
+                            <option value="random">Random</option>
+                            <option value="1">1</option>
+                            <option value="2">2</option>
+                            <option value="3" selected>3</option>
+                            <option value="4">4</option>
+                            <option value="5">5</option>
+                            <option value="6">6</option>
+                            <option value="7">7</option>
+                            <option value="8">8</option>
+                            <option value="9">9</option>
+                            <option value="10">10</option>
+                            <option value="11">11</option>
+                            <option value="12">12</option>
+                            <option value="13">13</option>
+                            <option value="14">14</option>
+                            <option value="15">15</option>
+                            <option value="16">16</option>
+                            <option value="17">17</option>
+                            <option value="18">18</option>
+                            <option value="19">19</option>
+                            <option value="20">20</option>
+                            <option value="21">21</option>
+                            <option value="22">22</option>
+                            <option value="23">23</option>
+                            <option value="24">24</option>
+                            <option value="25">25</option>
+                        </select>
                     </div>
                     <div id="pg-cipher-glyph-selector" class="setting-row hidden">
                         <label>Glyph font</label>
                         <select id="pg-cipher-glyph-font" class="setting-select">
                             <option value="dingbat" selected>Dingbat</option>
                             <option value="rune">Rune</option>
-                            <option value="noto">Noto Symbol</option>
+                        </select>
+                    </div>
+                    <div id="pg-cipher-league-row" class="setting-row hidden">
+                        <label for="pg-cipher-league">League</label>
+                        <select id="pg-cipher-league" class="setting-select">
+                            <option value="mlb" selected>MLB</option>
+                            <option value="nfl">NFL</option>
+                            <option value="nba">NBA</option>
+                            <option value="nhl">NHL</option>
+                            <option value="mls">MLS</option>
                         </select>
                     </div>
                     <div class="setting-row">
@@ -447,6 +502,12 @@
                             <option value="medium">Medium</option>
                             <option value="large">Large</option>
                         </select>
+                    </div>
+                    <div class="setting-row">
+                        <label class="cipher-checkbox-label">
+                            <input type="checkbox" id="pg-cipher-per-page-key" class="pg-checkbox">
+                            <span>Different key on each page</span>
+                        </label>
                     </div>
                     <div class="setting-row">
                         <label class="cipher-checkbox-label">
@@ -567,9 +628,9 @@
         <div class="container tf-container">
             <h1 class="app-title">Ten<br>Frame</h1>
             <div class="tf-input-row">
-                <input type="number" id="tf-input-a" class="tf-input" min="0" max="20" placeholder="0">
+                <input type="number" id="tf-input-a" class="tf-input" inputmode="numeric" min="0" max="20" placeholder="0">
                 <span class="tf-plus">+</span>
-                <input type="number" id="tf-input-b" class="tf-input" min="0" max="20" placeholder="0">
+                <input type="number" id="tf-input-b" class="tf-input" inputmode="numeric" min="0" max="20" placeholder="0">
             </div>
             <div id="tf-frames" class="tf-frames"></div>
             <div id="tf-sum" class="tf-sum hidden"></div>
@@ -586,11 +647,11 @@
           <div id="viz-multiply-mode">
             <div class="visualizer-input-bar">
                 <div class="visualizer-inputs-row">
-                    <input type="number" id="visualizer-input-1" class="visualizer-input-field" autocomplete="off" min="1" max="20">
+                    <input type="number" id="visualizer-input-1" class="visualizer-input-field" inputmode="numeric" autocomplete="off" min="1" max="20">
                     <span class="visualizer-op-static">×</span>
-                    <input type="number" id="visualizer-input-2" class="visualizer-input-field" autocomplete="off" min="1" max="20">
+                    <input type="number" id="visualizer-input-2" class="visualizer-input-field" inputmode="numeric" autocomplete="off" min="1" max="20">
                     <span class="visualizer-op-static">×</span>
-                    <input type="number" id="visualizer-input-3" class="visualizer-input-field" autocomplete="off" min="1" max="20">
+                    <input type="number" id="visualizer-input-3" class="visualizer-input-field" inputmode="numeric" autocomplete="off" min="1" max="20">
                 </div>
                 <div class="visualizer-actions">
                     <button id="visualizer-drop-btn" class="btn btn-primary visualizer-btn-disabled" disabled title="Enter all three numbers first">SHOW</button>
@@ -628,7 +689,7 @@
         <div class="visualizer-container">
           <div id="viz-place-mode">
             <div class="pv-input-row">
-                <input type="number" id="pv-input" class="visualizer-input-field pv-input" autocomplete="off" min="0" max="9999" placeholder="123">
+                <input type="number" id="pv-input" class="visualizer-input-field pv-input" inputmode="numeric" autocomplete="off" min="0" max="9999" placeholder="123">
             </div>
             <div class="pv-anim-row">
                 <button id="pv-animate" class="btn btn-secondary pv-anim-btn">▶ Count up</button>
@@ -920,6 +981,6 @@
 
     <!-- Every local script is listed in boot.js, which also owns the single
          cache-busting version. Do not add <script> tags here. -->
-    <script src="boot.js?v=97"></script>
+    <script src="boot.js?v=98"></script>
 </body>
 </html>

@@ -51,6 +51,20 @@
     G['dec.fractionLink'] = function (rng) {
         const pairs = [[1, 2, '0.5'], [1, 4, '0.25'], [3, 4, '0.75'], [1, 5, '0.2'], [2, 5, '0.4'],
             [3, 5, '0.6'], [4, 5, '0.8'], [1, 10, '0.1'], [7, 10, '0.7'], [1, 20, '0.05'], [3, 20, '0.15']];
+
+        /* Joining four at once alternates with converting one. Every value in
+         * the table is distinct, so each decimal has exactly one home. */
+        if (rng.bool()) {
+            const four = rng.sample(pairs, 4);
+            return genMatch(rng, {
+                stem: 'Join each fraction to its decimal.',
+                pairs: four.map((x) => [x[0] + '/' + x[1], x[2]]),
+                hint: 'Can you make the bottom number 10 or 100?',
+                explain: four.map((x) => x[0] + '/' + x[1] + ' = ' + x[2]).join('   '),
+                sig: 'decFracMatch:' + four.map((x) => x[2]).join(','),
+            });
+        }
+
         const pick = rng.pick(pairs);
         return genNum({
             stem: 'Write ' + pick[0] + '/' + pick[1] + ' as a decimal.',

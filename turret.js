@@ -80,11 +80,13 @@
     // rock may go past it, up to the pool.
     // `shiny` puts the fighters in Phong — per-pixel lighting with a
     // highlight — instead of per-vertex Lambert. It is the first thing to go
-    // when auto steps a slow device down to Low.
+    // when auto steps a slow device down to Low. `flashLight` is a point
+    // light at the muzzle for a frame or two after each shot, lighting the
+    // barrels and anything near; every lit material pays for it, so High only.
     const TIERS = {
-        low:  { label: 'Low',  scale: 0.6,  stars: 300, enemies: 3, rocks: 12, shiny: false },
-        med:  { label: 'Med',  scale: 0.75, stars: 500, enemies: 4, rocks: 20, shiny: true },
-        high: { label: 'High', scale: 1.0,  stars: 900, enemies: 5, rocks: 28, shiny: true },
+        low:  { label: 'Low',  scale: 0.6,  stars: 300, enemies: 3, rocks: 12, shiny: false, flashLight: false },
+        med:  { label: 'Med',  scale: 0.75, stars: 500, enemies: 4, rocks: 20, shiny: true, flashLight: false },
+        high: { label: 'High', scale: 1.0,  stars: 900, enemies: 5, rocks: 28, shiny: true, flashLight: true },
     };
     const TIER_ORDER = ['low', 'med', 'high'];
     const MAX_STARS = 900, MAX_ENEMIES = 5, MAX_ROCKS = 40;
@@ -106,13 +108,19 @@
     const SHIP_GLOW = 0x240707;             // a red floor, so a fighter's shadow side still reads red
     const SHIP_SPEC = 0xd8d0c8, SHIP_SHINE = 70;
     const SHIP_SCALE = 1.6;                 // a fighter at 60 units is a speck on a 7-inch screen otherwise
-    const BOLT_SPEED = 110;
+    const BOLT_SPEED = 110;                 // defaults; the debug panel can change both
+    const MUZZLE_S = 0.09, MUZZLE_I = 3.2;  // muzzle light: how long, how bright
     const SIGHT = 110;                      // past this a fighter is still in the fog: not lockable
     // A shot locks a fighter when it lands within this many CSS px of the
     // fighter's target box. The debug slider sets it; 0 means on the box.
     const NEAR_PX = 24, NEAR_MIN = 0, NEAR_MAX = 160;
     const TAP_SLOP_MOUSE = 24;              // a mouse click while tracking a target moves a little
-    const GRIME = { on: true, color: '#ffffff', max: 0.6 };
+    // Window grime and the hit flash that shares its stencil. Strength runs
+    // from `min` facing away from the sun to `max` facing it; `reach` is how
+    // far in from the window's edge grime may show, `fade` how soft its inner
+    // boundary is — both as fractions of the window.
+    const GRIME = { on: true, color: '#ffffff', min: 0.02, max: 0.6, reach: 0.3, fade: 0.09, hurt: '#ff2a1a' };
+    const HURT_IN = 0.06, HURT_OUT = 0.6;   // hit flash: rise and fall, real seconds
     const TAP_SLOP = 10, TAP_MS = 400;      // a press that moves less, and lifts sooner, is a tap
 
     // Bullet time. The world eases to SLOW on a lock, then to a stop as the
@@ -203,7 +211,9 @@
         boltPts: null, zapPts: null, glowTex: null, discTex: null, ringTex: null, boltTex: null, zapTex: null,
         rocks: [], foes: [], bolts: [], zaps: [], puffs: [], tgts: [], guns: [],
         boom: 0, nearPx: NEAR_PX, sfx: {}, dbgOpen: false, mouse: null, shiny: null,
-        grime: null, grimeImg: null, grimeOp: -1, grimeW: 0, grimeH: 0,
+        grime: null, grimeImg: null, grimeW: 0, grimeH: 0, glassOp: [-1, -1, -1],
+        hurtAge: 9, hurtK: 0, boltSpeed: BOLT_SPEED, zapSpeed: ZAP_SPEED, dbgCats: [],
+        muzzleLight: null, muzzleK: 0,
         pilot: null, spawnAt: 0, rockAt: 0, lockFoe: null, barrel: 1, hits: 0,
         deflector: 100, hudLeft: 0, hud: null,
         running: false, lost: false, raf: 0, last: 0, wt: 0, timeScale: 1,
@@ -248,11 +258,18 @@
         // `near` replaced an older radius-round-the-tap setting; that one is ignored.
         tr.nearPx = Number.isFinite(dbg.near) ? clamp(dbg.near, NEAR_MIN, NEAR_MAX) : NEAR_PX;
         const g = dbg.grime || {};
+        const num = (v, lo, hi, d) => (Number.isFinite(v) ? clamp(v, lo, hi) : d);
+        const hex = (v, d) => (/^#[0-9a-f]{6}$/i.test(v) ? v : d);
         tr.grime = {
             on: g.on === undefined ? GRIME.on : !!g.on,
-            color: /^#[0-9a-f]{6}$/i.test(g.color) ? g.color : GRIME.color,
-            max: Number.isFinite(g.max) ? clamp(g.max, 0, 1) : GRIME.max,
+            color: hex(g.color, GRIME.color), hurt: hex(g.hurt, GRIME.hurt),
+            min: num(g.min, 0, 1, GRIME.min), max: num(g.max, 0, 1, GRIME.max),
+            reach: num(g.reach, 0.05, 0.6, GRIME.reach), fade: num(g.fade, 0, 0.3, GRIME.fade),
         };
+        if (tr.grime.min > tr.grime.max) tr.grime.min = tr.grime.max;
+        tr.boltSpeed = num(dbg.bolt, 30, 300, BOLT_SPEED);
+        tr.zapSpeed = num(dbg.zap, 20, 200, ZAP_SPEED);
+        tr.dbgCats = Array.isArray(dbg.open) ? dbg.open.filter((k) => typeof k === 'string') : [];
         tr.sfx = {};
         Object.keys(SFX).forEach((k) => {
             const v = dbg.sfx && dbg.sfx[k];
@@ -261,7 +278,8 @@
     }
 
     function trSaveDebug() {
-        stSetJSON('turret.debug', { boom: tr.boom, near: tr.nearPx, sfx: tr.sfx, grime: tr.grime });
+        stSetJSON('turret.debug', { boom: tr.boom, near: tr.nearPx, sfx: tr.sfx, grime: tr.grime,
+            bolt: tr.boltSpeed, zap: tr.zapSpeed, open: tr.dbgCats });
     }
 
     function trSaveSettings() {
@@ -942,7 +960,7 @@
         for (let i = 0; i < MAX_ROCKS; i++) {
             // `gen` counts reuses of the slot, so a bolt aimed at a rock that
             // has since been shot, or flown past and respawned, knows it.
-            tr.rocks.push({ active: false, gen: 0, pos: new THREE.Vector3(), vel: new THREE.Vector3(),
+            tr.rocks.push({ active: false, gen: 0, safe: false, pos: new THREE.Vector3(), vel: new THREE.Vector3(),
                 axis: new THREE.Vector3(), angle: 0, spin: 0, size: 1 });
         }
 
@@ -1060,9 +1078,17 @@
         // is what makes the light read as coming from somewhere.
         tr.sun = new THREE.DirectionalLight(0xfff0d8, 1.7);
         tr.scene.add(tr.sun, new THREE.AmbientLight(0x6a78a8, 0.32));
+        // Always in the scene, hidden below High: the light count is part of
+        // every lit shader, so showing or hiding it recompiles once, on a
+        // tier change — never on a shot.
+        tr.muzzleLight = new THREE.PointLight(0x9fe8ff, 0, 30, 2);
+        tr.muzzleLight.visible = TIERS[tr.tier].flashLight;
+        tr.muzzleK = 0;
+        tr.scene.add(tr.muzzleLight);
         trBuildPools();
         [tr.rockMesh, tr.shipMeshes[0], tr.glows, tr.boltPts, tr.zapPts].forEach((o) => tr.scene.add(o));
         trLoadGrime();
+        trBakeGrime();
         trAddShipMeshes();
         trLoadModels();
         tr.puffs.forEach((p) => tr.scene.add(p.sp));
@@ -1118,7 +1144,7 @@
         tr.guns = [];
         tr.shipMeshes = [];
         tr.shipTail = [];
-        $('tr-hurt').classList.remove('tr-on');
+        tr.hurtAge = 9;
         trHideTargets();
     }
 
@@ -1150,6 +1176,7 @@
             tr.stars.geometry.setDrawRange(0, T.stars);
             // Swapping a material compiles its program the first time: a
             // hitch once, when auto steps down, not a cost every frame.
+            tr.muzzleLight.visible = T.flashLight;
             if (tr.shiny !== T.shiny) {
                 tr.shiny = T.shiny;
                 tr.shipMeshes.forEach((m) => { m.material = trShipMat(m.userData.kind); });
@@ -1250,7 +1277,8 @@
 
         trUpdatePilot(wdt);
         trUpdateGuns(dt);
-        trUpdateGrime();
+        trUpdateMuzzle(dt);
+        trUpdateGlass(dt);
         trUpdateRocks(wdt);
         trUpdateSpawner();
         trUpdateFoes(wdt);
@@ -1311,6 +1339,7 @@
         if (!r) return null;
         r.gen++;
         r.active = true;
+        r.safe = false;
         r.vel.set(0, 0, 0);
         r.axis.set(rand(-1, 1), rand(-1, 1), rand(-1, 1)).normalize();
         r.angle = rand(0, 6.3);
@@ -1338,22 +1367,33 @@
     }
 
     // Shot, a big rock splits into two to four pieces flung out from its
-    // centre and a small one is only a flash. Against the hull it only
-    // bursts: pieces born that close would hit the hull again.
+    // centre and a small one is only a flash. Against the hull it breaks
+    // with no explosion — rock on glass — and its pieces are thrown off the
+    // line of flight, starting outside the hull and marked `safe`, so they
+    // cannot hit it again on the way past.
     function trShatter(r, rammed) {
-        const big = !rammed && r.size >= SPLIT_MIN;
-        trRockBoom(r.pos, r.size * 0.9, big ? 3 : 2);
+        const big = r.size >= SPLIT_MIN;
+        if (!rammed) trRockBoom(r.pos, r.size * 0.9, big ? 3 : 2);
         r.active = false;
-        if (!big) return;
+        if (!big && !rammed) return;
         const n = r.size > 4 ? 4 : r.size > 2.6 ? 3 : 2;
         const ox = r.pos.x, oy = r.pos.y, oz = r.pos.z, size = r.size;
         for (let k = 0; k < n; k++) {
             const f = trRock();
             if (!f) return;                             // a full pool loses the smaller pieces, nothing else
             f.size = size * rand(0.38, 0.55);
-            V1.set(rand(-1, 1), rand(-1, 1), rand(-1, 1)).normalize();
-            f.pos.set(ox, oy, oz).addScaledVector(V1, size * 0.5);
-            f.vel.copy(V1).multiplyScalar(rand(7, 15));
+            if (rammed) {
+                // Outward from the line of flight, evenly round it.
+                const a = (k / n) * Math.PI * 2 + rand(-0.4, 0.4);
+                V1.set(Math.cos(a), Math.sin(a), rand(-0.3, 0.1)).normalize();
+                f.pos.set(ox, oy, oz).addScaledVector(V1, HULL_R + f.size + 0.5);
+                f.vel.copy(V1).multiplyScalar(rand(12, 20));
+                f.safe = true;
+            } else {
+                V1.set(rand(-1, 1), rand(-1, 1), rand(-1, 1)).normalize();
+                f.pos.set(ox, oy, oz).addScaledVector(V1, size * 0.5);
+                f.vel.copy(V1).multiplyScalar(rand(7, 15));
+            }
             f.spin = rand(-2.4, 2.4);
         }
     }
@@ -1380,8 +1420,9 @@
             r.pos.addScaledVector(r.vel, wdt);
             r.pos.z += SPEED * wdt;
             // Into the hull: the ship takes it, the rock does not survive it.
-            if (r.pos.z > -r.size - 1 && r.pos.z < 1 && Math.hypot(r.pos.x, r.pos.y) < r.size + HULL_R) {
+            if (!r.safe && r.pos.z > -r.size - 1 && r.pos.z < 1 && Math.hypot(r.pos.x, r.pos.y) < r.size + HULL_R) {
                 trShatter(r, true);
+                trSfx('crack');
                 trHurt(0.9);
                 continue;
             }
@@ -1703,7 +1744,7 @@
         let t = tr.wt;
         for (let i = 0; i < 4; i++) {
             trPathAt(e, t, V2);
-            t = tr.wt + V2.distanceTo(from) / BOLT_SPEED;
+            t = tr.wt + V2.distanceTo(from) / tr.boltSpeed;
         }
         return t;
     }
@@ -1744,6 +1785,14 @@
         }
     }
 
+    // The muzzle light fades on real time, so a shot fired into slow motion
+    // still flashes and is gone.
+    function trUpdateMuzzle(dt) {
+        if (tr.muzzleK <= 0) return;
+        tr.muzzleK = Math.max(0, tr.muzzleK - dt / MUZZLE_S);
+        tr.muzzleLight.intensity = MUZZLE_I * tr.muzzleK * tr.muzzleK;
+    }
+
     function trGunTip(g, out) {
         return g.mesh.localToWorld(out.set(0, 0, GUN_LEN));
     }
@@ -1765,7 +1814,7 @@
     // is no reason a fair shot should miss; the bolt is steered onto the rock
     // all the way in (trUpdateBolts), so a turn mid-flight cannot spoil it.
     function trShootRock(r, muzzle) {
-        const t = r.pos.distanceTo(muzzle) / (BOLT_SPEED + SPEED);
+        const t = r.pos.distanceTo(muzzle) / (tr.boltSpeed + SPEED);
         const b = trSpawnBolt(muzzle, r.pos, tr.wt + t, null);
         if (!b) return;
         b.rock = r;
@@ -1807,10 +1856,11 @@
         const muzzle = trGunTip(gun, V1);
         gun.recoil = GUN_KICK;
         trPuff({ at: muzzle, c0: 0xeaffff, c1: 0x3fd2ff, r0: 0.1, r1: 0.26, life: 0.07, add: true, fade: 0.3 });
+        if (tr.muzzleLight.visible) { tr.muzzleLight.position.copy(muzzle); tr.muzzleK = 1; }
 
         if (foe) { trOnLock(foe, muzzle, trLead(foe, muzzle)); return; }
         if (rock) { trShootRock(rock, muzzle); return; }
-        trSpawnBolt(muzzle, V6, tr.wt + muzzle.distanceTo(V6) / BOLT_SPEED, null);
+        trSpawnBolt(muzzle, V6, tr.wt + muzzle.distanceTo(V6) / tr.boltSpeed, null);
     }
 
     // A lock fires a bolt that WILL hit — it is aimed at where the path puts
@@ -1850,16 +1900,6 @@
         }
     }
 
-    // Swing the turret so the target sits mid-screen, where the question
-    // card does not cover it.
-    function trSlewTo(pos) {
-        tr.rig.updateMatrixWorld();
-        V3.copy(pos);
-        tr.rig.worldToLocal(V3);
-        tr.aimYaw = clamp(Math.atan2(-V3.x, -V3.z), -YAW_LIMIT, YAW_LIMIT);
-        tr.aimPitch = clamp(Math.atan2(V3.y, Math.hypot(V3.x, V3.z)), PITCH_MIN, PITCH_MAX);
-    }
-
     /* ---- the question -----------------------------------------------------
      * Phases: 'ask' (card up, world slowing to a stop), then 'right' or
      * 'reveal' (world back to speed, card showing the outcome), then closed.
@@ -1879,7 +1919,6 @@
         tr.ask = { foe, bolt, q, fromAce, mode: trMode(), phase: 'ask', elapsed: 0, left: 0, entry: '', choices: null, sp: null };
         $('tr-hint').classList.add('tr-gone');
         tr.toastLeft = 0;
-        trSlewTo(foe.pos);
         trRenderAsk();
         if (tr.ask.mode === 'spoken') trListenStart();
     }
@@ -2161,7 +2200,7 @@
             z.to.subVectors(V3, from).normalize().multiplyScalar(from.length() + 40).add(from);
         }
         z.t0 = tr.wt;
-        z.t1 = tr.wt + z.from.distanceTo(z.to) / ZAP_SPEED;
+        z.t1 = tr.wt + z.from.distanceTo(z.to) / tr.zapSpeed;
         z.active = true;
         trSfx('pew');
     }
@@ -2189,10 +2228,9 @@
     // The ship is hit. It cannot be hurt — the player cannot lose — so this
     // is a red flash at the edges, a jolt, and a filler number dipping.
     function trHurt(k) {
-        const el = $('tr-hurt');
-        el.classList.remove('tr-on');
-        void el.offsetWidth;                            // restart the flash if hit twice running
-        el.classList.add('tr-on');
+        // A hit while the last one is still fading never flashes weaker.
+        tr.hurtK = Math.max(k, tr.hurtAge < HURT_IN + HURT_OUT ? tr.hurtK : 0);
+        tr.hurtAge = 0;
         tr.shake = Math.max(tr.shake, 0.5 * k);
         tr.deflector = Math.max(DEFLECTOR_MIN, tr.deflector - DEFLECTOR_HIT * k);
         tr.hudLeft = 0;                                 // show the dip now, not at the next tick
@@ -2603,6 +2641,8 @@
         };
     }
 
+    const T_FLASH = () => !!(tr.muzzleLight && tr.muzzleLight.visible);
+
     function trProbeReport() {
         if (!probe.n) return;
         const s = trProbeStats();
@@ -2627,22 +2667,29 @@
         $('tr-probe-cpu').textContent = 'cpu ' + s.cpu.toFixed(1) + ' ms';
         $('tr-probe-gpu').textContent = info.calls + ' calls · ' + info.triangles + ' tris · '
             + size.x + '×' + size.y + ' (' + TIERS[tr.tier].label + (tr.auto ? ', auto' : '')
-            + (tr.shiny ? ', shiny' : ', matte') + ')';
+            + (tr.shiny ? ', shiny' : ', matte') + (T_FLASH() ? ', muzzle light' : '') + ')';
         $('tr-probe-fps').classList.toggle('tr-bad', s.p95 > budget * 1.35);
     }
 
-    /* ---- window grime -----------------------------------------------------
-     * Dirt on the glass, lit up by the sun. A canvas between the 3D view and
-     * the cockpit frame: over the guns and the scene, under every piece of
-     * HUD. It is baked only when the stage changes size or the colour
-     * changes — the texture, tinted, with the middle of the window cut out
-     * by a blurred copy of the window shape — so each frame costs one
-     * opacity write at most, set by how squarely the turret faces the sun.
+    /* ---- window grime and the hit flash ------------------------------------
+     * Three canvases on the glass, between the 3D view and the cockpit frame
+     * — over the guns and the scene, under every piece of HUD — all cut by
+     * one stencil: the window shape, shrunk toward its centre by `reach` and
+     * blurred by `fade`, erases the middle and fades in toward the edges.
+     *
+     *   #tr-grime       the texture in the grime colour
+     *   #tr-grime-hurt  the same grime in the hit colour
+     *   #tr-hurt        a solid wash of the hit colour, no texture
+     *
+     * All three are baked only on a resize or a settings change. A frame
+     * writes opacities, and only those that moved: the grime by how squarely
+     * the turret faces the sun; on a hit, the grime crossfades to its hit
+     * twin while the wash flashes — a smooth colour change, no re-bake.
      */
     const WINDOW = [[260, 90], [1340, 90], [1520, 300], [1520, 760], [1380, 900], [220, 900], [80, 760], [80, 300]];
     const WINDOW_C = [800, 495];
-    const GRIME_CLEAR = 0.7;                // the clear middle, as a fraction of the window
     const GRIME_SCALE = 0.5;                // baked at half the stage's size; it is soft anyway
+    const GLASS = ['tr-grime', 'tr-grime-hurt', 'tr-hurt'];
 
     function trLoadGrime() {
         if (tr.grimeImg) return;
@@ -2651,30 +2698,21 @@
         img.src = 'textures/window-grime.png?v=' + (window.ASSET_V || '1');
     }
 
-    function trBakeGrime() {
-        const cv = $('tr-grime');
-        const img = tr.grimeImg;
-        if (!cv || !img || !tr.cssW) return;
-        const W = Math.max(1, Math.round(tr.cssW * GRIME_SCALE)), H = Math.max(1, Math.round(tr.cssH * GRIME_SCALE));
-        cv.width = W; cv.height = H;
-        tr.grimeW = tr.cssW; tr.grimeH = tr.cssH;
-        const g = cv.getContext('2d');
-        g.clearRect(0, 0, W, H);
-        // Cover, as background-size: cover would.
-        const k = Math.max(W / img.width, H / img.height);
-        g.drawImage(img, (W - img.width * k) / 2, (H - img.height * k) / 2, img.width * k, img.height * k);
-        // Cut the middle out: the window shape, shrunk toward its centre and
-        // blurred, erases the grime there and fades it in toward the edges.
+    // Erase the middle of a canvas: the stencil.
+    function trCutCentre(g, W, H) {
+        const clear = 1 - tr.grime.reach;
+        const blur = Math.round(W * tr.grime.fade);
         g.globalCompositeOperation = 'destination-out';
-        const blur = Math.round(W * 0.09);
-        const pt = (p) => [(WINDOW_C[0] + (p[0] - WINDOW_C[0]) * GRIME_CLEAR) / 1600 * W,
-            (WINDOW_C[1] + (p[1] - WINDOW_C[1]) * GRIME_CLEAR) / 1000 * H];
+        g.fillStyle = '#000';
         if ('filter' in g) {
-            g.filter = 'blur(' + blur + 'px)';
+            if (blur) g.filter = 'blur(' + blur + 'px)';
             g.beginPath();
-            WINDOW.forEach((p, i) => { const q = pt(p); if (i) g.lineTo(q[0], q[1]); else g.moveTo(q[0], q[1]); });
+            WINDOW.forEach((p, i) => {
+                const x = (WINDOW_C[0] + (p[0] - WINDOW_C[0]) * clear) / 1600 * W;
+                const y = (WINDOW_C[1] + (p[1] - WINDOW_C[1]) * clear) / 1000 * H;
+                if (i) g.lineTo(x, y); else g.moveTo(x, y);
+            });
             g.closePath();
-            g.fillStyle = '#000';
             g.fill();
             g.filter = 'none';
         } else {
@@ -2682,45 +2720,96 @@
             // little less faithfully to the window's corners.
             g.save();
             g.translate(W / 2, H * 0.495);
-            g.scale(W * 0.5, H * 0.5);
+            g.scale(W * 0.5 * clear + blur, H * 0.5 * clear + blur);
             const rg = g.createRadialGradient(0, 0, 0, 0, 0, 1);
+            const solid = clamp(1 - (2 * blur) / Math.max(1, W * 0.5 * clear + blur), 0, 0.99);
             rg.addColorStop(0, 'rgba(0,0,0,1)');
-            rg.addColorStop(0.55, 'rgba(0,0,0,1)');
+            rg.addColorStop(solid, 'rgba(0,0,0,1)');
             rg.addColorStop(1, 'rgba(0,0,0,0)');
             g.fillStyle = rg;
             g.fillRect(-1, -1, 2, 2);
             g.restore();
         }
-        // Whatever is left takes the colour.
-        g.globalCompositeOperation = 'source-in';
-        g.fillStyle = tr.grime.color;
-        g.fillRect(0, 0, W, H);
         g.globalCompositeOperation = 'source-over';
-        tr.grimeOp = -1;
     }
 
-    function trUpdateGrime() {
-        const cv = $('tr-grime');
-        let op = 0;
+    function trTint(g, W, H, color) {
+        g.globalCompositeOperation = 'source-in';
+        g.fillStyle = color;
+        g.fillRect(0, 0, W, H);
+        g.globalCompositeOperation = 'source-over';
+    }
+
+    function trBakeGrime() {
+        if (!tr.cssW) return;
+        const W = Math.max(1, Math.round(tr.cssW * GRIME_SCALE)), H = Math.max(1, Math.round(tr.cssH * GRIME_SCALE));
+        const [grime, twin, wash] = GLASS.map((id) => $(id));
+        [grime, twin, wash].forEach((cv) => { cv.width = W; cv.height = H; });
+        tr.grimeW = tr.cssW; tr.grimeH = tr.cssH;
+
+        // The wash needs no texture, so a hit flashes even before it loads.
+        let g = wash.getContext('2d');
+        g.fillStyle = tr.grime.hurt;
+        g.fillRect(0, 0, W, H);
+        trCutCentre(g, W, H);
+
+        const img = tr.grimeImg;
+        g = grime.getContext('2d');
+        g.clearRect(0, 0, W, H);
+        if (img) {
+            // Cover, as background-size: cover would.
+            const k = Math.max(W / img.width, H / img.height);
+            g.drawImage(img, (W - img.width * k) / 2, (H - img.height * k) / 2, img.width * k, img.height * k);
+            trCutCentre(g, W, H);
+            const t = twin.getContext('2d');
+            t.clearRect(0, 0, W, H);
+            t.drawImage(grime, 0, 0);
+            trTint(t, W, H, tr.grime.hurt);
+            trTint(g, W, H, tr.grime.color);
+        }
+        tr.glassOp = [-1, -1, -1];
+    }
+
+    // The hit envelope: up fast, down smoothly, scaled by how hard the hit was.
+    function trHurtLevel() {
+        const a = tr.hurtAge;
+        if (a >= HURT_IN + HURT_OUT) return 0;
+        const e = a < HURT_IN ? a / HURT_IN : 1 - (a - HURT_IN) / HURT_OUT;
+        return tr.hurtK * e * (2 - e);                  // eased, so it leaves gently
+    }
+
+    function trSetGlass(i, op) {
+        if (Math.abs(op - tr.glassOp[i]) < 0.01 && !(op === 0 && tr.glassOp[i] !== 0)) return;
+        tr.glassOp[i] = op;
+        $(GLASS[i]).style.opacity = op.toFixed(3);
+    }
+
+    function trUpdateGlass(dt) {
+        if (tr.cssW !== tr.grimeW || tr.cssH !== tr.grimeH) trBakeGrime();
+        tr.hurtAge += dt;
+        const h = trHurtLevel();
+        let base = 0;
         if (tr.grime.on && tr.grimeImg) {
-            if (tr.cssW !== tr.grimeW || tr.cssH !== tr.grimeH) trBakeGrime();
-            // The turret's forward against the sun: dead on is full strength,
-            // side-on or behind is next to nothing. Squared, so it builds as
-            // the sun comes round into the window rather than all at once.
+            // The turret's forward against the sun: dead on is `max`, side-on
+            // or behind is `min`. Squared, so it builds as the sun comes
+            // round into the window rather than all at once.
             V1.set(0, 0, -1).transformDirection(tr.camera.matrixWorld);
             V2.copy(tr.sun.position).normalize();
             const k = Math.max(0, V1.dot(V2));
-            op = tr.grime.max * (0.04 + 0.96 * k * k);
+            base = tr.grime.min + (tr.grime.max - tr.grime.min) * k * k;
         }
-        if (Math.abs(op - tr.grimeOp) < 0.01) return;
-        tr.grimeOp = op;
-        cv.style.opacity = op.toFixed(3);
+        const lit = tr.grime.on && tr.grimeImg ? Math.max(base, 0.5) : 0;
+        trSetGlass(0, base * (1 - h));
+        trSetGlass(1, lit * h);
+        trSetGlass(2, 0.7 * h);
     }
 
     /* ---- debug overlay ----------------------------------------------------
-     * For tuning, not for the child: explosion style, auto-aim radius, a
-     * version of every sound, and buttons that make things happen now.
-     * Choices are kept under nq.turret.debug.
+     * For tuning, not for the child, in collapsible categories: combat (lock
+     * distance, bolt speeds), look (explosion style, grime, stencil, hit
+     * colour), a version of every sound, buttons that make things happen
+     * now, and the frame-time readout. Choices, and which categories are
+     * open, are kept under nq.turret.debug.
      */
     function trDbgBtn(text, act, cls) {
         const b = trEl('button', 'tr-chip' + (cls ? ' ' + cls : ''), text);
@@ -2728,19 +2817,68 @@
         return b;
     }
 
+    // Sliders, by key: [label, min, max, step, get, set, format, rebake].
+    const DBG_SLIDERS = {
+        near: ['Lock distance', NEAR_MIN, NEAR_MAX, 4, () => tr.nearPx, (v) => { tr.nearPx = v; }, (v) => v + ' px'],
+        bolt: ['Turret bolts', 30, 300, 10, () => tr.boltSpeed, (v) => { tr.boltSpeed = v; }, (v) => v + ' u/s'],
+        zap: ['Enemy bolts', 20, 200, 5, () => tr.zapSpeed, (v) => { tr.zapSpeed = v; }, (v) => v + ' u/s'],
+        reach: ['Reach', 5, 60, 1, () => Math.round(tr.grime.reach * 100), (v) => { tr.grime.reach = v / 100; }, (v) => v + '%', true],
+        fade: ['Fade', 0, 30, 1, () => Math.round(tr.grime.fade * 100), (v) => { tr.grime.fade = v / 100; }, (v) => v + '%', true],
+    };
+
     function trBuildDebug() {
         const box = $('tr-dbg');
         box.textContent = '';
-        const sec = (title, note) => {
-            const d = trEl('div', 'tr-dbg-sec');
-            d.appendChild(trEl('div', 'tr-dbg-h', title));
-            if (note) d.appendChild(trEl('div', 'tr-dbg-note', note));
+        const cat = (key, title) => {
+            const d = trEl('details', 'tr-dbg-cat');
+            d.dataset.trCat = key;
+            d.open = tr.dbgCats.indexOf(key) >= 0;
+            d.appendChild(trEl('summary', null, title));
             box.appendChild(d);
             return d;
         };
         const row = (parent) => parent.appendChild(trEl('div', 'tr-dbg-row'));
+        const head = (parent, text) => parent.appendChild(trEl('div', 'tr-dbg-h', text));
+        const note = (parent, text) => parent.appendChild(trEl('div', 'tr-dbg-note', text));
+        const slider = (parent, key) => {
+            const [label, min, max, step, get] = DBG_SLIDERS[key];
+            const r = row(parent);
+            const inp = trEl('input');
+            inp.type = 'range';
+            inp.min = String(min); inp.max = String(max); inp.step = String(step);
+            inp.value = String(get());
+            inp.dataset.trDbg = key;
+            const val = trEl('span', 'tr-dbg-val', DBG_SLIDERS[key][6](get()));
+            val.id = 'tr-dbg-v-' + key;
+            r.append(trEl('span', 'tr-dbg-label', label), inp, val);
+        };
+        const check = (parent, key, label, on) => {
+            const inp = trEl('input');
+            inp.type = 'checkbox';
+            inp.checked = on;
+            inp.dataset.trDbg = key;
+            const lab = trEl('label', 'tr-dbg-check');
+            lab.append(inp, document.createTextNode(' ' + label));
+            parent.appendChild(lab);
+            return lab;
+        };
+        const color = (parent, key, value) => {
+            const inp = trEl('input');
+            inp.type = 'color';
+            inp.value = value;
+            inp.dataset.trDbg = key;
+            parent.appendChild(inp);
+        };
 
-        let d = sec('Explosion');
+        let d = cat('combat', 'Combat');
+        note(d, 'Lock distance: how far outside a fighter\'s target box a shot may land and still lock it — slow-mo and a question. 0 is on the box. While this panel is open, each tap shows it as a dashed ring.');
+        slider(d, 'near');
+        head(d, 'Bolt speed');
+        slider(d, 'bolt');
+        slider(d, 'zap');
+
+        d = cat('look', 'Look');
+        head(d, 'Explosion');
         let r = row(d);
         const boom = trEl('select');
         boom.dataset.trDbg = 'boom';
@@ -2751,42 +2889,39 @@
         });
         boom.value = String(tr.boom);
         r.append(boom, trDbgBtn('Test', 'boom'));
-
-        d = sec('Lock distance', 'How far outside a fighter\'s target box a shot may land and still lock it — slow-mo and a question. 0 is on the box. While this panel is open, each tap shows the distance as a dashed ring.');
+        head(d, 'Window grime');
+        note(d, 'On the glass round the edges. Strength runs from the low end facing away from the sun to the high end facing it.');
         r = row(d);
-        const aim = trEl('input');
-        aim.type = 'range';
-        aim.min = String(NEAR_MIN); aim.max = String(NEAR_MAX); aim.step = '4';
-        aim.value = String(tr.nearPx);
-        aim.dataset.trDbg = 'near';
-        const val = trEl('span', 'tr-dbg-val', tr.nearPx + ' px');
-        val.id = 'tr-dbg-near';
-        r.append(aim, val);
-
-        d = sec('Window grime', 'On the glass, strongest at the edges, and only when the turret faces the sun.');
+        check(r, 'grimeOn', 'Show', tr.grime.on);
+        color(r, 'grimeColor', tr.grime.color);
         r = row(d);
-        const on = trEl('input');
-        on.type = 'checkbox';
-        on.checked = tr.grime.on;
-        on.dataset.trDbg = 'grimeOn';
-        const lab = trEl('label', 'tr-dbg-check');
-        lab.append(on, document.createTextNode(' Show'));
-        const col = trEl('input');
-        col.type = 'color';
-        col.value = tr.grime.color;
-        col.dataset.trDbg = 'grimeColor';
-        r.append(lab, col);
+        const dual = trEl('div', 'tr-dual');
+        dual.id = 'tr-dbg-dual';
+        ['grimeMin', 'grimeMax'].forEach((k) => {
+            const inp = trEl('input');
+            inp.type = 'range';
+            inp.min = '0'; inp.max = '100'; inp.step = '1';
+            inp.value = String(Math.round(tr.grime[k === 'grimeMin' ? 'min' : 'max'] * 100));
+            inp.dataset.trDbg = k;
+            inp.setAttribute('aria-label', k === 'grimeMin' ? 'Strength facing away' : 'Strength facing the sun');
+            dual.appendChild(inp);
+        });
+        const dv = trEl('span', 'tr-dbg-val');
+        dv.id = 'tr-dbg-v-strength';
+        r.append(trEl('span', 'tr-dbg-label', 'Strength'), dual, dv);
+        trDualShow();
+        head(d, 'Stencil');
+        note(d, 'Reach: how far in from the window\'s edge grime and the hit flash may show. Fade: how soft their inner edge is.');
+        slider(d, 'reach');
+        slider(d, 'fade');
+        head(d, 'Hit');
         r = row(d);
-        const max = trEl('input');
-        max.type = 'range';
-        max.min = '0'; max.max = '100'; max.step = '5';
-        max.value = String(Math.round(tr.grime.max * 100));
-        max.dataset.trDbg = 'grimeMax';
-        const mv = trEl('span', 'tr-dbg-val', Math.round(tr.grime.max * 100) + '%');
-        mv.id = 'tr-dbg-grime';
-        r.append(trEl('span', 'tr-dbg-label', 'Strength'), max, mv);
+        r.append(trEl('span', 'tr-dbg-label', 'Hit colour'));
+        color(r, 'hurtColor', tr.grime.hurt);
+        r.append(trDbgBtn('Test', 'hurt'));
 
-        d = sec('Sounds', 'Changing one plays it.');
+        d = cat('sound', 'Sound');
+        note(d, 'Changing one plays it.');
         Object.keys(SFX_LABEL).forEach((k) => {
             r = row(d);
             const sel = trEl('select');
@@ -2803,14 +2938,29 @@
             r.append(trEl('span', 'tr-dbg-label', SFX_LABEL[k]), sel, play);
         });
 
-        d = sec('Make it happen');
+        d = cat('spawn', 'Make it happen');
         r = row(d);
         r.classList.add('tr-dbg-wrap');
         r.append(trDbgBtn('Swoop', 'swoop'), trDbgBtn('Strafing run', 'strafe'), trDbgBtn('Incoming rock', 'rock'),
             trDbgBtn('Rock belt', 'belt'), trDbgBtn('Hit flash', 'hurt'));
 
+        d = cat('perf', 'Performance');
+        r = row(d);
+        check(r, 'probe', 'Show frame-time readout', !$('tr-probe').classList.contains('hidden'));
+        note(d, 'Quality and the frame cap are in the readout. Shiny fighters are on Medium and High; the muzzle light is on High only.');
+
         r = row(box);
         r.append(trDbgBtn('Reset to defaults', 'reset'));
+    }
+
+    // The dual slider's label, and the filled stretch between its thumbs.
+    function trDualShow() {
+        const a = Math.round(tr.grime.min * 100), b = Math.round(tr.grime.max * 100);
+        const dual = $('tr-dbg-dual');
+        if (!dual) return;
+        dual.style.setProperty('--a', a + '%');
+        dual.style.setProperty('--b', b + '%');
+        $('tr-dbg-v-strength').textContent = a + '–' + b + '%';
     }
 
     function trSetDebugOpen(open) {
@@ -2831,20 +2981,35 @@
 
     function trDebugChange(e) {
         const t = e.target;
-        if (t.dataset.trDbg === 'boom') { tr.boom = Number(t.value); trSaveDebug(); return; }
-        if (t.dataset.trDbg === 'near') {
-            tr.nearPx = clamp(Number(t.value), NEAR_MIN, NEAR_MAX);
-            $('tr-dbg-near').textContent = tr.nearPx + ' px';
+        const key = t.dataset.trDbg;
+        const S = key && DBG_SLIDERS[key];
+        if (S) {
+            const v = clamp(Number(t.value), S[1], S[2]);
+            S[5](v);
+            $('tr-dbg-v-' + key).textContent = S[6](v);
+            if (S[7]) trBakeGrime();
             trSaveDebug();
             return;
         }
-        if (t.dataset.trDbg === 'grimeOn') { tr.grime.on = t.checked; tr.grimeOp = -1; trSaveDebug(); return; }
-        if (t.dataset.trDbg === 'grimeColor') { tr.grime.color = t.value; trBakeGrime(); trSaveDebug(); return; }
-        if (t.dataset.trDbg === 'grimeMax') {
-            tr.grime.max = clamp(Number(t.value) / 100, 0, 1);
-            $('tr-dbg-grime').textContent = Math.round(tr.grime.max * 100) + '%';
-            tr.grimeOp = -1;
+        if (key === 'grimeMin' || key === 'grimeMax') {
+            // Two thumbs, one range: a thumb pushed past the other takes it along.
+            const v = clamp(Number(t.value) / 100, 0, 1);
+            if (key === 'grimeMin') { tr.grime.min = v; if (tr.grime.max < v) tr.grime.max = v; }
+            else { tr.grime.max = v; if (tr.grime.min > v) tr.grime.min = v; }
+            const other = t.parentNode.querySelector('[data-tr-dbg="' + (key === 'grimeMin' ? 'grimeMax' : 'grimeMin') + '"]');
+            other.value = String(Math.round(tr.grime[key === 'grimeMin' ? 'max' : 'min'] * 100));
+            trDualShow();
+            tr.glassOp = [-1, -1, -1];
             trSaveDebug();
+            return;
+        }
+        if (key === 'boom') { tr.boom = Number(t.value); trSaveDebug(); return; }
+        if (key === 'grimeOn') { tr.grime.on = t.checked; tr.glassOp = [-1, -1, -1]; trSaveDebug(); return; }
+        if (key === 'grimeColor') { tr.grime.color = t.value; trBakeGrime(); trSaveDebug(); return; }
+        if (key === 'hurtColor') { tr.grime.hurt = t.value; trBakeGrime(); trSaveDebug(); return; }
+        if (key === 'probe') {
+            $('tr-probe').classList.toggle('hidden', !t.checked);
+            stSet('turret.probe', t.checked ? '1' : '0');
             return;
         }
         const k = t.dataset.trDbgSfx;
@@ -2856,6 +3021,16 @@
         }
     }
 
+    // <details> toggles do not bubble, so this listens in the capture phase.
+    function trDebugToggle(e) {
+        const d = e.target;
+        if (!d.dataset || !d.dataset.trCat) return;
+        const k = d.dataset.trCat, i = tr.dbgCats.indexOf(k);
+        if (d.open && i < 0) tr.dbgCats.push(k);
+        if (!d.open && i >= 0) tr.dbgCats.splice(i, 1);
+        trSaveDebug();
+    }
+
     function trDebugClick(e) {
         const b = e.target.closest('[data-tr-dbg-act]');
         if (!b) return;
@@ -2863,8 +3038,8 @@
         if (act === 'play') { trPreview(b.dataset.trDbgSfxPlay); return; }
         if (act === 'reset') {
             tr.boom = 0; tr.nearPx = NEAR_PX; tr.sfx = {};
-            tr.grime = { on: GRIME.on, color: GRIME.color, max: GRIME.max };
-            tr.grimeOp = -1;
+            tr.boltSpeed = BOLT_SPEED; tr.zapSpeed = ZAP_SPEED;
+            tr.grime = Object.assign({}, GRIME);
             trBakeGrime();
             trSaveDebug();
             trBuildDebug();
@@ -3448,7 +3623,9 @@
     const SCREEN_HTML = `
         <div class="container tr-container">
             <div class="tr-stage" id="tr-stage">
-                <canvas class="tr-grime" id="tr-grime" aria-hidden="true"></canvas>
+                <canvas class="tr-glass" id="tr-grime" aria-hidden="true"></canvas>
+                <canvas class="tr-glass" id="tr-grime-hurt" aria-hidden="true"></canvas>
+                <canvas class="tr-glass" id="tr-hurt" aria-hidden="true"></canvas>
                 <svg class="tr-cockpit" viewBox="0 0 1600 1000" preserveAspectRatio="none" aria-hidden="true">
                     <path class="tr-frame" fill-rule="evenodd"
                         d="M0 0H1600V1000H0Z M260 90 L1340 90 L1520 300 L1520 760 L1380 900 L220 900 L80 760 L80 300 Z"/>
@@ -3457,7 +3634,6 @@
                     <path class="tr-frame" d="M770 90 L830 90 L812 210 L788 210 Z"/>
                 </svg>
                 <div class="tr-slowmo" id="tr-slowmo" aria-hidden="true"></div>
-                <div class="tr-hurt" id="tr-hurt" aria-hidden="true"></div>
                 <div class="tr-tgts" id="tr-tgts" aria-hidden="true"></div>
                 <div class="tr-tap" id="tr-tap" aria-hidden="true"><i></i></div>
                 <div class="tr-lock hidden" id="tr-lock" aria-hidden="true"><i></i></div>
@@ -3501,6 +3677,8 @@
                             <button class="tr-launch" id="tr-launch">Launch</button>
                             <button class="tr-chip tr-sound" id="tr-sound"></button>
                         </div>
+                        <div class="tr-credits">Ships by <a href="https://kenney.nl" target="_blank" rel="noopener">Kenney</a> ·
+                            window texture: <a href="https://www.magnific.com/free-photo/top-view-dark-background-texture-concrete-surface_11776758.htm" target="_blank" rel="noopener">Image by KamranAydinov on Magnific</a></div>
                     </div>
                 </div>
                 <div class="tr-panel hidden" id="tr-debrief">
@@ -3538,7 +3716,6 @@
                 <button class="tr-icon-btn tr-fs-btn" id="tr-fs" title="Full screen" aria-label="Full screen">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9V3h6M15 3h6v6M21 15v6h-6M9 21H3v-6"/></svg>
                 </button>
-                <button class="tr-icon-btn tr-probe-btn" id="tr-probe-toggle" title="Performance" aria-label="Performance">ms</button>
                 <button class="tr-icon-btn tr-dbg-btn" id="tr-dbg-toggle" title="Debug settings" aria-label="Debug settings">dbg</button>
                 <div class="tr-dbg hidden" id="tr-dbg"></div>
                 <button class="tr-icon-btn tr-side-btn hidden" id="tr-end" title="End sortie" aria-label="End sortie">
@@ -3638,19 +3815,14 @@
             }
             e.preventDefault();
         });
-        $('tr-probe-toggle').addEventListener('click', () => {
-            const hide = !$('tr-probe').classList.contains('hidden');
-            $('tr-probe').classList.toggle('hidden', hide);
-            stSet('turret.probe', hide ? '0' : '1');
-        });
-        $('tr-probe').classList.toggle('hidden', stGet('turret.probe', '1') !== '1');
+        $('tr-probe').classList.toggle('hidden', stGet('turret.probe', '0') !== '1');
         $('tr-fs').addEventListener('click', trToggleFullscreen);
         $('tr-dbg-toggle').addEventListener('click', () => trSetDebugOpen(!tr.dbgOpen));
         $('tr-dbg').addEventListener('change', trDebugChange);
         $('tr-dbg').addEventListener('input', trDebugChange);
         $('tr-dbg').addEventListener('click', trDebugClick);
-        ['tr-hurt', 'tr-tap'].forEach((id) =>
-            $(id).addEventListener('animationend', (e) => e.currentTarget.classList.remove('tr-on')));
+        $('tr-dbg').addEventListener('toggle', trDebugToggle, true);
+        $('tr-tap').addEventListener('animationend', (e) => e.currentTarget.classList.remove('tr-on'));
 
         new MutationObserver(() => {
             if (trScreenActive() && !document.hidden) trStart();
@@ -3684,7 +3856,7 @@
 
     // Debug handle for the smoke test, same convention as __MZ / __NP.
     window.__TR = {
-        TIERS, state: tr, trPlanPath, trSafePath, BOOMS, SFX, trExplode, trSetDebugOpen, trSpawnFoe, models: () => MODELS, trPickFoe, trBakeGrime, trApplyTier, trHurt, trSpawnRock, trEnemyFire, probe, trProbeStats, trSetTier, trPathAt, trFire, trChoices, trAnswer, trKey,
+        TIERS, state: tr, trPlanPath, trSafePath, BOOMS, SFX, trExplode, trSetDebugOpen, trSpawnFoe, models: () => MODELS, trPickFoe, trBakeGrime, trApplyTier, trShatter, trHurt, trSpawnRock, trEnemyFire, probe, trProbeStats, trSetTier, trPathAt, trFire, trChoices, trAnswer, trKey,
         trLaunch, trEndSortie, trBuildDeck, trSetKey, trLevel, trReset, trOpenGate, trSfx,
         facts: () => trFacts(), gateAnswer: () => gateAnswer,
         // Advance the simulation by hand — a backgrounded test page gets no rAF.

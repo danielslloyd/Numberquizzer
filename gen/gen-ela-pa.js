@@ -106,6 +106,25 @@
 
     G['pa.segment'] = function (rng) {
         const e = rng.pick(PHONEMES);
+
+        /* Counting the sounds and showing where they divide are the same skill
+         * asked two ways, and the second is the harder half — "duck" has three
+         * sounds only if you see that ck is one of them. Alternating keeps the
+         * count question, which is the one a teacher recognises. */
+        if (rng.bool()) {
+            const split = genSplitWord({
+                word: e.w,
+                pieces: e.sounds,
+                stem: 'Tap where the sounds split in "' + e.w + '".',
+                tapNote: 'Tap between the sounds, then press Check.',
+                hint: 'Some letters work together as one sound.',
+                explain: '"' + e.w + '" is ' + e.sounds.join(' · ') + ' — ' + e.sounds.length + ' sounds'
+                    + (e.sounds.length !== e.w.length ? ' from ' + e.w.length + ' letters' : '') + '.',
+                sig: 'segsplit:' + e.w,
+            });
+            if (split) return split;
+        }
+
         return genNum({
             stem: 'How many separate sounds can you hear in the word "' + e.w + '"?',
             answer: e.n,

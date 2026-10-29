@@ -39,9 +39,10 @@
     height: 100%;
 }
 
-/* Window grime: over the 3D view and the guns, under the frame and the HUD.
-   Its opacity is set per frame from the sun; the bitmap is baked on resize. */
-.tr-grime {
+/* The glass: grime, its hit-coloured twin, and the hit wash. Over the 3D view
+   and the guns, under the frame and the HUD. Opacities are set per frame;
+   the bitmaps are baked on resize or a settings change. */
+.tr-glass {
     position: absolute;
     inset: 0;
     width: 100%;
@@ -107,24 +108,6 @@
     transition: opacity .3s;
 }
 .tr-slowmo.tr-on { opacity: 1; }
-
-/* Hit: red at the edges, soft all the way in, gone in under a second. The
-   blur is the gradient's — a CSS blur filter over WebGL is what these
-   tablets cannot afford. */
-.tr-hurt {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background:
-        radial-gradient(ellipse at center, transparent 38%, rgba(200, 20, 10, .28) 70%, rgba(150, 0, 0, .75) 100%);
-    opacity: 0;
-}
-.tr-hurt.tr-on { animation: tr-hurt .7s ease-out; }
-@keyframes tr-hurt {
-    0%   { opacity: 0; }
-    12%  { opacity: 1; }
-    100% { opacity: 0; }
-}
 
 /* Where a tap went: the shot goes there, so this is the aim point. */
 .tr-tap {
@@ -235,17 +218,26 @@
 @media (max-width: 560px) { .tr-ro { display: none; } }
 
 /* Above everything else on the stage, the probe included. */
-.tr-ask { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+.tr-ask {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    pointer-events: none;
+    display: grid;
+    grid-template-columns: auto auto;
+    align-content: center;
+    justify-content: center;
+    column-gap: .6rem;
+    row-gap: .6rem;
+}
 .tr-ask.hidden { display: none; }
 .tr-ask button { pointer-events: auto; }
 
 /* The question sits at the top; the slew puts the target under the
    crosshair, so the middle of the screen stays clear. */
 .tr-q {
-    position: absolute;
-    left: 50%;
-    top: 4%;
-    transform: translateX(-50%);
+    grid-column: 1 / -1;
+    justify-self: center;
     min-width: 11em;
     padding: .35rem 1.1rem .5rem;
     border: 2px solid rgba(120, 220, 255, .7);
@@ -269,15 +261,11 @@
 
 /* Multiple choice: two buttons under each thumb. */
 .tr-opts {
-    position: absolute;
-    bottom: 5%;
     display: flex;
     flex-direction: column;
     gap: .6rem;
 }
 .tr-opts.hidden { display: none; }
-.tr-opts-l { left: 3%; }
-.tr-opts-r { right: 3%; }
 .tr-opt {
     min-width: 5.5rem;
     min-height: 3.6rem;
@@ -298,9 +286,8 @@
 
 /* On-screen keypad, never the OS keyboard: under the right thumb. */
 .tr-pad {
-    position: absolute;
-    right: 3%;
-    bottom: 4%;
+    grid-column: 1 / -1;
+    justify-self: center;
     display: grid;
     grid-template-columns: repeat(3, 3.3rem);
     grid-auto-rows: 2.9rem;
@@ -381,8 +368,7 @@
 }
 .tr-icon-btn svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; vertical-align: middle; }
 .tr-fs-btn { right: 10px; }
-.tr-probe-btn { right: 58px; }
-.tr-dbg-btn { right: 154px; }
+.tr-dbg-btn { right: 58px; }
 
 /* ---- debug overlay: right side, scrolls inside the stage ---- */
 .tr-dbg {
@@ -402,8 +388,20 @@
     touch-action: pan-y;
 }
 .tr-dbg.hidden { display: none; }
-.tr-dbg-sec { padding: .35rem 0; border-bottom: 1px solid #262c38; }
-.tr-dbg-h { font-weight: 800; letter-spacing: .04em; text-transform: uppercase; font-size: 11px; color: #8fd8ff; margin-bottom: .3rem; }
+.tr-dbg-cat { border-bottom: 1px solid #262c38; }
+.tr-dbg-cat > summary {
+    padding: .45rem 0;
+    cursor: pointer;
+    font-weight: 800;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    font-size: 11px;
+    color: #8fd8ff;
+}
+.tr-dbg-cat[open] > summary { color: #eef6ff; }
+.tr-dbg-cat[open] { padding-bottom: .5rem; }
+.tr-dbg-h { margin-top: .4rem; }
+.tr-dbg-h { font-weight: 700; font-size: 12px; color: #c8d4e4; margin-bottom: .2rem; }
 .tr-dbg-note { color: #8b97a8; margin-bottom: .3rem; }
 .tr-dbg-row { display: flex; align-items: center; gap: .4rem; margin: .25rem 0; }
 .tr-dbg-wrap { flex-wrap: wrap; }
@@ -419,6 +417,55 @@
     font: inherit;
 }
 .tr-dbg input[type=range] { flex: 1 1 auto; min-width: 0; }
+.tr-dbg-row .tr-dbg-label { flex: 0 0 6.2em; }
+
+/* Two thumbs on one track: the inputs overlap, only their thumbs take the
+   pointer, and the stretch between them is filled from --a to --b. */
+.tr-dual { position: relative; flex: 1 1 auto; min-width: 0; height: 22px; }
+.tr-dual::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 9px;
+    height: 4px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, #333b4a var(--a, 0%), #8fd8ff var(--a, 0%), #8fd8ff var(--b, 100%), #333b4a var(--b, 100%));
+}
+.tr-dual input[type=range] {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 22px;
+    margin: 0;
+    background: none;
+    pointer-events: none;
+    -webkit-appearance: none;
+    appearance: none;
+}
+.tr-dual input[type=range]::-webkit-slider-runnable-track { background: none; }
+.tr-dual input[type=range]::-moz-range-track { background: none; }
+.tr-dual input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    pointer-events: auto;
+    width: 16px;
+    height: 16px;
+    margin-top: 3px;
+    border-radius: 50%;
+    background: #eef6ff;
+    border: 2px solid #3fd2ff;
+    cursor: pointer;
+}
+.tr-dual input[type=range]::-moz-range-thumb {
+    pointer-events: auto;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: #eef6ff;
+    border: 2px solid #3fd2ff;
+    cursor: pointer;
+}
 .tr-dbg-val { width: 4.5em; text-align: right; font-variant-numeric: tabular-nums; }
 .tr-dbg .tr-chip { padding: .25rem .55rem; }
 .tr-dbg-play { flex: 0 0 auto; }
@@ -469,6 +516,8 @@
 .tr-hud-aces { color: #ffd84a; }
 .tr-hud-aces:empty { display: none; }
 .tr-probe { top: 54px; z-index: 5; }
+.tr-credits { margin-top: .7rem; font-size: 11px; color: #8b97a8; text-align: center; }
+.tr-credits a { color: #8fd8ff; }
 
 /* The corner buttons stay usable over the briefing card. */
 .tr-icon-btn { z-index: 5; }

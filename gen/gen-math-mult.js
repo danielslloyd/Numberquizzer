@@ -234,6 +234,25 @@
     G['mult.primeComposite'] = function (rng) {
         const PRIMES = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37];
         const COMPOSITE = [4, 6, 8, 9, 10, 12, 14, 15, 16, 18, 20, 21, 22, 24, 25];
+
+        /* Sorting six at once forces the test to be applied six times. "Which
+         * of these is prime?" can be answered by spotting the one odd number,
+         * which is not the same skill and works often enough to hide a gap. */
+        if (rng.bool()) {
+            return genSortBins(rng, {
+                stem: 'Sort each number into prime or composite.',
+                bins: [{ id: 'prime', label: 'Prime' }, { id: 'comp', label: 'Composite' }],
+                put: {
+                    prime: rng.sample(PRIMES, 3).map(String),
+                    comp: rng.sample(COMPOSITE, 3).map(String),
+                },
+                hint: 'A prime has exactly two factors: 1 and itself.',
+                explain: 'A composite number can be split into equal rows more than one way; '
+                    + 'a prime cannot.',
+                sig: 'primesort',
+            });
+        }
+
         if (rng.bool()) {
             const p = rng.pick(PRIMES);
             return genMc(rng, {

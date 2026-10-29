@@ -1,0 +1,80 @@
+/* decimals.js — the Decimals tab. Prefix dc. */
+
+.dc-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .8rem;
+    padding-bottom: 2rem;
+}
+
+.dc-config { display: flex; flex-wrap: wrap; gap: .6rem; justify-content: center; }
+
+.dc-score-bar { display: flex; gap: 1.6rem; font-weight: 700; color: #555; font-size: .95rem; }
+
+.dc-prompt { font-size: 1.3rem; font-weight: 700; text-align: center; min-height: 1.8em; }
+.dc-prompt strong { color: #1565c0; }
+
+.dc-stage { display: flex; justify-content: center; width: 100%; }
+
+/* ---- the hundred square --------------------------------------------------
+   Square at every size. The shaded cells are a solid block rather than an
+   outline, so a tenth reads as one filled column from across the room. */
+.dc-grid { width: min(64vw, 260px); height: min(64vw, 260px); }
+.dc-grid.is-small { width: min(34vw, 150px); height: min(34vw, 150px); }
+
+.dc-cell { fill: #fff; }
+.dc-cell.is-on { fill: #42a5f5; }
+.dc-rule { stroke: #cfd8dc; stroke-width: 0.7; }
+.dc-rule.is-edge { stroke: #37474f; stroke-width: 1.6; }
+
+/* ---- number line ---------------------------------------------------------*/
+.dc-line { width: min(92vw, 460px); height: auto; }
+.dc-axis { stroke: #37474f; stroke-width: 1.2; }
+.dc-tick { stroke: #37474f; stroke-width: 1; }
+.dc-lbl {
+    font-family: system-ui, sans-serif;
+    font-size: 6px;
+    fill: #546e7a;
+    text-anchor: middle;
+}
+.dc-pin { fill: #e53935; stroke: #fff; stroke-width: 1; }
+
+/* ---- compare -------------------------------------------------------------*/
+.dc-pair { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; justify-content: center; }
+.dc-pair figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: .4rem; }
+.dc-pair figcaption { font-weight: 700; font-size: 1.5rem; color: #263238; }
+.dc-op { font-size: 2rem; font-weight: 700; color: #90a4ae; }
+
+/* ---- answers -------------------------------------------------------------*/
+.dc-answer { display: flex; flex-wrap: wrap; gap: .5rem; justify-content: center; min-height: 3rem; }
+.dc-answer.is-choices .dc-choice { min-width: 5rem; font-size: 1.15rem; }
+
+.dc-choice.is-correct { background: #e8f5e9; border-color: #2e7d32; color: #1b5e20; }
+.dc-choice.is-wrong { background: #ffebee; border-color: #c62828; color: #b71c1c; }
+
+.dc-explain {
+    min-height: 2.8em;
+    text-align: center;
+    font-size: 1rem;
+    max-width: 32em;
+    padding: 0 .5rem;
+}
+.dc-explain.is-right { color: #2e7d32; font-weight: 600; }
+.dc-explain.is-wrong { color: #c62828; }
+
+/* Fractions in feedback come from the app's own frFracHTML, so they are
+   already over-and-under. This is only the fallback shape for when the core
+   helper is not there — still stacked, never a slash. */
+.dc-frac {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    vertical-align: middle;
+    line-height: 1.1;
+    font-size: .9em;
+}
+.dc-frac > span:first-child { border-bottom: 2px solid currentColor; padding: 0 .25em; }
+
+.dc-next { min-width: 8rem; }
+.dc-next.hidden { display: none; }

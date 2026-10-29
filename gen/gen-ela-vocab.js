@@ -31,6 +31,25 @@
     };
 
     G['vocab.synonymAntonym'] = function (rng) {
+        /* Four words joined to their opposites at once. Every pair constrains
+         * the others, so a learner who knows three gets the fourth by
+         * elimination — where four separate multiple-choice questions let them
+         * guess a quarter of the way through without that ever showing. */
+        if (rng.bool()) {
+            const wantSame = rng.bool();
+            const four = rng.sample(L.synonyms, 4);
+            if (four.length === 4) {
+                return genMatch(rng, {
+                    stem: 'Join each word to one that means '
+                        + (wantSame ? 'nearly the same' : 'the opposite') + '.',
+                    pairs: four.map((x) => [x.w, wantSame ? x.same : x.opp]),
+                    hint: 'Do the ones you are sure of first — the rest get easier.',
+                    explain: four.map((x) => '"' + x.w + '" ' + (wantSame ? '≈ ' : '↔ ')
+                        + '"' + (wantSame ? x.same : x.opp) + '"').join(' · '),
+                    sig: 'synmatch:' + (wantSame ? 's' : 'a') + ':' + four.map((x) => x.w).join(','),
+                });
+            }
+        }
         const e = rng.pick(L.synonyms);
         const others = L.synonyms.filter((x) => x.w !== e.w);
         const wantSame = rng.bool();
@@ -144,6 +163,23 @@
             { name: 'vegetables', in: ['carrot', 'pea', 'cabbage', 'leek'], out: ['hammer', 'kitten', 'ocean'] },
             { name: 'weather', in: ['rain', 'snow', 'fog', 'thunder'], out: ['pencil', 'giraffe', 'sofa'] },
         ];
+        /* Two real categories at once, using only the in-lists — which are
+         * disjoint across CATS, so every word has exactly one home. The
+         * multi-select ("pick what belongs") only asks membership one way;
+         * sorting asks it both ways for every word. */
+        if (rng.bool()) {
+            const two = rng.sample(CATS, 2);
+            const a = rng.sample(two[0].in, 3);
+            const b = rng.sample(two[1].in, 3);
+            return genSortBins(rng, {
+                stem: 'Sort each word into its group.',
+                bins: [{ id: 'a', label: two[0].name }, { id: 'b', label: two[1].name }],
+                put: { a: a, b: b },
+                explain: two[0].name + ': ' + a.join(', ') + '. ' + two[1].name + ': ' + b.join(', ') + '.',
+                sig: 'catSort:' + two.map((x) => x.name).join('+'),
+            });
+        }
+
         const c = rng.pick(CATS);
         return genMulti(rng, {
             stem: 'Choose every word that belongs with ' + c.name + '.',
@@ -226,6 +262,17 @@
             { s: 'burn the midnight oil', m: 'stay up late working' },
             { s: 'jump on the bandwagon', m: 'join something because it has become popular' },
         ];
+        if (rng.bool()) {
+            const four = rng.sample(IDIOMS, 4);
+            return genMatch(rng, {
+                stem: 'Join each saying to what it really means.',
+                pairs: four.map((x) => [x.s, x.m]),
+                hint: 'None of them means what the words literally say.',
+                explain: four.map((x) => '"' + x.s + '" = ' + x.m).join(' · '),
+                sig: 'idiomMatch:' + four.map((x) => x.s.slice(0, 8)).join(','),
+            });
+        }
+
         const c = rng.pick(IDIOMS);
         return genMc(rng, {
             stem: 'What does "' + c.s + '" mean?',

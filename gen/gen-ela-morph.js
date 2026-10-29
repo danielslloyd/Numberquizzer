@@ -51,6 +51,27 @@
             : rng.pick(L.suffixes);
         const built = src.ex;
         const base = src.base;
+
+        /* Typing the base word tests spelling as much as morphology — a child
+         * who sees "happy" inside "unhappily" and then writes "happi" is marked
+         * wrong for the wrong reason. Tapping it isolates the actual skill.
+         * Only where the base survives intact; "happily" spells it "happi", and
+         * pointing at that as the base word would be teaching something false. */
+        const at = built.indexOf(base);
+        if (at >= 0 && base.length > 1) {
+            const pieces = [built.slice(0, at), base, built.slice(at + base.length)]
+                .filter(Boolean);
+            return genTapToken({
+                stem: 'Tap the base word hidden inside "' + built + '".',
+                tokens: pieces,
+                answer: [pieces.indexOf(base)],
+                join: 'none',
+                hint: 'Take off the part that was added.',
+                explain: '"' + built + '" is "' + base + '" with an extra part on it.',
+                sig: 'base:' + built,
+            });
+        }
+
         return genText({
             stem: 'What is the base word hidden inside "' + built + '"?',
             answer: base,
@@ -60,7 +81,30 @@
         });
     };
 
+    /*
+     * Four at once rather than one against three foils. Matching a set is a
+     * harder and truer test than four separate multiple-choice questions: every
+     * pair constrains the others, so a learner who knows three gets the fourth
+     * by elimination and one who knows none cannot bluff a quarter of them.
+     */
+    function affixMatch(rng, table, key, label, sig) {
+        const four = rng.sample(table.filter((x, i, a) =>
+            a.findIndex((y) => y.means === x.means) === i), 4);
+        if (four.length < 4) return null;
+        return genMatch(rng, {
+            stem: 'Join each ' + label + ' to what it means.',
+            pairs: four.map((x) => [x[key], x.means]),
+            hint: 'Do the ones you are sure of first — the rest get easier.',
+            explain: four.map((x) => '"' + x[key] + '" = ' + x.means).join(' · '),
+            sig: sig + 'match:' + four.map((x) => x[key]).join(','),
+        });
+    }
+
     G['morph.prefix.common'] = function (rng) {
+        if (rng.bool()) {
+            const m = affixMatch(rng, L.prefixes, 'p', 'beginning', 'pre');
+            if (m) return m;
+        }
         const p = rng.pick(L.prefixes);
         const others = L.prefixes.filter((x) => x.p !== p.p && x.means !== p.means);
         return genMc(rng, {
@@ -74,6 +118,10 @@
     };
 
     G['morph.suffix.common'] = function (rng) {
+        if (rng.bool()) {
+            const m = affixMatch(rng, L.suffixes, 's', 'ending', 'suf');
+            if (m) return m;
+        }
         const s = rng.pick(L.suffixes);
         const others = L.suffixes.filter((x) => x.s !== s.s && x.means !== s.means);
         return genMc(rng, {
@@ -102,6 +150,10 @@
     function rootItem(rng, table, sig) {
         const r = rng.pick(table);
         const others = table.filter((x) => x.r !== r.r && x.means !== r.means);
+        if (rng.bool()) {
+            const m = affixMatch(rng, table, 'r', 'word part', sig);
+            if (m) return m;
+        }
         if (rng.bool()) {
             return genMc(rng, {
                 stem: 'The word part "' + r.r + '" turns up in ' + r.words.slice(0, 2).join(' and ')
@@ -156,6 +208,24 @@
         ];
         const c = rng.pick(CASES);
         const wrong = CASES.filter((x) => x.w !== c.w).map((x) => x.parts);
+
+        // Tapping the joins asks the question on the word itself. Falls back
+        // where a letter doubles at the join — 'un + forget + able' does not
+        // spell "unforgettable", so its boundaries cannot be shown on it.
+        const split = genSplitWord({
+            word: c.w,
+            // '(e)' marks a letter dropped when the suffix went on, so it is
+            // part of the explanation but not of the spelling being divided.
+            pieces: c.parts.split('+').map((p) => p.trim().replace(/\([^)]*\)/g, '')),
+            stem: 'Tap where "' + c.w + '" breaks into its parts.',
+            tapNote: 'Tap each join, then press Check.',
+            hint: 'Find the base word first, then look at what is stuck on each end.',
+            explain: '"' + c.w + '" is ' + c.parts + '. Breaking a long word up is how you read it '
+                + 'and how you work out what it means.',
+            sig: 'decomp:' + c.w,
+        });
+        if (split) return split;
+
         return genMc(rng, {
             stem: 'How does "' + c.w + '" break into parts?',
             correct: c.parts,
@@ -216,6 +286,21 @@
         ];
         const c = rng.pick(COMPOUNDS);
         const word = c[0] + c[1];
+
+        // One join to find, which is the whole idea of a compound.
+        if (rng.bool()) {
+            const split = genSplitWord({
+                word: word,
+                pieces: c,
+                stem: 'Tap where "' + word + '" splits into two whole words.',
+                tapNote: 'Tap the split, then press Check.',
+                hint: 'Both halves have to be words on their own.',
+                explain: '"' + word + '" is "' + c[0] + '" and "' + c[1] + '" joined together.',
+                sig: 'compSplit:' + word,
+            });
+            if (split) return split;
+        }
+
         if (rng.bool()) {
             return genMc(rng, {
                 stem: 'Which two words make up "' + word + '"?',

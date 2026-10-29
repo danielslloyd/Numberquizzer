@@ -111,11 +111,16 @@ The app falls back to a number input + submit button automatically on unsupporte
 
 ### Speech pipeline
 
-1. `SpeechRecognition` runs in `continuous` mode with `interimResults: true`
-2. Every result (interim or final) is scanned for a matching number using `findNumberInSpeech()`
-3. `findNumberInSpeech()` checks every 1-, 2-, and 3-word n-gram in the transcript against a word-to-number map, handling homophones (`for→four`, `ate→eight`, `won→one`, etc.) and compound numbers (`twenty three → 23`)
-4. If a matching number is found, the question advances instantly — no confirmation needed
-5. On silence the browser ends the session; the app restarts it within 100ms
+1. `SpeechRecognition` runs in `continuous` mode with `interimResults: true`, asking for six alternatives
+2. Every result (interim or final) has *all* of its alternatives scanned by `speechNumbers()`
+3. `speechNumbers()` returns every number the transcript could be — longest n-gram first, so `"twenty three"` gives `[23, 20, 3]` — and the card advances if the answer on screen is among them. Along the way it strips punctuation and hyphens, drops filler (`"a hundred and five"`), folds known mishearings (`heaven→seven`, `line→nine`, `sicks→six`), and folds any word one edit from exactly one number word
+4. The teen/ty pairs are never folded together, and a stutter never becomes a sum: `"four four"` is 4, not 8
+5. If a matching number is found, the question advances instantly — no confirmation needed
+6. On silence the browser ends the session; the app restarts it within 100ms
+
+**Speech debug** (settings burger) overlays the quiz with a live log of every
+reading the recogniser offered, what each one parsed to, and whether it matched
+the card. It is the fastest way to find a mishearing worth adding to the table.
 
 ### Deck generation
 

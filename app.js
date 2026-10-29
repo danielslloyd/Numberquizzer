@@ -15,6 +15,7 @@ const state = {
     shuffle: true,
     animations: true,
     showTranscript: true,
+    speechDebug: false,     // the on-screen recogniser log, see sdHeard()
     progressBar: true,
     bestTimePacer: null,
     spToken: null,          // our claim on the shared recogniser, see speech.js
@@ -198,75 +199,205 @@ function generateAllQuestions(operations, max) {
 // ANSWER NORMALIZATION
 // ============================================
 
-function findNumberInSpeech(transcript) {
-    const words = transcript.toLowerCase().trim().split(/\s+/);
-    for (let len = 1; len <= Math.min(3, words.length); len++) {
-        for (let start = 0; start <= words.length - len; start++) {
-            const phrase = words.slice(start, start + len).join(' ');
-            const normalized = normalizeAnswer(phrase);
-            if (/^\d+$/.test(normalized)) {
-                return parseInt(normalized, 10);
-            }
-        }
-    }
-    return null;
+/*
+ * Hearing a child say a number.
+ *
+ * An answer here is one word, said once, often shouted at a laptop from across
+ * a table by a voice the acoustic model has barely been trained on. There is no
+ * sentence around it to lean on, so what comes back frequently is not the
+ * number word at all: "nine" arrives as "line", "seven" as "heaven", "three" as
+ * "tree". The job is therefore not to transcribe the child — it is to decide
+ * whether one particular known number was probably said. That is a much easier
+ * question, and it is the one this code answers.
+ *
+ * Three things were losing correct answers:
+ *
+ *   1. Only the FIRST number found was returned, and n-grams ran shortest-first,
+ *      so "twenty three" yielded 20 and every two-digit answer was compared
+ *      against the wrong number. n-grams now run longest-first and *every*
+ *      number found comes back, because the caller only wants to know whether
+ *      its target is among them.
+ *   2. Punctuation and hyphens were never stripped. Chrome hands back "23." and
+ *      "twenty-three" routinely; neither parsed.
+ *   3. The homophone list had seven entries, all adult mishearings.
+ *
+ * What is deliberately NOT folded together: the teen/ty pairs. "fifteen" heard
+ * as "fifty" is both the mishearing a child most wants forgiven and the one
+ * that must not be — accepting either for the other advances the card on a
+ * wrong answer, which is worse than not hearing a right one. Every entry below
+ * is at least two edits away from crossing that line, and the fuzzy fallback
+ * refuses any word that is close to two different numbers.
+ */
+
+const NUM_WORDS = {
+    'zero': 0, 'one': 1, 'two': 2, 'three': 3, 'four': 4,
+    'five': 5, 'six': 6, 'seven': 7, 'eight': 8, 'nine': 9,
+    'ten': 10, 'eleven': 11, 'twelve': 12, 'thirteen': 13, 'fourteen': 14,
+    'fifteen': 15, 'sixteen': 16, 'seventeen': 17, 'eighteen': 18, 'nineteen': 19,
+    'twenty': 20, 'thirty': 30, 'forty': 40, 'fifty': 50,
+    'sixty': 60, 'seventy': 70, 'eighty': 80, 'ninety': 90,
+    'hundred': 100,
+};
+
+const NUM_WORD_KEYS = Object.keys(NUM_WORDS);
+
+// What the recogniser actually returns instead. Anything two or more edits from
+// the real word has to be listed; single-edit neighbours are caught by
+// speechFuzzyNumber() below and are not repeated here.
+const NUM_SOUNDALIKE_GROUPS = {
+    'zero':   ['hero', 'zorro', 'ziro', 'zeroes'],
+    'one':    ['won', 'juan', 'wun', 'wan'],
+    'two':    ['to', 'too', 'tu', 'tue', 'dew', 'toot', 'tooth'],
+    'three':  ['tree', 'free', 'thee', 'fee', 'tea', 'trees'],
+    'four':   ['for', 'fore', 'floor', 'faux', 'ford', 'fort'],
+    'five':   ['hive', 'fife', 'wife', 'vibe', 'fives'],
+    'six':    ['sicks', 'sics', 'sikhs', 'sticks', 'sex', 'sit'],
+    'seven':  ['heaven', 'sevens', 'severn', 'sen'],
+    'eight':  ['ate', 'hate', 'ait', 'aid', 'ape'],
+    'nine':   ['nein', 'nines', 'nyne'],
+    'ten':    ['tan', 'tin', 'den', 'hen', 'tent', 'tenn'],
+    'eleven': ['elven', 'leven', 'alevin'],
+    'twelve': ['twelf', 'twelth', 'twell'],
+    'twenty': ['twenny', 'twendy', 'plenty', 'twenties'],
+    'thirty': ['thirdy', 'dirty', 'thirsty', 'thirties'],
+    'forty':  ['fourty', 'fordy', 'party', 'forties'],
+    'fifty':  ['fivety', 'fifities', 'fifties'],
+    'sixty':  ['sixdy', 'sixties'],
+    'seventy':['sevendy', 'seventies'],
+    'eighty': ['aidy', 'eighties'],
+    'ninety': ['nintey', 'nineties'],
+    'hundred':['hundreds', 'hunderd', 'hunnid', 'hundread'],
+};
+
+const NUM_SOUNDALIKE = {};
+for (const [word, heard] of Object.entries(NUM_SOUNDALIKE_GROUPS)) {
+    for (const h of heard) NUM_SOUNDALIKE[h] = NUM_WORDS[word];
 }
 
-function normalizeAnswer(text) {
-    const lowerText = text.toLowerCase().trim();
+// Words that carry no number but turn up inside one: "a hundred and five",
+// "um, seven", "it's twelve". Dropping them keeps the n-grams short and lets
+// the strictly-descending check below do its job.
+const SPEECH_FILLER = new Set([
+    'and', 'a', 'the', 'is', 'its', "it's", 'it', 'that', 'thats', "that's",
+    'um', 'uh', 'er', 'erm', 'hmm', 'like', 'equals', 'answer', 'so', 'ok', 'okay',
+]);
 
-    const homophones = {
-        'for': 'four', 'to': 'two', 'too': 'two',
-        'won': 'one',  'ate': 'eight', 'fore': 'four', 'tree': 'three',
-    };
-
-    let normalized = lowerText;
-    for (const [wrong, right] of Object.entries(homophones)) {
-        normalized = normalized.replace(new RegExp(`\\b${wrong}\\b`, 'g'), right);
+/** True if `a` and `b` are at most one insert, delete or substitution apart. */
+function speechWithinOne(a, b) {
+    if (a === b) return true;
+    const la = a.length, lb = b.length;
+    if (Math.abs(la - lb) > 1) return false;
+    let i = 0, j = 0, edits = 0;
+    while (i < la && j < lb) {
+        if (a[i] === b[j]) { i++; j++; continue; }
+        if (++edits > 1) return false;
+        if (la === lb) { i++; j++; }
+        else if (la > lb) i++;
+        else j++;
     }
-
-    const wordToNumber = {
-        'zero': 0, 'one': 1, 'two': 2, 'three': 3, 'four': 4,
-        'five': 5, 'six': 6, 'seven': 7, 'eight': 8, 'nine': 9,
-        'ten': 10, 'eleven': 11, 'twelve': 12, 'thirteen': 13, 'fourteen': 14,
-        'fifteen': 15, 'sixteen': 16, 'seventeen': 17, 'eighteen': 18, 'nineteen': 19,
-        'twenty': 20, 'thirty': 30, 'forty': 40, 'fifty': 50,
-        'sixty': 60, 'seventy': 70, 'eighty': 80, 'ninety': 90,
-        'hundred': 100,
-    };
-
-    if (Object.prototype.hasOwnProperty.call(wordToNumber, normalized)) {
-        return wordToNumber[normalized].toString();
-    }
-
-    const compound = parseSpokenNumber(normalized, wordToNumber);
-    if (compound !== null) return compound.toString();
-
-    if (/^\d+$/.test(normalized)) return normalized;
-
-    return normalized;
+    return edits + (la - i) + (lb - j) <= 1;
 }
 
-function parseSpokenNumber(text, wordToNumber) {
-    const words = text.split(/\s+/);
-    let total = 0;
+// Words that are one edit from a number and are also things people say around
+// a quiz: "right" is one edit from "eight", "done" and "tone" from "one". A
+// child announcing they are done should not answer the card.
+const NUM_FUZZY_BLOCK = new Set(['right', 'done', 'tone', 'gone', 'bone', 'zone', 'ninth', 'tenth']);
+
+// A word one edit from exactly one number word is that number: "line" → nine,
+// "heaven" → seven, "tree" → three. One edit from *two* different numbers is
+// nothing — "fine" sits between five and nine, and guessing between them is how
+// a card advances on an answer the child never gave. Four letters minimum,
+// because at three every short English word is a neighbour of "one" or "ten".
+function speechFuzzyNumber(word) {
+    if (word.length < 4 || NUM_FUZZY_BLOCK.has(word)) return null;
+    let hit = null;
+    for (const key of NUM_WORD_KEYS) {
+        if (!speechWithinOne(word, key)) continue;
+        if (hit !== null && hit !== NUM_WORDS[key]) return null;
+        hit = NUM_WORDS[key];
+    }
+    return hit;
+}
+
+/** The number a single token stands for, or null. */
+function speechWordValue(word) {
+    if (/^\d{1,3}$/.test(word)) return parseInt(word, 10);
+    if (Object.prototype.hasOwnProperty.call(NUM_WORDS, word)) return NUM_WORDS[word];
+    if (Object.prototype.hasOwnProperty.call(NUM_SOUNDALIKE, word)) return NUM_SOUNDALIKE[word];
+    return speechFuzzyNumber(word);
+}
+
+/** Lower-case, split hyphens, drop punctuation and filler. */
+function speechWords(text) {
+    return String(text)
+        .toLowerCase()
+        .replace(/[‐-―]/g, '-')       // typographic dashes
+        .split(/[\s\-–—,.!?;:"'“”()]+/)
+        .filter(w => w && !SPEECH_FILLER.has(w));
+}
+
+/*
+ * Compose a run of tokens into one number, or null if they are not a number.
+ *
+ * The strictly-descending rule is what stops a stutter turning into arithmetic:
+ * "four four" is a child saying four twice, not eight, and "twenty twenty" is
+ * not forty. Each added part must be smaller than the one before it, which is
+ * exactly the grammar of spoken numbers. "hundred" multiplies and then resets
+ * the ceiling, so "three hundred sixty five" still composes.
+ */
+function parseSpokenNumber(words) {
     let current = 0;
+    let prev = Infinity;
+    let seen = false;
 
     for (const word of words) {
-        const value = wordToNumber[word];
-        if (value === undefined) {
-            const digit = parseInt(word, 10);
-            if (!isNaN(digit)) { current += digit; }
-            else { return null; }
-        } else if (value === 100) {
+        const value = speechWordValue(word);
+        if (value === null) return null;
+        seen = true;
+        if (value === 100) {
             current = (current || 1) * 100;
+            prev = Infinity;
         } else {
+            if (value >= prev) return null;
             current += value;
+            prev = value;
         }
     }
 
-    total += current;
-    return (total === 0 && words.length > 0) ? null : total;
+    return seen ? current : null;
+}
+
+/**
+ * Every number the transcript could be, longest reading first.
+ *
+ * "twenty three" gives [23, 20, 3] — the caller checks membership rather than
+ * taking the first, so a two-digit answer is no longer beaten to the punch by
+ * its own tens word.
+ */
+function speechNumbers(transcript) {
+    const words = speechWords(transcript);
+    const found = [];
+    // Five tokens covers the longest answer the deck can produce,
+    // "three hundred sixty five", with a token to spare.
+    for (let len = Math.min(5, words.length); len >= 1; len--) {
+        for (let start = 0; start + len <= words.length; start++) {
+            const n = parseSpokenNumber(words.slice(start, start + len));
+            if (n !== null && !found.includes(n)) found.push(n);
+        }
+    }
+    return found;
+}
+
+/** The best single number in a transcript, or null. Kept for callers that want one. */
+function findNumberInSpeech(transcript) {
+    const all = speechNumbers(transcript);
+    return all.length ? all[0] : null;
+}
+
+/** Typed input: give back a digit string if the text names a number, else the text. */
+function normalizeAnswer(text) {
+    const n = parseSpokenNumber(speechWords(text));
+    return n !== null ? n.toString() : String(text).toLowerCase().trim();
 }
 
 // ============================================
@@ -367,26 +498,42 @@ function startListening() {
     if (state.spToken) return;
     state.spToken = spListen({
         lang: 'en-US',
-        alternatives: 3,
+        // Ask for as many readings as the recogniser will give. Against one
+        // known target every extra alternative is a free second chance and
+        // costs nothing — a wrong alternative simply fails to match.
+        alternatives: 6,
         grammar: buildNumberGrammar(),
         indicator: 'mic-btn',
         indicatorClass: 'listening',
 
-        onStart: () => { state.isListening = true; },
-        onEnd: () => { state.isListening = false; state.spToken = null; },
+        onStart: () => { state.isListening = true; sdNote('mic on'); },
+        onEnd: (why) => {
+            state.isListening = false;
+            state.spToken = null;
+            sdNote('mic off' + (why ? ' (' + why + ')' : ''));
+            // Microphone refused (a "Don't allow" tap, or a browser setting).
+            // Without this the card just sits there with no way to answer it.
+            if (why === 'denied') useTypedInput();
+        },
+        onNotice: (kind, detail) => sdNote(detail ? kind + ': ' + detail : kind),
 
         onText: (transcript, info) => {
             if (state.showTranscript) {
                 document.getElementById('listening-text').textContent = transcript;
             }
             if (!state.quizActive) return;
-            for (const alt of info.alternatives) {
-                const found = findNumberInSpeech(alt);
-                if (found !== null && found === state.questions[state.currentIndex].answer) {
-                    advanceQuestion();
-                    return;
-                }
-            }
+            const target = state.questions[state.currentIndex].answer;
+
+            let hit = false;
+            const rows = info.alternatives.map(alt => {
+                const nums = speechNumbers(alt);
+                const match = nums.includes(target);
+                if (match) hit = true;
+                return { text: alt, nums, match };
+            });
+            sdHeard(rows, info.final, target);
+
+            if (hit) advanceQuestion();
         },
     });
 }
@@ -395,6 +542,111 @@ function stopListening() {
     if (state.spToken) spRelease(state.spToken);
     state.spToken = null;
     state.isListening = false;
+}
+
+// Switch the quiz to typed answers for the rest of the visit — the same state
+// appBoot sets up when there is no recogniser at all.
+function useTypedInput() {
+    state.speechSupported = false;
+    document.getElementById('mic-btn').classList.add('hidden');
+    document.getElementById('typed-section').classList.remove('hidden');
+    if (state.quizActive) {
+        document.getElementById('answer-input').value = '';
+        document.getElementById('answer-input').focus();
+    }
+}
+
+// ============================================
+// SPEECH DEBUGGER
+// ============================================
+
+/*
+ * Off by default; on for anyone trying to work out why the microphone is not
+ * hearing a particular child. It prints every reading the recogniser offers —
+ * interim as well as final, all alternatives, not just the best one — beside
+ * the numbers each reading parsed to and whether any of them was the answer on
+ * the card. When a child says "seven" and the panel shows `"heaven" → 7 ✓`,
+ * the matcher is working; when it shows `"kevin" → —`, it is not, and the word
+ * to add is right there on screen.
+ *
+ * It only reports. Nothing in here participates in matching.
+ */
+
+const SD_MAX = 200;          // rows kept; older ones are dropped from the top
+let sdLastKey = '';          // last logged reading, so a held interim prints once
+
+function sdStamp() {
+    const d = new Date();
+    return [d.getHours(), d.getMinutes(), d.getSeconds()]
+        .map(n => String(n).padStart(2, '0')).join(':');
+}
+
+// Built from text nodes throughout: every string below came off a microphone.
+function sdRow(cls, parts) {
+    if (!state.speechDebug) return;
+    const log = document.getElementById('sd-log');
+    if (!log) return;
+
+    const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 24;
+
+    const row = document.createElement('div');
+    row.className = 'sd-row ' + cls;
+    for (const part of parts) {
+        const span = document.createElement('span');
+        span.className = 'sd-' + part[0];
+        span.textContent = part[1];
+        row.appendChild(span);
+    }
+    log.appendChild(row);
+
+    while (log.childElementCount > SD_MAX) log.removeChild(log.firstElementChild);
+    if (atBottom) log.scrollTop = log.scrollHeight;
+}
+
+/** A lifecycle message from the recogniser: started, stopped, errored, restarted. */
+function sdNote(text) {
+    sdRow('sd-note', [['time', sdStamp()], ['msg', text]]);
+    sdLastKey = '';
+}
+
+/** One result event: every alternative, what it parsed to, and whether it hit. */
+function sdHeard(rows, final, target) {
+    if (!state.speechDebug) return;
+
+    // The recogniser re-sends an unchanged interim many times a second. Logging
+    // only what changed is what keeps the panel readable enough to read.
+    const key = (final ? 'F' : 'I') + '|' + rows.map(r => r.text).join('|');
+    if (key === sdLastKey) return;
+    sdLastKey = key;
+
+    sdRow(final ? 'sd-final' : 'sd-interim', [
+        ['time', sdStamp()],
+        ['kind', final ? 'final' : 'interim'],
+    ]);
+
+    rows.forEach((r, i) => {
+        sdRow('sd-alt' + (final ? '' : ' sd-dim') + (r.match ? ' sd-hit' : ''), [
+            ['rank', '#' + (i + 1)],
+            ['text', '"' + (r.text || '') + '"'],
+            ['nums', r.nums.length ? '→ ' + r.nums.join('  ') : '→ —'],
+            ['mark', r.match ? '✓ ' + target : ''],
+        ]);
+    });
+}
+
+/** Called when a new card comes up, so the log reads against the right answer. */
+function sdTarget(answer) {
+    const el = document.getElementById('sd-target');
+    if (el) el.textContent = answer === null ? '' : 'answer: ' + answer;
+    if (!state.speechDebug || answer === null) return;
+    sdRow('sd-card', [['msg', '── card: ' + answer + ' ──']]);
+    sdLastKey = '';
+}
+
+function sdClear() {
+    const log = document.getElementById('sd-log');
+    if (log) log.textContent = '';
+    sdLastKey = '';
 }
 
 // ============================================
@@ -525,6 +777,7 @@ function startQuiz() {
     state.shuffle     = document.getElementById('shuffle-toggle').checked;
     state.animations     = document.getElementById('animations-toggle').checked;
     state.showTranscript = document.getElementById('transcript-toggle').checked;
+    state.speechDebug    = document.getElementById('speech-debug-toggle').checked;
     state.progressBar    = document.getElementById('progress-bar-toggle').checked;
 
     // Pacer: saved best time for this exact config, or null if no best or bar is off
@@ -540,6 +793,8 @@ function startQuiz() {
 
     // Apply transcript visibility
     document.getElementById('transcript-bar').classList.toggle('hidden', !state.showTranscript);
+    document.getElementById('speech-debug').classList.toggle('hidden', !state.speechDebug);
+    sdClear();
 
     // Reset card transform in case it was mid-flip
     const card = document.getElementById('question-display');
@@ -584,6 +839,7 @@ function renderQuestion() {
     document.getElementById('feedback-display').textContent = '';
     document.getElementById('feedback-display').className = 'feedback-display';
     document.getElementById('listening-text').textContent = '';
+    sdTarget(q.answer);
 
     if (!state.speechSupported) {
         document.getElementById('answer-input').value = '';
@@ -1392,9 +1648,13 @@ const ZAPFDINGBATS_TOKENS = Array.from({ length: 26 }, (_, i) => String.fromChar
 // method: 'random' (shuffled substitution), 'caesar' (rotate by shift) or
 // 'atbash' (reverse the alphabet). Caesar/Atbash are solvable by hand, which
 // makes them a gentler starting point than a full random substitution.
+// shift may be the string 'random', in which case a shift is drawn here — once
+// per call, so a caller that wants one shift for the whole booklet calls once.
+// 0 is never drawn: it would leave the text in plain sight.
 function pgMakeCipherMap(method = 'random', shift = 3) {
     const A = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
-    const S = method === 'caesar' ? A.map((_, i) => A[(i + (((shift % 26) + 26) % 26)) % 26])
+    const n = shift === 'random' ? 1 + Math.floor(Math.random() * 25) : shift;
+    const S = method === 'caesar' ? A.map((_, i) => A[(i + (((n % 26) + 26) % 26)) % 26])
             : method === 'atbash' ? A.map((_, i) => A[25 - i])
             :                       shuffleArray([...A]);
     const fwd = {}, rev = {};
@@ -1421,9 +1681,253 @@ function pgMakeCipherMapGlyph() {
 // Elder Futhark + two Anglo-Saxon Futhorc runes to cover all 26 letters
 const RUNE_TOKENS = [...'ᚠᚢᚦᚨᚱᚲᚷᚹᚺᚾᛁᛃᛇᛈᛉᛊᛏᛒᛖᛗᛚᛜᛞᛟᛠᛡ'];
 
+// Runes are DRAWN, not typeset. No PDF base-14 font can represent U+16A0+ —
+// helvetica is single-byte WinAnsi, so a rune came out as the two raw bytes of
+// its codepoint, which is to say as nothing. Google Fonts is no help either: it
+// serves woff2 only, and the platform has no Brotli to unpack it with.
+// But Elder Futhark is straight strokes on a stave, so a polyline table renders
+// it as true vectors — sharper than an embedded font, and it needs no asset,
+// no network and no licence.
+//
+// Coordinates are in units of the rune's HEIGHT: y runs 0..1 top to bottom
+// (PDF screen space), x runs 0..RUNE_W. Each entry is a list of polylines.
+const RUNE_W = 0.6;
+const RUNE_STROKES = {
+    'ᚠ': [[[0,0],[0,1]], [[0,.20],[.6,.02]], [[0,.52],[.6,.34]]],
+    'ᚢ': [[[0,1],[0,.06],[.58,.30],[.58,1]]],
+    'ᚦ': [[[0,0],[0,1]], [[0,.20],[.55,.48],[0,.76]]],
+    'ᚨ': [[[0,0],[0,1]], [[0,.04],[.6,.26]], [[0,.36],[.6,.58]]],
+    'ᚱ': [[[0,0],[0,1]], [[0,.02],[.52,.20],[0,.46]], [[0,.46],[.58,1]]],
+    'ᚲ': [[[.55,.05],[0,.5],[.55,.95]]],
+    'ᚷ': [[[0,.05],[.6,.95]], [[.6,.05],[0,.95]]],
+    'ᚹ': [[[0,0],[0,1]], [[0,.02],[.55,.22],[0,.44]]],
+    'ᚺ': [[[0,0],[0,1]], [[.6,0],[.6,1]], [[0,.5],[.6,.5]]],
+    'ᚾ': [[[.3,0],[.3,1]], [[0,.68],[.6,.32]]],
+    'ᛁ': [[[.3,0],[.3,1]]],
+    'ᛃ': [[[.05,.02],[.55,.26],[.05,.5]], [[.55,.5],[.05,.74],[.55,.98]]],
+    'ᛇ': [[[.3,.10],[.3,.90]], [[.3,.10],[.60,0]], [[.3,.90],[0,1]]],
+    'ᛈ': [[[0,0],[0,1]], [[0,.06],[.5,.26],[.5,.74],[0,.94]]],
+    'ᛉ': [[[.3,0],[.3,1]], [[0,.06],[.3,.5]], [[.6,.06],[.3,.5]]],
+    'ᛊ': [[[.55,.02],[.1,.32],[.5,.66],[.05,.98]]],
+    'ᛏ': [[[.3,0],[.3,1]], [[.08,.34],[.3,0],[.52,.34]]],
+    'ᛒ': [[[0,0],[0,1]], [[0,.02],[.5,.26],[0,.5]], [[0,.5],[.5,.74],[0,.98]]],
+    'ᛖ': [[[0,0],[0,1]], [[.6,0],[.6,1]], [[0,.04],[.3,.46],[.6,.04]]],
+    'ᛗ': [[[0,0],[0,1]], [[.6,0],[.6,1]], [[0,.04],[.6,.46]], [[.6,.04],[0,.46]]],
+    'ᛚ': [[[0,0],[0,1]], [[0,.04],[.5,.34]]],
+    'ᛜ': [[[.3,.08],[.6,.5],[.3,.92],[0,.5],[.3,.08]]],
+    'ᛞ': [[[0,0],[0,1]], [[.6,0],[.6,1]], [[0,0],[.6,1]], [[.6,0],[0,1]]],
+    'ᛟ': [[[.3,0],[.6,.32],[.3,.64],[0,.32],[.3,0]], [[.3,.64],[.05,1]], [[.3,.64],[.55,1]]],
+    'ᛠ': [[[.3,0],[.3,1]], [[.08,.30],[.3,0],[.52,.30]], [[.05,1],[.3,.70]], [[.55,1],[.3,.70]]],
+    'ᛡ': [[[.3,0],[.3,1]], [[.3,.30],[.55,.5],[.3,.70],[.05,.5],[.3,.30]]],
+};
+
+/**
+ * Stroke one rune. `cx` is the horizontal centre, `topY` the top of the glyph
+ * and `h` its height — the caller aligns those to wherever a letter would sit.
+ * Leaves the line width changed; callers that draw afterwards reset it.
+ */
+function pgDrawRune(doc, rune, cx, topY, h) {
+    const strokes = RUNE_STROKES[rune];
+    if (!strokes) return;
+    const X = x => cx + (x - RUNE_W / 2) * h;
+    const Y = y => topY + y * h;
+    doc.setLineWidth(Math.max(0.22, h * 0.09));
+    for (const poly of strokes)
+        for (let i = 1; i < poly.length; i++)
+            doc.line(X(poly[i - 1][0]), Y(poly[i - 1][1]), X(poly[i][0]), Y(poly[i][1]));
+}
+
+// --- Team logos as cipher tokens ---
+//
+// Each league is its own cipher type, keyed here. A league needs at least 26
+// teams to fill the alphabet; the leftovers sit out, and which ones changes
+// from cipher to cipher.
+//
+// The tables are baked in because ESPN's teams API sends no
+// Access-Control-Allow-Origin and so cannot be called from the browser at all.
+// Its logo CDN does allow CORS, which is what gets fetched at generation time.
+// Regenerate with tools/gen-leagues.js if a league expands.
+//
+// MLB is the odd one out on purpose: mlbstatic's cap logos are single-colour
+// silhouettes that stay legible at 6mm, where ESPN's full-colour team logos
+// turn to mush. Mind the variant — `team-cap-on-dark` is filled #fff and would
+// print invisible on paper; the on-light set carries the team colour.
+const PG_LEAGUES = {
+    mlb: {
+        label: 'MLB',
+        logo: s => `https://www.mlbstatic.com/team-logos/team-cap-on-light/${s}.svg`,
+        teams: [
+            ['108', "Angels"], ['117', "Astros"], ['133', "Athletics"],
+            ['141', "Blue Jays"], ['144', "Braves"], ['158', "Brewers"],
+            ['138', "Cardinals"], ['112', "Cubs"], ['109', "Diamondbacks"],
+            ['119', "Dodgers"], ['137', "Giants"], ['114', "Guardians"],
+            ['136', "Mariners"], ['146', "Marlins"], ['121', "Mets"],
+            ['120', "Nationals"], ['110', "Orioles"], ['135', "Padres"],
+            ['143', "Phillies"], ['134', "Pirates"], ['140', "Rangers"],
+            ['139', "Rays"], ['111', "Red Sox"], ['113', "Reds"],
+            ['115', "Rockies"], ['118', "Royals"], ['116', "Tigers"],
+            ['142', "Twins"], ['145', "White Sox"], ['147', "Yankees"],
+        ],
+    },
+    nfl: {
+        label: 'NFL',
+        logo: s => `https://a.espncdn.com/i/teamlogos/nfl/500/${s}.png`,
+        teams: [
+            ['sf', "49ers"], ['chi', "Bears"], ['cin', "Bengals"],
+            ['buf', "Bills"], ['den', "Broncos"], ['cle', "Browns"],
+            ['tb', "Buccaneers"], ['ari', "Cardinals"], ['lac', "Chargers"],
+            ['kc', "Chiefs"], ['ind', "Colts"], ['wsh', "Commanders"],
+            ['dal', "Cowboys"], ['mia', "Dolphins"], ['phi', "Eagles"],
+            ['atl', "Falcons"], ['nyg', "Giants"], ['jax', "Jaguars"],
+            ['nyj', "Jets"], ['det', "Lions"], ['gb', "Packers"],
+            ['car', "Panthers"], ['ne', "Patriots"], ['lv', "Raiders"],
+            ['lar', "Rams"], ['bal', "Ravens"], ['no', "Saints"],
+            ['sea', "Seahawks"], ['pit', "Steelers"], ['hou', "Texans"],
+            ['ten', "Titans"], ['min', "Vikings"],
+        ],
+    },
+    nba: {
+        label: 'NBA',
+        logo: s => `https://a.espncdn.com/i/teamlogos/nba/500/${s}.png`,
+        teams: [
+            ['phi', "76ers"], ['mil', "Bucks"], ['chi', "Bulls"],
+            ['cle', "Cavaliers"], ['bos', "Celtics"], ['lac', "Clippers"],
+            ['mem', "Grizzlies"], ['atl', "Hawks"], ['mia', "Heat"],
+            ['cha', "Hornets"], ['utah', "Jazz"], ['sac', "Kings"],
+            ['ny', "Knicks"], ['lal', "Lakers"], ['orl', "Magic"],
+            ['dal', "Mavericks"], ['bkn', "Nets"], ['den', "Nuggets"],
+            ['ind', "Pacers"], ['no', "Pelicans"], ['det', "Pistons"],
+            ['tor', "Raptors"], ['hou', "Rockets"], ['sa', "Spurs"],
+            ['phx', "Suns"], ['okc', "Thunder"], ['min', "Timberwolves"],
+            ['por', "Trail Blazers"], ['gs', "Warriors"], ['wsh', "Wizards"],
+        ],
+    },
+    nhl: {
+        label: 'NHL',
+        logo: s => `https://a.espncdn.com/i/teamlogos/nhl/500/${s}.png`,
+        teams: [
+            ['col', "Avalanche"], ['chi', "Blackhawks"], ['cbj', "Blue Jackets"],
+            ['stl', "Blues"], ['bos', "Bruins"], ['mtl', "Canadiens"],
+            ['van', "Canucks"], ['wsh', "Capitals"], ['nj', "Devils"],
+            ['ana', "Ducks"], ['cgy', "Flames"], ['phi', "Flyers"],
+            ['vgk', "Golden Knights"], ['car', "Hurricanes"], ['nyi', "Islanders"],
+            ['wpg', "Jets"], ['la', "Kings"], ['sea', "Kraken"],
+            ['tb', "Lightning"], ['utah', "Mammoth"], ['tor', "Maple Leafs"],
+            ['edm', "Oilers"], ['fla', "Panthers"], ['pit', "Penguins"],
+            ['nsh', "Predators"], ['nyr', "Rangers"], ['det', "Red Wings"],
+            ['buf', "Sabres"], ['ott', "Senators"], ['sj', "Sharks"],
+            ['dal', "Stars"], ['min', "Wild"],
+        ],
+    },
+    mls: {
+        label: 'MLS',
+        logo: s => `https://a.espncdn.com/i/teamlogos/soccer/500/${s}.png`,
+        teams: [
+            ['18418', "Atlanta"], ['20906', "Austin"], ['9720', "CF Montréal"],
+            ['21300', "Charlotte"], ['182', "Chicago"], ['18267', "Cincinnati"],
+            ['184', "Colorado"], ['183', "Columbus"], ['193', "D.C. United"],
+            ['185', "Dallas"], ['6077', "Houston"], ['186', "Kansas City"],
+            ['187', "LA Galaxy"], ['18966', "LAFC"], ['20232', "Miami"],
+            ['17362', "Minnesota"], ['18986', "Nashville"], ['189', "New England"],
+            ['17606', "NYCFC"], ['12011', "Orlando"], ['10739', "Philadelphia"],
+            ['9723', "Portland"], ['190', "Red Bull NY"], ['4771', "Salt Lake"],
+            ['22529', "San Diego"], ['191', "San Jose"], ['9726', "Seattle"],
+            ['21812', "St. Louis"], ['7318', "Toronto"], ['9727', "Vancouver"],
+        ],
+    },
+};
+
+// The tokens of a cipher type in their own natural order. A printed key is
+// sorted by these, not by the plain alphabet: the student reads a token off the
+// page and looks it up, so the token is what has to be findable.
+// Every type but the leagues has exactly 26; a league has thirty-odd teams for
+// twenty-six letters, so callers filter this against the map they built.
+function pgCipherTokens(cipherType) {
+    if (PG_LEAGUES[cipherType]) return PG_LEAGUES[cipherType].teams.map(t => t[0]);
+    return cipherType === 'number' ? Array.from({ length: 26 }, (_, i) => String(i + 1))
+         : cipherType === 'glyph'  ? [...ZAPFDINGBATS_TOKENS]
+         : cipherType === 'rune'   ? [...RUNE_TOKENS]
+         :                           [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
+}
+
+// A token as it should read in prose. Only a league has a name worth printing —
+// a teacher checking an answer key wants "Yankees:Q", not "147:Q".
+function pgCipherTokenLabel(cipherType, token) {
+    const lg = PG_LEAGUES[cipherType];
+    if (!lg) return token;
+    const hit = lg.teams.find(t => t[0] === token);
+    return hit ? hit[1] : token;
+}
+
+// jsPDF's addImage is synchronous, so every logo has to be rasterised before a
+// PDF starts drawing. Cached for the session — a second worksheet costs nothing.
+//
+// Sized from the largest a badge is ever drawn, which is 8.5mm — the Large
+// grid's cell, min(cellH × 0.42, cellW × 0.78). 128px over that is ~380dpi,
+// past what a home printer resolves, and every smaller grid only oversamples.
+// Resolution is the only real lever on file size here: raising it to 192 tripled
+// the PDF, and SLOW compression instead of FAST bought 2% for 3x the time.
+// Anywhere that draws a badge LARGER than 8.5mm has to raise this first.
+const PG_LOGO_PX  = 128;
+const PG_LOGO_PNG = {};                       // "league/slug" -> PNG data URL
+
+async function pgLoadTeamLogos(league) {
+    const lg = PG_LEAGUES[league];
+    if (!lg) return;
+    await Promise.all(lg.teams.map(t => t[0]).filter(s => !PG_LOGO_PNG[`${league}/${s}`])
+        .map(async slug => {
+            // Fetching the bytes ourselves and handing the Image a blob keeps the
+            // canvas untainted, which is what lets toDataURL() work at all. It
+            // also covers both shapes at once — mlbstatic serves SVG, ESPN PNG.
+            const res  = await fetch(lg.logo(slug));
+            if (!res.ok) throw new Error(`${league} ${slug}: HTTP ${res.status}`);
+            const blob = await res.blob();
+            const url  = URL.createObjectURL(blob);
+            try {
+                const img = await new Promise((ok, no) => {
+                    const i = new Image();
+                    i.onload  = () => ok(i);
+                    i.onerror = () => no(new Error(`${league} ${slug} logo would not decode`));
+                    i.src = url;
+                });
+                const c = document.createElement('canvas');
+                c.width = c.height = PG_LOGO_PX;
+                // An SVG with no intrinsic size still reports its viewBox here,
+                // so a plain scale-to-fit works for both sources.
+                c.getContext('2d').drawImage(img, 0, 0, PG_LOGO_PX, PG_LOGO_PX);
+                PG_LOGO_PNG[`${league}/${slug}`] = c.toDataURL('image/png');
+            } finally {
+                URL.revokeObjectURL(url);
+            }
+        }));
+}
+
+// Square, centred on cx with its top at topY — same contract as pgDrawRune.
+//
+// The alias and the compression flag are both load-bearing. jsPDF decodes an
+// alpha PNG to raw RGBA and stores it uncompressed unless asked otherwise, so
+// without 'FAST' each 192px logo costs ~150KB and a single worksheet ran to
+// several megabytes. The alias keeps one XObject per team however often it
+// appears on the page.
+function pgDrawTeamLogo(doc, league, slug, cx, topY, h) {
+    const png = PG_LOGO_PNG[`${league}/${slug}`];
+    if (png) doc.addImage(png, 'PNG', cx - h / 2, topY, h, h, `${league}${slug}`, 'FAST');
+}
+
 function pgMakeCipherMapRune() {
     const A = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
     const S = shuffleArray([...RUNE_TOKENS]);
+    const fwd = {}, rev = {};
+    A.forEach((ch, i) => { fwd[ch] = S[i]; rev[S[i]] = ch; });
+    return { fwd, rev };
+}
+
+// Thirty-odd teams for twenty-six letters, so a few sit out — and which ones
+// changes from cipher to cipher, which is a little variety for free. The
+// printed key shows only the twenty-six that were actually used.
+function pgMakeCipherMapTeams(league) {
+    const A = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
+    const S = shuffleArray(pgCipherTokens(league)).slice(0, 26);
     const fwd = {}, rev = {};
     A.forEach((ch, i) => { fwd[ch] = S[i]; rev[S[i]] = ch; });
     return { fwd, rev };
@@ -1433,12 +1937,18 @@ function pgEncrypt(text, fwd) {
     return text.toUpperCase().replace(/[A-Z]/g, ch => fwd[ch]);
 }
 
-// Returns array of word-arrays: each inner array holds one cipher token per letter.
+// Returns array of word-arrays: each inner array holds one cell per character,
+// `{ t, enc }` — the token to draw and whether it was actually enciphered.
 // '\n' sentinels pass through as-is (newline markers). Non-letters kept as-is.
+// `enc` is recorded here rather than inferred at draw time because a token
+// cannot be told apart from a pass-through glyph by looking at it: a literal
+// digit in the text is indistinguishable from a letter→number token.
 function pgEncryptWords(plainWords, fwd) {
     return plainWords.map(word =>
-        word === '\n' ? ['\n'] :
-        [...word.toUpperCase()].map(ch => /[A-Z]/.test(ch) ? (fwd[ch] ?? ch) : ch)
+        word === '\n' ? [{ t: '\n', enc: false }] :
+        [...word.toUpperCase()].map(ch => /[A-Z]/.test(ch) && fwd[ch] != null
+            ? { t: fwd[ch], enc: true }
+            : { t: ch,      enc: false })
     );
 }
 
@@ -1452,6 +1962,7 @@ function pgChunkText(text, n) {
 // --- PDF layout constants (letter paper, mm) ---
 
 const PG_DEBUG_GRID = false;  // set true during layout development to show red grid guidelines
+const PG_PT_MM = 25.4 / 72;   // font sizes are pt, the page is mm
 const PG_W = 215.9, PG_H = 279.4, PG_M = 12;
 const PG_HEADER_Y = 19;                        // Y returned by pgHeader()
 const PG_GRID_X   = PG_M;
@@ -1955,12 +2466,13 @@ function pgCipherSplitToPages(words, textCols, rowsPerPage) {
 
 /**
  * Place encoded cipher text exactly one token per grid cell.
- * @param {Array<string[]>} wordTokens - array of words, each word is array of cipher token strings
+ * @param {Array<Array<{t: string, enc: boolean}>>} wordTokens - array of words,
+ *        each word an array of cells: the token to draw and whether it was enciphered
  * @param {string} cipherType - 'letter' | 'number' | 'glyph'
  */
 function pgDrawCipherCells(doc, wordTokens, gridX, gridY, cellW, cellH, textCols, totalRows, cipherType) {
     const textY = cellH * 0.30;  // cipher char near top of cell
-    const lineY = cellH * 0.72;  // underline below, leaving room for decoded letter
+    const lineY = cellH * 0.907; // underline sits near the cell floor, under the writing space
     const fs    = Math.min(9, cellH * 0.85);
 
     doc.setLineWidth(0.4);
@@ -1972,7 +2484,7 @@ function pgDrawCipherCells(doc, wordTokens, gridX, gridY, cellW, cellH, textCols
         const tokens = wordTokens[wi];
 
         // Handle newline sentinel: force next row
-        if (tokens.length === 1 && tokens[0] === '\n') {
+        if (tokens.length === 1 && tokens[0].t === '\n') {
             col = 0; row++;
             if (row >= totalRows) break;
             continue;
@@ -1985,29 +2497,41 @@ function pgDrawCipherCells(doc, wordTokens, gridX, gridY, cellW, cellH, textCols
             if (col >= textCols) { row++; col = 0; }
             if (row >= totalRows) break;
 
-            const token = tokens[ti];
+            const { t: token, enc } = tokens[ti];
             const cx = gridX + col * cellW;
             const cy = gridY + row * cellH;
 
-            if (cipherType === 'glyph') {
-                doc.setFont('zapfdingbats', 'normal');
-            } else if (cipherType === 'rune') {
-                doc.setFont('helvetica', 'normal');
+            if (enc && cipherType === 'rune') {
+                // Drawn, not typeset — sized and bottom-aligned to where a
+                // letter's cap would sit so the grid reads evenly either way.
+                const h = fs * PG_PT_MM * 0.72;
+                pgDrawRune(doc, token, cx + cellW / 2, cy + textY - h, h);
+            } else if (enc && PG_LEAGUES[cipherType]) {
+                // A logo is square, so it is capped by the narrower of the two
+                // cell dimensions and sat in the space above the writing line.
+                const h = Math.min(cellH * 0.42, cellW * 0.78);
+                pgDrawTeamLogo(doc, cipherType, token, cx + cellW / 2, cy + cellH * 0.04, h);
             } else {
+                // Only an enciphered token is drawn in the cipher's own font — a
+                // pass-through apostrophe set in ZapfDingbats comes out as a symbol.
+                doc.setFont(enc && cipherType === 'glyph' ? 'zapfdingbats' : 'helvetica',
+                            enc && cipherType === 'glyph' ? 'normal' : 'bold');
+                doc.setFontSize(fs);
+                doc.text(token, cx + cellW / 2, cy + textY, { align: 'center' });
                 doc.setFont('helvetica', 'bold');
             }
-            doc.setFontSize(fs);
-            doc.text(token, cx + cellW / 2, cy + textY, { align: 'center' });
-            doc.setFont('helvetica', 'bold');
 
-            // Underline in every cell (student writes decoded letter here)
-            doc.line(cx + cellW * 0.12, cy + lineY, cx + cellW * 0.88, cy + lineY);
+            // Underline only under something to decode. Punctuation and any
+            // other pass-through glyph is already the answer, so a blank under
+            // it invites a guess where there is nothing to guess.
+            doc.setLineWidth(0.4);
+            if (enc) doc.line(cx + cellW * 0.12, cy + lineY, cx + cellW * 0.88, cy + lineY);
             col++;
         }
 
         // One blank separator cell between words (not before a newline sentinel)
         const nextIsNewline = wi + 1 < wordTokens.length &&
-            wordTokens[wi + 1].length === 1 && wordTokens[wi + 1][0] === '\n';
+            wordTokens[wi + 1].length === 1 && wordTokens[wi + 1][0].t === '\n';
         if (wi < wordTokens.length - 1 && !nextIsNewline) {
             col++;
             if (col >= textCols) { col = 0; row++; }
@@ -2016,13 +2540,17 @@ function pgDrawCipherCells(doc, wordTokens, gridX, gridY, cellW, cellH, textCols
 }
 
 /**
- * Draw cipher key: 2 rows of 13 pairs showing plain letter = cipher token.
- * @param {Object} fwdMap - maps plain letter → cipher token
+ * Draw cipher key: 2 rows of 13 pairs showing cipher token = plain letter.
+ * The token leads and the rows are sorted by token, so the key is a decoding
+ * table — the student finds what is on the page rather than scanning for it.
+ * @param {Object} revMap - maps cipher token → plain letter
  */
-function pgDrawCipherKeySeparate(doc, fwdMap, keyX, keyY, cipherType) {
-    const alpha = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
-    const row1 = alpha.slice(0, 13);
-    const row2 = alpha.slice(13, 26);
+function pgDrawCipherKeySeparate(doc, revMap, keyX, keyY, cipherType) {
+    // Filtered against the map that was actually built — a league draws 26 of
+    // its 30-odd teams, so the ones that sat out must not leave holes here.
+    const tokens = pgCipherTokens(cipherType).filter(t => revMap[t] != null);
+    const row1 = tokens.slice(0, 13);
+    const row2 = tokens.slice(13, 26);
 
     const lineHeight = 8;
     const pairWidth  = 14.8;
@@ -2031,26 +2559,34 @@ function pgDrawCipherKeySeparate(doc, fwdMap, keyX, keyY, cipherType) {
         const y = keyY + rowIdx * lineHeight;
 
         for (let i = 0; i < row.length; i++) {
-            const ch     = row[i];
-            const mapped = fwdMap[ch];
-            const x      = keyX + i * pairWidth;
+            const token = row[i];
+            const plain = revMap[token];
+            const x     = keyX + i * pairWidth;
+            let tokenW;
 
-            // Draw "A=" in helvetica
-            doc.setFont('helvetica', 'bold');
-            doc.setFontSize(13);
-            const prefix = `${ch}=`;
-            doc.text(prefix, x, y);
-
-            // Draw the cipher token (may need a different font for glyph/rune ciphers)
-            const prefixW = doc.getTextWidth(prefix);
-            if (cipherType === 'glyph') {
-                doc.setFont('zapfdingbats', 'normal');
-            } else if (cipherType === 'rune') {
-                doc.setFont('helvetica', 'normal');
+            // The token comes first, so it is drawn first — and in its own font,
+            // which is also the font its width has to be measured in.
+            if (cipherType === 'rune') {
+                const h = 13 * PG_PT_MM * 0.72;
+                tokenW = RUNE_W * h;
+                pgDrawRune(doc, token, x + tokenW / 2, y - h, h);
+                tokenW += 0.6;   // the stroke table has no side bearing of its own
+            } else if (PG_LEAGUES[cipherType]) {
+                const h = 13 * PG_PT_MM * 1.05;
+                pgDrawTeamLogo(doc, cipherType, token, x + h / 2, y - h * 0.82, h);
+                tokenW = h + 0.6;
+            } else {
+                doc.setFont(cipherType === 'glyph' ? 'zapfdingbats' : 'helvetica',
+                            cipherType === 'glyph' ? 'normal' : 'bold');
+                doc.setFontSize(13);
+                doc.text(token, x, y);
+                tokenW = doc.getTextWidth(token);
             }
-            doc.setFontSize(13);
-            doc.text(mapped, x + prefixW, y);
+
+            // "=A" in helvetica, hard against the token
             doc.setFont('helvetica', 'bold');
+            doc.setFontSize(13);
+            doc.text(`=${plain}`, x + tokenW, y);
         }
     });
 }
@@ -2101,14 +2637,17 @@ function pgDrawCipherKeyTop(doc, revMap, gridX, gridY, cellW, cellH, gridCols, e
     }
 }
 
-function pgPDFCipher(text, _unused, cipherType = 'letter', glyphFont = 'dingbat', gridSize = 'small', showGridlines = true, showKeyOnPage = false, includeAnswerKey = false, method = 'random', shift = 3) {
+function pgPDFCipher(text, _unused, cipherType = 'letter', glyphFont = 'dingbat', gridSize = 'small', showGridlines = true, showKeyOnPage = false, includeAnswerKey = false, method = 'random', shift = 3, perPageKey = false, league = 'mlb') {
     const { jsPDF } = window.jspdf;
     const doc  = new jsPDF({ unit: 'mm', format: 'letter' });
-    const alpha = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
 
-    // Determine if we're using rune cipher (sub-type of glyph)
+    // Two of the dropdown types are really families: 'glyph' picks a font and
+    // 'logo' picks a league. Both collapse to the one type everything below
+    // switches on, the same way rune has always worked.
     const isRune = cipherType === 'glyph' && glyphFont === 'rune';
-    const effectiveCipherType = isRune ? 'rune' : cipherType;
+    const effectiveCipherType = cipherType === 'logo' ? league
+                              : isRune                ? 'rune'
+                              :                         cipherType;
 
     let GRID_COLS, TEXT_ROWS;
     if (gridSize === 'large') {
@@ -2138,12 +2677,17 @@ function pgPDFCipher(text, _unused, cipherType = 'letter', glyphFont = 'dingbat'
     // origChunks: array of pages, each page is array of plain word-strings (and '\n' sentinels)
     const origChunks = pgCipherSplitToPages(allWords, TEXT_COLS, TEXT_ROWS);
 
-    const ciphers = origChunks.map(() =>
+    const makeCipher = () =>
+        PG_LEAGUES[effectiveCipherType]  ? pgMakeCipherMapTeams(effectiveCipherType) :
         effectiveCipherType === 'letter' ? pgMakeCipherMap(method, shift) :
         effectiveCipherType === 'number' ? pgMakeCipherMapNumber() :
         effectiveCipherType === 'rune'   ? pgMakeCipherMapRune()   :
-                                           pgMakeCipherMapGlyph()
-    );
+                                           pgMakeCipherMapGlyph();
+
+    // One key for the whole booklet unless asked otherwise. A shared key is
+    // built once, so a 'random' shift is drawn once and holds across pages.
+    const shared  = perPageKey ? null : makeCipher();
+    const ciphers = origChunks.map(() => perPageKey ? makeCipher() : shared);
 
     // Encrypt each page's words into token arrays
     const encWordChunks = origChunks.map((words, i) => pgEncryptWords(words, ciphers[i].fwd));
@@ -2155,7 +2699,7 @@ function pgPDFCipher(text, _unused, cipherType = 'letter', glyphFont = 'dingbat'
         pgHeader(doc, `Encoded Text${suffix}`);
 
         if (showKeyOnPage) {
-            pgDrawCipherKeySeparate(doc, ciphers[i].fwd, PG_GRID_X, keyY, effectiveCipherType);
+            pgDrawCipherKeySeparate(doc, ciphers[i].rev, PG_GRID_X, keyY, effectiveCipherType);
         }
 
         if (showGridlines) {
@@ -2170,16 +2714,36 @@ function pgPDFCipher(text, _unused, cipherType = 'letter', glyphFont = 'dingbat'
         doc.addPage();
         let y = PG_GRID_Y;
 
-        origChunks.forEach((origWords, i) => {
-            const fwd     = ciphers[i].fwd;
-            const mapping = alpha.map(ch => `${ch}:${fwd[ch]}`).join('   ');
+        const isGlyphType = effectiveCipherType === 'glyph' || effectiveCipherType === 'rune';
+        const keyBlockH   = isGlyphType ? 22 : 10;
 
-            const isGlyphType = effectiveCipherType === 'glyph' || effectiveCipherType === 'rune';
+        const drawKey = (rev, atY) => {
+            if (isGlyphType) {
+                pgDrawCipherKeySeparate(doc, rev, PG_GRID_X, atY, effectiveCipherType);
+                return atY + 20;
+            }
+            // A league stays on the text path on purpose: a teacher checking
+            // work wants to read "Yankees:Q", not squint at a 3mm cap.
+            const mapping  = pgCipherTokens(effectiveCipherType)
+                .filter(t => rev[t] != null)
+                .map(t => `${pgCipherTokenLabel(effectiveCipherType, t)}:${rev[t]}`).join('   ');
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(7.5);
+            const keyLines = doc.splitTextToSize(mapping, PG_GRID_W);
+            doc.text(keyLines, PG_GRID_X, atY);
+            return atY + keyLines.length * 3 + 2;
+        };
+
+        // A shared key is printed once at the top rather than repeated verbatim
+        // under every page heading.
+        if (!perPageKey) y = drawKey(ciphers[0].rev, y) + 4;
+
+        origChunks.forEach((origWords, i) => {
             // Estimate height needed for this entry
-            const keyBlockH = isGlyphType ? 22 : 10;
             const origText  = origWords.filter(w => w !== '\n').join(' ');
             const origLines = doc.splitTextToSize(`Original: ${origText}`, PG_GRID_W);
-            const entryH    = (origChunks.length > 1 ? 8 : 0) + keyBlockH + origLines.length * 3.5 + 4;
+            const entryH    = (origChunks.length > 1 ? 8 : 0) + (perPageKey ? keyBlockH : 0)
+                            + origLines.length * 3.5 + 4;
             if (i > 0 && y + entryH > PG_H - 15) { doc.addPage(); y = PG_GRID_Y; }
 
             if (origChunks.length > 1) {
@@ -2189,16 +2753,7 @@ function pgPDFCipher(text, _unused, cipherType = 'letter', glyphFont = 'dingbat'
                 y += 5;
             }
 
-            if (!isGlyphType) {
-                doc.setFont('helvetica', 'normal');
-                doc.setFontSize(7.5);
-                const keyLines = doc.splitTextToSize(mapping, PG_GRID_W);
-                doc.text(keyLines, PG_GRID_X, y);
-                y += keyLines.length * 3 + 2;
-            } else {
-                pgDrawCipherKeySeparate(doc, fwd, PG_GRID_X, y, effectiveCipherType);
-                y += 20;
-            }
+            if (perPageKey) y = drawKey(ciphers[i].rev, y);
 
             doc.setFont('helvetica', 'normal');
             doc.setFontSize(9);
@@ -2230,6 +2785,29 @@ function pgCheckJsPDF() {
     return true;
 }
 
+/**
+ * Fetch and rasterise a league's badges before a PDF starts drawing — jsPDF's
+ * addImage is synchronous, so this cannot be deferred into the draw. Reports
+ * progress on the button that triggered it. Returns false if the network let
+ * us down, which beats printing a page of empty cells.
+ */
+async function pgPrepareLeague(league, btnId) {
+    const btn = document.getElementById(btnId);
+    const was = btn.textContent;
+    btn.textContent = 'Loading logos…';
+    btn.disabled = true;
+    try {
+        await pgLoadTeamLogos(league);
+        return true;
+    } catch (e) {
+        alert(`Could not load the ${PG_LEAGUES[league].label} logos. Check your connection and try again.`);
+        return false;
+    } finally {
+        btn.textContent = was;
+        btn.disabled = false;
+    }
+}
+
 function pgGenerateSudoku() {
     if (!pgCheckJsPDF()) return;
     const size    = parseInt(document.getElementById('pg-sudoku-size').value, 10);
@@ -2258,27 +2836,41 @@ function pgGenerateWorksheets() {
     }
 }
 
-// The shift box is only meaningful for a Caesar cipher on the letter type.
+// The shift box is only meaningful for a Caesar cipher on the letter type, and
+// a fresh key per page picks its own shift each time — so the box has nothing
+// left to say.
 function pgSyncCipherShiftRow() {
-    const isLetter = document.getElementById('pg-cipher-type').value === 'letter';
-    const isCaesar = document.getElementById('pg-cipher-method').value === 'caesar';
+    const isLetter   = document.getElementById('pg-cipher-type').value === 'letter';
+    const isCaesar   = document.getElementById('pg-cipher-method').value === 'caesar';
+    const perPageKey = document.getElementById('pg-cipher-per-page-key').checked;
     document.getElementById('pg-cipher-shift-row')
-        .classList.toggle('hidden', !(isLetter && isCaesar));
+        .classList.toggle('hidden', !(isLetter && isCaesar && !perPageKey));
 }
 
-function pgGenerateCiphers() {
+async function pgGenerateCiphers() {
     if (!pgCheckJsPDF()) return;
     const text = document.getElementById('pg-cipher-text').value.trim();
     if (!text) { alert('Please paste some text for the cipher.'); return; }
     const cipherType      = document.getElementById('pg-cipher-type').value;
     const glyphFont       = document.getElementById('pg-cipher-glyph-font').value;
+    const league          = document.getElementById('pg-cipher-league').value;
     const gridSize        = document.getElementById('pg-cipher-grid-size').value;
     const showGridlines   = document.getElementById('pg-cipher-gridlines').checked;
     const showKey         = document.getElementById('pg-cipher-show-key').checked;
     const includeAnswerKey = document.getElementById('pg-cipher-answer-key').checked;
     const method          = document.getElementById('pg-cipher-method').value;
-    const shift           = parseInt(document.getElementById('pg-cipher-shift').value, 10) || 3;
-    pgPDFCipher(text, null, cipherType, glyphFont, gridSize, showGridlines, showKey, includeAnswerKey, method, shift);
+    const perPageKey      = document.getElementById('pg-cipher-per-page-key').checked;
+    // A per-page key draws its own shift, and 'random' passes through to be
+    // drawn inside pgMakeCipherMap — once for a shared key, once per page for
+    // a per-page one.
+    const shiftRaw        = document.getElementById('pg-cipher-shift').value;
+    const shift           = (perPageKey || shiftRaw === 'random')
+        ? 'random' : (parseInt(shiftRaw, 10) || 3);
+
+    // The logos are the one thing here that comes off the network.
+    if (cipherType === 'logo' && !await pgPrepareLeague(league, 'ciphers-generate-btn')) return;
+
+    pgPDFCipher(text, null, cipherType, glyphFont, gridSize, showGridlines, showKey, includeAnswerKey, method, shift, perPageKey, league);
 }
 
 // ============================================
@@ -4411,9 +5003,29 @@ const appBoot = () => {
         });
         settingsPanel.addEventListener('click', (e) => e.stopPropagation());
         document.addEventListener('click', () => settingsPanel.classList.add('hidden'));
+
+        // The burger is fixed, but what it must clear is not: the section bar
+        // above the tabs scrolls away and the tab bar is sticky, so the tabs'
+        // bottom edge moves. A constant offset sat on top of the tab row —
+        // and on a phone, where the row runs off the right edge, it covered
+        // a tab outright.
+        const widget = document.getElementById('settings-widget');
+        const tabBar = document.getElementById('tab-bar');
+        const placeBurger = () => {
+            widget.style.top = (tabBar.getBoundingClientRect().bottom + 6) + 'px';
+        };
+        window.addEventListener('scroll', placeBurger, { passive: true });
+        window.addEventListener('resize', placeBurger);
+        // The section bar is inserted above the tabs later, by library.js.
+        // body has min-height: 100vh, so its size need not change when that
+        // happens — watch for the insertion itself instead.
+        new MutationObserver(placeBurger).observe(document.body, { childList: true });
+        placeBurger();
     }
 
     document.getElementById('start-btn').addEventListener('click', startQuiz);
+
+    document.getElementById('sd-clear').addEventListener('click', sdClear);
 
     const submitBtn = document.getElementById('submit-btn');
     if (submitBtn) {
@@ -4490,6 +5102,8 @@ const appBoot = () => {
     document.getElementById('pg-cipher-type').addEventListener('change', (e) => {
         document.getElementById('pg-cipher-glyph-selector')
             .classList.toggle('hidden', e.target.value !== 'glyph');
+        document.getElementById('pg-cipher-league-row')
+            .classList.toggle('hidden', e.target.value !== 'logo');
         // Caesar/Atbash only make sense letter → letter; the other types are
         // always a random mapping onto their own token set.
         document.getElementById('pg-cipher-method-row')
@@ -4498,6 +5112,7 @@ const appBoot = () => {
     });
 
     document.getElementById('pg-cipher-method').addEventListener('change', pgSyncCipherShiftRow);
+    document.getElementById('pg-cipher-per-page-key').addEventListener('change', pgSyncCipherShiftRow);
 
     document.getElementById('ciphers-generate-btn').addEventListener('click', pgGenerateCiphers);
 

@@ -1,0 +1,103 @@
+/* mazes.js — the Mazes tab. Prefix mz. */
+
+.mz-container {
+    box-sizing: border-box;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .8rem;
+    padding-bottom: 2rem;
+}
+
+.mz-grid-btn { font-size: 1rem; padding: .5rem 1.2rem; }
+.mz-grid-btn.active { background: #000; color: #fff; }
+
+.mz-config { max-width: 360px; }
+.mz-config .hidden { display: none; }
+#mz-x-row.hidden { display: none; }
+
+.mz-rule {
+    font-size: 1.1rem;
+    font-weight: 700;
+    text-align: center;
+    max-width: 30em;
+    padding: 0 .5rem;
+}
+
+.mz-score-bar { display: flex; gap: 1.6rem; font-weight: 700; color: #555; font-size: .95rem; }
+
+.mz-stage { display: flex; justify-content: center; width: 100%; }
+
+/* The SVG is in cell units, so everything below scales with the grid. */
+.mz-svg {
+    width: 100%;
+    max-width: 560px;
+    height: auto;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.mz-cell {
+    fill: #fff;
+    stroke: #263238;
+    stroke-width: .035;
+    cursor: pointer;
+    transition: fill .12s ease;
+}
+.mz-cell:hover { fill: #f1f8ff; }
+.mz-cell.is-sol { fill: #fff59d; }
+.mz-cell.is-trail { fill: #bbdefb; }
+.mz-cell.is-tip { fill: #90caf9; }
+.mz-tip-ring { fill: none; stroke: #0d47a1; stroke-width: .08; pointer-events: none; }
+/* START and END keep their colours whatever else is true of them, so the two
+   ends of the maze never disappear under the trail. */
+.mz-cell.is-start { fill: #a5d6a7; }
+.mz-cell.is-end { fill: #ffcc80; }
+.mz-cell.is-bad { animation: mz-bad .6s ease; }
+
+@keyframes mz-bad {
+    0%, 100% { fill: #fff; }
+    25%, 60% { fill: #ef9a9a; }
+}
+
+.mz-num {
+    font-family: system-ui, sans-serif;
+    font-weight: 700;
+    fill: #212121;
+    text-anchor: middle;
+    dominant-baseline: central;
+    pointer-events: none;
+}
+
+.mz-tag {
+    font-family: system-ui, sans-serif;
+    font-weight: 800;
+    font-size: .26px;
+    letter-spacing: .02em;
+    fill: #37474f;
+    text-anchor: middle;
+    pointer-events: none;
+}
+
+.mz-say {
+    min-height: 2.6em;
+    text-align: center;
+    font-size: 1rem;
+    max-width: 32em;
+    padding: 0 .5rem;
+}
+.mz-say.is-right { color: #2e7d32; font-weight: 700; }
+.mz-say.is-wrong { color: #c62828; }
+
+.mz-actions { display: flex; flex-wrap: wrap; gap: .5rem; justify-content: center; }
+.mz-actions .btn, .mz-print .btn { font-size: 1rem; padding: .6rem 1.4rem; }
+
+.mz-print { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; justify-content: center; }
+.mz-print label { font-weight: 600; }
+
+/* The core container's 2rem sides cost a nine-wide grid a fifth of a phone. */
+@media (max-width: 420px) {
+    .mz-container { padding-left: 16px; padding-right: 16px; }
+}

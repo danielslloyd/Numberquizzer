@@ -258,8 +258,26 @@
     };
 
     G['phon.syllableTypes'] = function (rng) {
-        const closed = rng.pick(['nap', 'cat', 'pic', 'mag', 'ten']);
-        const open = rng.pick(['me', 'go', 'hi', 'she', 'no']);
+        const CLOSED = ['nap', 'cat', 'pic', 'mag', 'ten'];
+        const OPEN = ['me', 'go', 'hi', 'she', 'no'];
+
+        if (rng.bool()) {
+            const c3 = rng.sample(CLOSED, 3);
+            const o3 = rng.sample(OPEN, 3);
+            return genSortBins(rng, {
+                stem: 'Sort each syllable: open or closed?',
+                bins: [{ id: 'closed', label: 'Closed — ends in a consonant, short vowel' },
+                       { id: 'open', label: 'Open — ends in a vowel, vowel says its name' }],
+                put: { closed: c3, open: o3 },
+                hint: 'Look at the last letter.',
+                explain: 'A consonant on the end closes the syllable in and keeps the vowel short; '
+                    + 'nothing on the end leaves the vowel free to say its name.',
+                sig: 'sylTypeSort',
+            });
+        }
+
+        const closed = rng.pick(CLOSED);
+        const open = rng.pick(OPEN);
         if (rng.bool()) {
             return genMc(rng, {
                 stem: 'The syllable "' + closed + '" ends in a consonant, so the vowel is short. '
@@ -296,6 +314,21 @@
             { w: 'window', right: 'win/dow', wrong: ['wi/ndow', 'wind/ow', 'w/indow'] },
         ];
         const s = rng.pick(SPLITS);
+
+        // The question is literally "where does it split", so tapping the split
+        // asks it directly. The four-way choice was really a spot-the-odd-string
+        // task — three of the options are not plausible divisions of anything.
+        const split = genSplitWord({
+            word: s.w,
+            pieces: s.right.split('/'),
+            stem: 'Tap where "' + s.w + '" splits into syllables.',
+            tapNote: 'Tap the split, then press Check.',
+            hint: 'Every syllable needs a vowel sound.',
+            explain: '"' + s.w + '" splits between the two consonants in the middle: ' + s.right + '.',
+            sig: 'sylDiv:' + s.w,
+        });
+        if (split) return split;
+
         return genMc(rng, {
             stem: 'Where does "' + s.w + '" split into syllables?',
             correct: s.right,
@@ -362,6 +395,25 @@
 
     G['phon.vowelTeams.exceptions'] = function (rng) {
         const e = rng.pick(W.vowelTeamExceptions);
+
+        /* Sorting regulars against exceptions beats spotting the one odd word:
+         * a spot-the-odd item can be answered by feel, but placing every word
+         * means saying each one and listening. All chips carry the same team,
+         * so nothing but the sound distinguishes them. */
+        if (rng.bool() && e.odd.length >= 2) {
+            const usual = rng.sample(e.usual, 3);
+            const odds = rng.sample(e.odd, 2);
+            return genSortBins(rng, {
+                stem: 'These words all contain "' + e.team + '". Sort them by how it sounds.',
+                bins: [{ id: 'usual', label: '"' + e.team + '" the usual way' },
+                       { id: 'odd', label: '"' + e.team + '" a different way' }],
+                put: { usual: usual, odd: odds },
+                hint: 'Say each word out loud — the letters are the same, the sound is not.',
+                explain: 'The usual sound: ' + usual.join(', ') + '. The exceptions: ' + odds.join(', ') + '.',
+                sig: 'vtExSort:' + e.team,
+            });
+        }
+
         const odd = rng.pick(e.odd);
         return genMc(rng, {
             stem: 'These words all contain "' + e.team + '". Which one says it differently from the others?',
@@ -378,6 +430,23 @@
         const letter = rng.bool() ? 'c' : 'g';
         const softList = letter === 'c' ? W.softC : W.softG;
         const hardList = letter === 'c' ? W.hardC : W.hardG;
+
+        /* Sorting both sounds at once is the actual discrimination; "which one
+         * is soft" lets a learner hold one rule and never test its opposite. */
+        if (rng.bool()) {
+            const sSample = rng.sample(softList, 3);
+            const hSample = rng.sample(hardList, 3);
+            return genSortBins(rng, {
+                stem: 'Sort each word by the sound its "' + letter + '" makes.',
+                bins: [{ id: 'soft', label: 'Soft ' + letter + (letter === 'c' ? ' (like s)' : ' (like j)') },
+                       { id: 'hard', label: 'Hard ' + letter + (letter === 'c' ? ' (like k)' : ' (like g in go)') }],
+                put: { soft: sSample, hard: hSample },
+                hint: 'c and g go soft before e, i and y.',
+                explain: 'Soft here: ' + sSample.join(', ') + '. Hard: ' + hSample.join(', ') + '.',
+                sig: 'softcgSort:' + letter,
+            });
+        }
+
         let cgWord;
         return genMc(rng, {
             stem: 'In which word does the "' + letter + '" make its ' + (soft ? 'soft' : 'hard') + ' sound?',
@@ -415,6 +484,21 @@
 
     G['phon.yAsVowel'] = function (rng) {
         const longI = rng.bool();
+
+        if (rng.bool()) {
+            const iWords = rng.sample(W.yVowel['long i'], 3);
+            const eWords = rng.sample(W.yVowel['long e'], 3);
+            return genSortBins(rng, {
+                stem: 'Sort each word by the sound its "y" makes.',
+                bins: [{ id: 'i', label: 'y says long i (fly)' },
+                       { id: 'e', label: 'y says long e (happy)' }],
+                put: { i: iWords, e: eWords },
+                hint: 'A y at the end of a one-syllable word usually says long i; at the end of a longer word it usually says long e.',
+                explain: 'Long i: ' + iWords.join(', ') + '. Long e: ' + eWords.join(', ') + '.',
+                sig: 'yvSort',
+            });
+        }
+
         let yWord;
         return genMc(rng, {
             stem: 'In which word does the "y" sound like a long ' + (longI ? 'i' : 'e') + '?',

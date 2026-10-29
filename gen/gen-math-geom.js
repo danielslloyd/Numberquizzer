@@ -197,6 +197,31 @@
               w: ['Yes, always', 'Only sometimes', 'Only if it is right-angled'],
               why: 'a rectangle needs two pairs of parallel sides; a trapezium has only one.' },
         ];
+        /* The same questions, sorted by their answer. Asking five at once is
+         * what exposes the actual structure — that "is X also a Y?" has three
+         * different answers depending on which way round the hierarchy runs.
+         * The chips reuse CASES verbatim, so the two forms cannot drift; the
+         * empty bin, when a draw has no "never", is a legitimate decoy. */
+        if (rng.bool()) {
+            const BIN = { 'Yes, always': 'always', 'Only sometimes': 'sometimes', 'No, never': 'never' };
+            const drawn = rng.sample(CASES, 5);
+            const put = { always: [], sometimes: [], never: [] };
+            drawn.forEach((x) => put[BIN[x.a]].push(x.q));
+            if (Object.keys(put).filter((k) => put[k].length).length >= 2) {
+                return genSortBins(rng, {
+                    stem: 'Sort each question by its answer.',
+                    bins: [{ id: 'always', label: 'Yes, always' },
+                           { id: 'sometimes', label: 'Only sometimes' },
+                           { id: 'never', label: 'No, never' }],
+                    put: put,
+                    hint: 'Ask which shape’s rules are the stricter set.',
+                    explain: 'A square meets every test a rectangle or rhombus sets, '
+                        + 'but not the other way round.',
+                    sig: 'quadSort',
+                });
+            }
+        }
+
         const c = rng.pick(CASES);
         return genMc(rng, {
             stem: c.q,
