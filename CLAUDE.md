@@ -275,12 +275,27 @@ migration copies rather than moves and nothing is ever deleted.
   (`trBoxHalf`), not from the fighter's centre: a tap locks when it lands
   within `nearPx` of the box's edge. Rocks have their own fixed reach.
 - **Quality features belong to a tier.** Shiny (Phong) fighters are on Medium
-  and High; the muzzle light is High only. The light stays in the scene and is
+  and High; the muzzle light is High only; rocks are 80, 180 or 500 faces. The
+  rock shape is a smooth function of direction (`trRockShape`), so a finer
+  tier is the same rock, not a noisier one. The light stays in the scene and is
   hidden, because the light count is part of every lit shader: toggling it
   recompiles once on a tier change, adding and removing it would on every shot.
 - **The glass is baked, not drawn.** Grime, its hit-coloured twin and the hit
   wash share one stencil and are baked on resize or a settings change only. A
   hit crossfades opacities; it never re-bakes. A lock does not turn the turret.
+  Reach and fade are fractions of the stage's **short side**, applied square to
+  every window edge (`trInsetWindow`) — a fraction of each axis changes the
+  border's shape with the aspect ratio.
+- **The stage fills the screen at any shape.** On a portrait stage the FOV
+  goes across (`trFov`), so the guns stay in view, and the grime is turned
+  a quarter so it is not cropped to a strip.
+- **Fighters keep the kit's colours.** Only accent faces (`metalRed`) take
+  the instance colour; the `accent` and `shine` attributes and the
+  r128 chunks `trShipShader` replaces carry that. Squish is in the instance
+  matrix, never baked into the geometry.
+- **A tap is never swallowed.** A full bolt pool gives up its oldest free
+  shot; a locked bolt is never taken. Taps fire once a card is answered —
+  only a card that is still asking holds the guns.
 - **Nothing owed is dropped.** A question open, or an ace in the air, when the
   scene is torn down goes back in the deck or the ace queue.
 - **Bests come from whole sorties only**, and the turret never writes

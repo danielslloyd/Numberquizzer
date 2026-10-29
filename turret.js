@@ -83,14 +83,15 @@
     // when auto steps a slow device down to Low. `flashLight` is a point
     // light at the muzzle for a frame or two after each shot, lighting the
     // barrels and anything near; every lit material pays for it, so High only.
+    // `rockDetail` is the rock icosphere's subdivision: 80, 180 or 500 faces.
     const TIERS = {
-        low:  { label: 'Low',  scale: 0.6,  stars: 300, enemies: 3, rocks: 12, shiny: false, flashLight: false },
-        med:  { label: 'Med',  scale: 0.75, stars: 500, enemies: 4, rocks: 20, shiny: true, flashLight: false },
-        high: { label: 'High', scale: 1.0,  stars: 900, enemies: 5, rocks: 28, shiny: true, flashLight: true },
+        low:  { label: 'Low',  scale: 0.6,  stars: 300, enemies: 3, rocks: 12, shiny: false, flashLight: false, rockDetail: 1 },
+        med:  { label: 'Med',  scale: 0.75, stars: 500, enemies: 4, rocks: 20, shiny: true, flashLight: false, rockDetail: 2 },
+        high: { label: 'High', scale: 1.0,  stars: 900, enemies: 5, rocks: 28, shiny: true, flashLight: true, rockDetail: 4 },
     };
     const TIER_ORDER = ['low', 'med', 'high'];
     const MAX_STARS = 900, MAX_ENEMIES = 5, MAX_ROCKS = 40;
-    const MAX_BOLTS = 10, MAX_ZAPS = 16, MAX_PUFFS = 40;
+    const MAX_BOLTS = 24, MAX_ZAPS = 16, MAX_PUFFS = 40;
     const HALO_K = 2;                       // a shape texture's disc is half its width; the rest is halo
 
     const BG = 0x05060d;
@@ -100,13 +101,19 @@
 
     // Fighter models (Kenney Space Kit, CC0), fetched once on first build and
     // kept across context losses. Until they arrive — or if they never do —
-    // fighters are the built-in dart. Every model is painted red by instance
-    // colour (gold for an ace); the shades only tell one material from another.
+    // fighters are the built-in dart. Each keeps the kit's own colours except
+    // its accent faces (the kit's orange `metalRed`), which take the instance
+    // colour: the debug accent for a fighter, gold for an ace.
     const SHIP_MODELS = ['craft_racer', 'craft_speederA', 'craft_speederB', 'craft_speederC', 'craft_speederD'];
-    const SHIP_SHADE = { metal: 1, metalDark: 0.78, metalRed: 0.6, dark: 0.36 };
+    const SHIP_KD = { metal: [0.843, 0.871, 0.91], metalDark: [0.675, 0.71, 0.774], dark: [0.275, 0.298, 0.341] };
+    const SHIP_ACCENT = 'metalRed';
+    const ACCENT_SHINE = 0.35;              // the accent's own highlight; the slider scales it with the rest
     const SHIP_LEN = 3.6;                   // nose to tail, in the dart's units
-    const SHIP_GLOW = 0x240707;             // a red floor, so a fighter's shadow side still reads red
+    const SHIP_GLOW = 0x0c0d10;             // a floor, so a fighter's shadow side is not a hole in the sky
     const SHIP_SPEC = 0xd8d0c8, SHIP_SHINE = 70;
+    // Debug: how much of its height a fighter loses, its accent colour, and
+    // how strongly the darker panels shine (Phong tiers only).
+    const SHIPS = { squish: 0.25, accent: '#d8352a', shine: 1.5 };
     const SHIP_SCALE = 1.6;                 // a fighter at 60 units is a speck on a 7-inch screen otherwise
     const BOLT_SPEED = 110;                 // defaults; the debug panel can change both
     const MUZZLE_S = 0.09, MUZZLE_I = 3.2;  // muzzle light: how long, how bright
@@ -116,10 +123,11 @@
     const NEAR_PX = 24, NEAR_MIN = 0, NEAR_MAX = 160;
     const TAP_SLOP_MOUSE = 24;              // a mouse click while tracking a target moves a little
     // Window grime and the hit flash that shares its stencil. Strength runs
-    // from `min` facing away from the sun to `max` facing it; `reach` is how
-    // far in from the window's edge grime may show, `fade` how soft its inner
-    // boundary is — both as fractions of the window.
-    const GRIME = { on: true, color: '#ffffff', min: 0.02, max: 0.6, reach: 0.3, fade: 0.09, hurt: '#ff2a1a' };
+    // from `min` facing away from the sun to `max` facing it; `inset` is how
+    // far in from the window's edge grime may show, `soft` how soft its inner
+    // boundary is — both as fractions of the stage's short side, so the
+    // border is as deep down the sides as across the top.
+    const GRIME = { on: true, color: '#ffffff', min: 0.02, max: 0.6, inset: 0.16, soft: 0.07, hurt: '#ff2a1a' };
     const HURT_IN = 0.06, HURT_OUT = 0.6;   // hit flash: rise and fall, real seconds
     const TAP_SLOP = 10, TAP_MS = 400;      // a press that moves less, and lifts sooner, is a tap
 
@@ -213,7 +221,7 @@
         boom: 0, nearPx: NEAR_PX, sfx: {}, dbgOpen: false, mouse: null, shiny: null,
         grime: null, grimeImg: null, grimeW: 0, grimeH: 0, glassOp: [-1, -1, -1],
         hurtAge: 9, hurtK: 0, boltSpeed: BOLT_SPEED, zapSpeed: ZAP_SPEED, dbgCats: [],
-        muzzleLight: null, muzzleK: 0,
+        muzzleLight: null, muzzleK: 0, ships: null, shipShineK: null, rockDetail: 0,
         pilot: null, spawnAt: 0, rockAt: 0, lockFoe: null, barrel: 1, hits: 0,
         deflector: 100, hudLeft: 0, hud: null,
         running: false, lost: false, raf: 0, last: 0, wt: 0, timeScale: 1,
@@ -254,7 +262,9 @@
         // sound. Stored apart from the grown-up settings — they tune the game,
         // not the child's practice.
         const dbg = stJSON('turret.debug', null) || {};
-        tr.boom = Number.isInteger(dbg.boom) && dbg.boom >= 0 && dbg.boom < BOOMS.length ? dbg.boom : 0;
+        // Kept by name: the list is renumbered when a style comes or goes. An
+        // old numeric choice meant a different list, so it starts over.
+        tr.boom = Math.max(0, BOOMS.findIndex(([label]) => label === dbg.boom));
         // `near` replaced an older radius-round-the-tap setting; that one is ignored.
         tr.nearPx = Number.isFinite(dbg.near) ? clamp(dbg.near, NEAR_MIN, NEAR_MAX) : NEAR_PX;
         const g = dbg.grime || {};
@@ -264,9 +274,13 @@
             on: g.on === undefined ? GRIME.on : !!g.on,
             color: hex(g.color, GRIME.color), hurt: hex(g.hurt, GRIME.hurt),
             min: num(g.min, 0, 1, GRIME.min), max: num(g.max, 0, 1, GRIME.max),
-            reach: num(g.reach, 0.05, 0.6, GRIME.reach), fade: num(g.fade, 0, 0.3, GRIME.fade),
+            // `reach`/`fade` were fractions of the window each way; those are
+            // not these, so they are left behind.
+            inset: num(g.inset, 0.02, 0.5, GRIME.inset), soft: num(g.soft, 0, 0.3, GRIME.soft),
         };
         if (tr.grime.min > tr.grime.max) tr.grime.min = tr.grime.max;
+        const s = dbg.ships || {};
+        tr.ships = { squish: num(s.squish, 0, 0.8, SHIPS.squish), accent: hex(s.accent, SHIPS.accent), shine: num(s.shine, 0, 3, SHIPS.shine) };
         tr.boltSpeed = num(dbg.bolt, 30, 300, BOLT_SPEED);
         tr.zapSpeed = num(dbg.zap, 20, 200, ZAP_SPEED);
         tr.dbgCats = Array.isArray(dbg.open) ? dbg.open.filter((k) => typeof k === 'string') : [];
@@ -278,7 +292,7 @@
     }
 
     function trSaveDebug() {
-        stSetJSON('turret.debug', { boom: tr.boom, near: tr.nearPx, sfx: tr.sfx, grime: tr.grime,
+        stSetJSON('turret.debug', { boom: BOOMS[tr.boom][0], near: tr.nearPx, sfx: tr.sfx, grime: tr.grime, ships: tr.ships,
             bolt: tr.boltSpeed, zap: tr.zapSpeed, open: tr.dbgCats });
     }
 
@@ -625,7 +639,14 @@
         // gradient blends colour as well as alpha, and fading toward black
         // leaves a dark smudge round every shape.
         const clear = halo.replace(/[\d.]+\)$/, '0)');
-        if (ring) {
+        if (ring === 'thin') {
+            // A thin ring's halo hugs it, or the halo is the ring.
+            grad.addColorStop(0, clear);
+            grad.addColorStop(0.42, clear);
+            grad.addColorStop(0.5, halo);
+            grad.addColorStop(0.64, clear);
+            grad.addColorStop(1, clear);
+        } else if (ring) {
             grad.addColorStop(0, clear);
             grad.addColorStop(0.3, clear);
             grad.addColorStop(0.5, halo);
@@ -637,7 +658,7 @@
         }
         g.fillStyle = grad;
         g.fillRect(0, 0, size, size);
-        const w = Math.max(1.5, R * (ring ? 0.1 : 0.08));
+        const w = Math.max(1.5, R * (ring === 'thin' ? 0.035 : ring ? 0.1 : 0.08));
         g.beginPath();
         g.arc(R, R, r - w / 2, 0, Math.PI * 2);
         if (fill) { g.fillStyle = fill; g.fill(); }
@@ -735,25 +756,38 @@
         return trFaceted(pos, (k) => tris[k][3], new THREE.Vector3(0, 0, -0.4));
     }
 
-    // A lumpy rock: an icosphere with each vertex pushed in or out by a hash
-    // of where it is. The geometry is non-indexed, so a shared corner exists
-    // once per face — hashing the rounded position moves every copy alike,
-    // where a random number per vertex would tear the faces apart.
-    function trRockGeometry() {
-        const src = new THREE.IcosahedronGeometry(1, 1);
+    // A lumpy rock: an icosphere with each vertex pushed in or out by a
+    // smooth function of its direction — a few broad lobes and some finer
+    // ones. Smooth, so every tier's subdivision is the same rock resolved
+    // more finely, not a noisier one; and a function of position, so the
+    // copies of a shared corner (the geometry is non-indexed) move alike.
+    const ROCK_LOBES = [[0.9, 0.3, -0.4, 1.7, 0.16], [-0.2, 0.95, 0.3, 2.3, 0.12], [0.4, -0.5, 0.8, 3.1, 0.09],
+        [-0.7, -0.2, -0.6, 4.6, 0.06], [0.1, 0.6, -0.8, 6.8, 0.04], [0.8, -0.6, 0.1, 9.5, 0.025]];
+
+    function trRockShape(x, y, z) {
+        let f = 1;
+        for (const [a, b, c, k, amp] of ROCK_LOBES) {
+            const t = (a * x + b * y + c * z) * k;
+            f += amp * Math.sin(t + k) * Math.cos(t * 0.7 + a * 3 + y * k * 0.5);
+        }
+        return f;
+    }
+
+    function trRockGeometry(detail) {
+        const src = new THREE.IcosahedronGeometry(1, detail);
         const pos = Float32Array.from(src.attributes.position.array);
         src.dispose();
-        const hash = (x, y, z) => {
-            const h = Math.sin(Math.round(x * 1000) * 12.9898 + Math.round(y * 1000) * 78.233
-                + Math.round(z * 1000) * 37.719) * 43758.5453;
-            return h - Math.floor(h);
-        };
         for (let i = 0; i < pos.length; i += 3) {
-            const f = 0.75 + 0.45 * hash(pos[i], pos[i + 1], pos[i + 2]);
+            const f = trRockShape(pos[i], pos[i + 1], pos[i + 2]);
             pos[i] *= f; pos[i + 1] *= f * 0.85; pos[i + 2] *= f;
         }
+        // Colour follows the shape too — the bumps a touch lighter than the
+        // hollows — plus a little per face, so the facets still read.
+        const hash = (k) => { const h = Math.sin(k * 12.9898 + 4.1) * 43758.5453; return h - Math.floor(h); };
+        const c = new THREE.Vector3();
         return trFaceted(pos, (k) => {
-            const v = 0.85 + 0.3 * hash(k, k * 0.37, 1);
+            c.fromArray(pos, k * 9).add(V1.fromArray(pos, k * 9 + 3)).add(V1.fromArray(pos, k * 9 + 6)).divideScalar(3);
+            const v = 0.7 + 1.4 * (c.length() - 0.85) + 0.12 * hash(k);
             return [0.62 * v, 0.55 * v, 0.47 * v];
         }, new THREE.Vector3());
     }
@@ -830,11 +864,11 @@
 
     function trParseObj(text) {
         const v = [], tris = [], shade = [];
-        let cur = 1;
+        let cur = 'metal';
         text.split(/\r?\n/).forEach((line) => {
             const p = line.trim().split(/\s+/);
             if (p[0] === 'v') v.push([Number(p[1]), Number(p[2]), Number(p[3])]);
-            else if (p[0] === 'usemtl') cur = SHIP_SHADE[p[1]] === undefined ? 1 : SHIP_SHADE[p[1]];
+            else if (p[0] === 'usemtl') cur = p[1];
             else if (p[0] === 'f') {
                 const idx = p.slice(1).map((t) => parseInt(t, 10)).map((i) => (i < 0 ? v.length + i : i - 1));
                 for (let k = 1; k + 1 < idx.length; k++) { tris.push(idx[0], idx[k], idx[k + 1]); shade.push(cur); }
@@ -868,6 +902,60 @@
         return tr.shipMats[tr.shiny ? 'shiny' : 'matte'][kind];
     }
 
+    /* Two per-vertex attributes the stock materials do not have:
+     *   accent  1 where the instance colour paints the face, 0 where the
+     *           face keeps its own colour
+     *   shine   how strongly the face takes the Phong highlight, before the
+     *           debug slider's `shineK` scales it
+     * The chunks replaced are r128's color_vertex and specularmap_fragment. */
+    const SHIP_VERT_HEAD = 'attribute float accent;\nattribute float shine;\nvarying float vShine;\n';
+    const SHIP_COLOR_VERTEX = [
+        '#if defined( USE_COLOR ) || defined( USE_INSTANCING_COLOR )',
+        '  vColor = vec3( 1.0 );',
+        '#endif',
+        '#ifdef USE_COLOR',
+        '  vColor *= color;',
+        '#endif',
+        '#ifdef USE_INSTANCING_COLOR',
+        '  vColor.xyz *= mix( vec3( 1.0 ), instanceColor.xyz, accent );',
+        '#endif',
+        'vShine = shine;'].join('\n');
+
+    function trShipShader(shader) {
+        shader.uniforms.shineK = tr.shipShineK;
+        shader.vertexShader = shader.vertexShader
+            .replace('#include <common>', '#include <common>\n' + SHIP_VERT_HEAD)
+            .replace('#include <color_vertex>', SHIP_COLOR_VERTEX);
+        shader.fragmentShader = shader.fragmentShader
+            .replace('#include <common>', '#include <common>\nuniform float shineK;\nvarying float vShine;')
+            .replace('#include <specularmap_fragment>', 'float specularStrength = vShine * shineK;');
+    }
+
+    // A ship geometry's extra attributes: per face, then copied to its corners.
+    function trShipAttrs(geo, accentOf, shineOf) {
+        const n = geo.attributes.position.count;
+        const acc = new Float32Array(n), shn = new Float32Array(n);
+        for (let i = 0; i < n; i++) { acc[i] = accentOf((i / 3) | 0); shn[i] = shineOf((i / 3) | 0); }
+        geo.setAttribute('accent', new THREE.BufferAttribute(acc, 1));
+        geo.setAttribute('shine', new THREE.BufferAttribute(shn, 1));
+        return geo;
+    }
+
+    // A model: the kit's colours, the accent faces white for the instance
+    // colour to paint. A panel's shine is the inverse of how light it is —
+    // darker is shinier, the way lacquered dark metal reads.
+    function trModelGeometry(m) {
+        const isAcc = (k) => m.shade[k] === SHIP_ACCENT;
+        const kd = (k) => SHIP_KD[m.shade[k]] || SHIP_KD.metal;
+        const geo = trFaceted(Float32Array.from(m.pos), (k) => (isAcc(k) ? [1, 1, 1] : kd(k)), null);
+        return trShipAttrs(geo, (k) => (isAcc(k) ? 1 : 0),
+            (k) => (isAcc(k) ? ACCENT_SHINE : 1 - Math.max.apply(null, kd(k))));
+    }
+
+    function trShipColours() {
+        if (FOE_COL) FOE_COL.set(tr.ships.accent);
+    }
+
     function trShipMesh(geo, kind) {
         const mesh = trInstanced(geo, trShipMat(kind), MAX_ENEMIES);
         // Every slot gets a colour now: the instance-colour attribute changes
@@ -886,8 +974,7 @@
     function trAddShipMeshes() {
         if (!MODELS || tr.shipMeshes.length > 1) return;
         MODELS.forEach((m) => {
-            const geo = trFaceted(Float32Array.from(m.pos), (k) => [m.shade[k], m.shade[k], m.shade[k]], null);
-            const mesh = trShipMesh(geo, 'model');
+            const mesh = trShipMesh(trModelGeometry(m), 'model');
             tr.scene.add(mesh);
             tr.shipMeshes.push(mesh);
             tr.shipTail.push(m.tail);
@@ -955,7 +1042,8 @@
     }
 
     function trBuildPools() {
-        tr.rockMesh = trInstanced(trRockGeometry(), new THREE.MeshLambertMaterial({ vertexColors: true }), MAX_ROCKS);
+        tr.rockDetail = TIERS[tr.tier].rockDetail;
+        tr.rockMesh = trInstanced(trRockGeometry(tr.rockDetail), new THREE.MeshLambertMaterial({ vertexColors: true }), MAX_ROCKS);
         tr.rocks = [];
         for (let i = 0; i < MAX_ROCKS; i++) {
             // `gen` counts reuses of the slot, so a bolt aimed at a rock that
@@ -978,9 +1066,13 @@
                     specular: SHIP_SPEC, shininess: SHIP_SHINE }),
             },
         };
+        tr.shipShineK = { value: tr.ships.shine };
+        ['matte', 'shiny'].forEach((k) => ['dart', 'model'].forEach((m) => { tr.shipMats[k][m].onBeforeCompile = trShipShader; }));
+        trShipColours();
         tr.shiny = TIERS[tr.tier].shiny;
-        // Mesh 0 is the built-in dart; trAddShipMeshes appends the models.
-        tr.shipMeshes = [trShipMesh(trShipGeometry(), 'dart')];
+        // Mesh 0 is the built-in dart, painted all over; trAddShipMeshes
+        // appends the models.
+        tr.shipMeshes = [trShipMesh(trShipAttrs(trShipGeometry(), () => 1, () => 0.5), 'dart')];
         tr.shipTail = [-1.5];
         tr.shipN = new Int32Array(1);
         tr.glows = trShapePoints(MAX_ENEMIES, tr.discTex, 1.5, 3, 20);
@@ -1066,6 +1158,7 @@
         tr.glowTex = trGlowTexture(64, 0.3);
         tr.discTex = trShapeTexture(128, '#d4d4d4', '#ffffff', 'rgba(255,255,255,0.32)', false);
         tr.ringTex = trShapeTexture(128, null, '#ffffff', 'rgba(255,255,255,0.4)', true);
+        tr.thinRingTex = trShapeTexture(256, null, '#ffffff', 'rgba(255,255,255,0.35)', 'thin');
         tr.boltTex = trShapeTexture(64, '#f0ffff', '#3fd2ff', 'rgba(63,210,255,0.45)', false);
         tr.zapTex = trShapeTexture(64, '#fff2ea', '#ff4a30', 'rgba(255,74,48,0.45)', false);
         tr.sky = new THREE.Group();
@@ -1177,6 +1270,13 @@
             // Swapping a material compiles its program the first time: a
             // hitch once, when auto steps down, not a cost every frame.
             tr.muzzleLight.visible = T.flashLight;
+            // Same attributes, same material: a new rock geometry is an
+            // upload, not a recompile.
+            if (tr.rockDetail !== T.rockDetail) {
+                tr.rockDetail = T.rockDetail;
+                tr.rockMesh.geometry.dispose();
+                tr.rockMesh.geometry = trRockGeometry(T.rockDetail);
+            }
             if (tr.shiny !== T.shiny) {
                 tr.shiny = T.shiny;
                 tr.shipMeshes.forEach((m) => { m.material = trShipMat(m.userData.kind); });
@@ -1199,6 +1299,15 @@
         trApplyTier();
     }
 
+    // FOVs are vertical on a landscape stage. On a portrait one the same angle
+    // goes across instead, so the guns and the width of the sky stay in view
+    // and the extra height is extra sky.
+    function trFov(deg) {
+        const a = tr.camera.aspect;
+        if (a >= 1) return deg;
+        return THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(deg / 2)) / a));
+    }
+
     function trResize() {
         if (!tr.renderer) return;
         const w = tr.stage.clientWidth, h = tr.stage.clientHeight;
@@ -1207,7 +1316,9 @@
         const s = TIERS[tr.tier].scale;
         const bh = Math.max(1, Math.round(h * s));
         tr.renderer.setSize(Math.max(1, Math.round(w * s)), bh, false);
+        const zoomed = tr.camera.fov < trFov(BASE_FOV) - 0.05;
         tr.camera.aspect = w / h;
+        tr.camera.fov = trFov(zoomed ? ZOOM_FOV : BASE_FOV);
         tr.camera.updateProjectionMatrix();
         [tr.glows, tr.boltPts, tr.zapPts].forEach((p) => {
             const u = p.material.uniforms, px = p.material.userData.px;
@@ -1650,7 +1761,10 @@
             }
 
             DUMMY.position.copy(e.pos);
-            DUMMY.scale.setScalar(SHIP_SCALE);
+            // The squish is in the fighter's own frame, so it stays flat
+            // through a bank. The instancing shader divides normals by the
+            // scale, so a squashed panel is still lit as the panel it is.
+            DUMMY.scale.set(SHIP_SCALE, SHIP_SCALE * (1 - tr.ships.squish), SHIP_SCALE);
             DUMMY.lookAt(V2);
             DUMMY.rotateZ(bank);
             DUMMY.updateMatrix();
@@ -1797,8 +1911,14 @@
         return g.mesh.localToWorld(out.set(0, 0, GUN_LEN));
     }
 
+    // A full pool gives up its oldest free shot — one aimed at nothing — so
+    // rapid fire never swallows a tap. A locked bolt is never taken: its
+    // question is waiting on it.
     function trSpawnBolt(from, to, t1, target) {
-        const b = tr.bolts.find((x) => !x.active);
+        let b = tr.bolts.find((x) => !x.active);
+        if (!b) {
+            for (const x of tr.bolts) if (!x.target && !x.rock && (!b || x.t0 < b.t0)) b = x;
+        }
         if (!b) return null;
         b.from.copy(from);
         b.to.copy(to);
@@ -1822,10 +1942,11 @@
     }
 
     function trFire(clientX, clientY) {
-        // While a card is up the stage is not a trigger: a stray tap beside
-        // an answer button must not fire, and one lock at a time keeps one
+        // While a card is asking the stage is not a trigger: a stray tap
+        // beside an answer button must not fire. Once it is answered the guns
+        // are free again, but nothing locks until the card has gone — one
         // question at a time.
-        if (!tr.running || tr.ask) return;
+        if (!tr.running || (tr.ask && tr.ask.phase === 'ask')) return;
         const r = tr.stage.getBoundingClientRect();
         const nx = ((clientX - r.left) / r.width) * 2 - 1;
         const ny = -((clientY - r.top) / r.height) * 2 + 1;
@@ -1840,7 +1961,7 @@
         tr.barrel = -tr.barrel;
         const gun = tr.guns[tr.barrel > 0 ? 1 : 0];
         gun.pivot.getWorldPosition(V5);
-        let foe = trPickFoe(nx, ny, r.width, r.height), rock = null;
+        let foe = tr.ask ? null : trPickFoe(nx, ny, r.width, r.height), rock = null;
         if (foe && trLead(foe, V5) >= foe.t0 + foe.dur - 0.15) foe = null;
         if (foe) trPathAt(foe, trLead(foe, V5), V6);
         else {
@@ -1893,7 +2014,7 @@
         tr.timeScale += (target - tr.timeScale) * (1 - Math.exp(-dt * rate));
         if (target === 1 && tr.timeScale > 0.995) tr.timeScale = 1;
 
-        const fov = A && A.phase === 'ask' ? ZOOM_FOV : BASE_FOV;
+        const fov = trFov(A && A.phase === 'ask' ? ZOOM_FOV : BASE_FOV);
         if (Math.abs(tr.camera.fov - fov) > 0.05) {
             tr.camera.fov += (fov - tr.camera.fov) * (1 - Math.exp(-dt * 6));
             tr.camera.updateProjectionMatrix();
@@ -2241,7 +2362,7 @@
      * Every explosion is a handful of crisp discs and rings from one pool,
      * each with its own size curve, colour fade, drift and delay. A ring of
      * the pool: an explosion when the pool is busy takes the oldest shapes.
-     * Ten styles, picked in the debug panel; rocks always crumble the same.
+     * Eight styles, picked in the debug panel; rocks always crumble the same.
      *
      * Curves: 'out' swells fast then slows; 'pop' grows and shrinks to
      * nothing; 'shrink' starts at r0 and dwindles toward r1.
@@ -2252,7 +2373,7 @@
         const p = tr.puffs[puffNext];
         puffNext = (puffNext + 1) % MAX_PUFFS;
         const m = p.sp.material;
-        m.map = o.ring ? tr.ringTex : tr.discTex;
+        m.map = o.ring === 'thin' ? tr.thinRingTex : o.ring ? tr.ringTex : tr.discTex;
         m.blending = o.add ? THREE.AdditiveBlending : THREE.NormalBlending;
         p.c0.setHex(o.c0);
         p.c1.setHex(o.c1 === undefined ? o.c0 : o.c1);
@@ -2302,6 +2423,7 @@
             [[0xff9e2e, 0xbf3314], [0xff6a1f, 0x5a1a10], [0xf2d8a0, 0x4d4440]].forEach(([a, b], k) =>
                 trPuff({ at, off: jit(0.55 * R), c0: a, c1: b, r0: 0.5 * R, r1: rand(1.4, 2) * R,
                     life: rand(0.4, 0.55) + k * 0.05, delay: (k + 1) * 0.06, order: k + 1 }));
+            trShock(at, R);
         }],
         ['Bolt ring', (at, R) => {
             trPuff({ at, ring: true, add: true, c0: 0xa8f4ff, c1: 0x3fd2ff, r0: 0.2 * R, r1: 2.8 * R, life: 0.28, fade: 0.3 });
@@ -2319,9 +2441,6 @@
             trPuff({ at, ring: true, add: true, c0: 0xa8f4ff, c1: 0x3fd2ff, r0: 0.2 * R, r1: 2.4 * R, life: 0.3, order: 1 });
             trPuff({ at, ring: true, add: true, c0: 0xffb060, c1: 0xff4a20, r0: 0.3 * R, r1: 3.4 * R, life: 0.5, delay: 0.1, order: 2 });
         }],
-        ['Pop', (at, R) => {
-            trPuff({ at, curve: 'pop', c0: 0xffe080, c1: 0xff4020, r1: 2 * R, life: 0.38, fade: 1 });
-        }],
         ['Scatter', (at, R) => {
             trPuff({ at, curve: 'pop', c0: 0xffffff, c1: 0xffd080, r1: R, life: 0.2, fade: 1 });
             for (let k = 0; k < 7; k++) {
@@ -2338,7 +2457,7 @@
         }],
         ['Shockwave', (at, R) => {
             trPuff({ at, curve: 'pop', c0: 0xffd070, c1: 0xff5020, r1: 1.4 * R, life: 0.4, fade: 1, order: 1 });
-            trPuff({ at, ring: true, add: true, c0: 0xe0f0ff, c1: 0x6a8cff, r0: 0.2 * R, r1: 5.5 * R, life: 0.65, fade: 0.2 });
+            trShock(at, R);
         }],
         ['Chain', (at, R, dir) => {
             for (let k = 0; k < 3; k++) {
@@ -2347,16 +2466,12 @@
                 trPuff({ at, off, ring: true, add: true, c0: 0xffc070, c1: 0xff4020, r0: 0.3 * R, r1: 1.8 * R, life: 0.3, delay: k * 0.12 });
             }
         }],
-        ['Starburst', (at, R, dir, right, up) => {
-            trPuff({ at, curve: 'pop', c0: 0xffffff, c1: 0xffe070, r1: 1.2 * R, life: 0.28, fade: 1, order: 1 });
-            trPuff({ at, ring: true, add: true, c0: 0xfff0a0, c1: 0xffa030, r0: 0.3 * R, r1: 2.2 * R, life: 0.35 });
-            for (let k = 0; k < 8; k++) {
-                const a = k * Math.PI / 4;
-                const v = right.clone().multiplyScalar(Math.cos(a)).addScaledVector(up, Math.sin(a)).multiplyScalar(16);
-                trPuff({ at, vel: v, curve: 'shrink', c0: 0xffe070, c1: 0xff6020, r0: 0.4 * R, r1: 0.05 * R, life: 0.5, order: 2 });
-            }
-        }],
     ];
+
+    // The shockwave: a thin blue-white ring that races out and is gone.
+    function trShock(at, R) {
+        trPuff({ at, ring: 'thin', add: true, c0: 0xe0f0ff, c1: 0x6a8cff, r0: 0.3 * R, r1: 5.5 * R, life: 0.32, fade: 0.25 });
+    }
 
     function trExplode(at, dir) {
         const m = tr.camera.matrixWorld;
@@ -2687,7 +2802,6 @@
      * twin while the wash flashes — a smooth colour change, no re-bake.
      */
     const WINDOW = [[260, 90], [1340, 90], [1520, 300], [1520, 760], [1380, 900], [220, 900], [80, 760], [80, 300]];
-    const WINDOW_C = [800, 495];
     const GRIME_SCALE = 0.5;                // baked at half the stage's size; it is soft anyway
     const GLASS = ['tr-grime', 'tr-grime-hurt', 'tr-hurt'];
 
@@ -2698,31 +2812,53 @@
         img.src = 'textures/window-grime.png?v=' + (window.ASSET_V || '1');
     }
 
-    // Erase the middle of a canvas: the stencil.
+    // The window's outline in canvas pixels — stretched to the canvas as the
+    // frame SVG is — moved in by `d` pixels square to every edge. The window
+    // is convex and wound clockwise on screen, so each edge's inward normal
+    // is its direction turned a right angle clockwise, and each new corner is
+    // where two neighbouring moved edges cross.
+    function trInsetWindow(W, H, d) {
+        const P = WINDOW.map((p) => [p[0] / 1600 * W, p[1] / 1000 * H]);
+        const n = P.length, L = [];
+        for (let i = 0; i < n; i++) {
+            const a = P[i], b = P[(i + 1) % n];
+            const len = Math.hypot(b[0] - a[0], b[1] - a[1]);
+            const tx = (b[0] - a[0]) / len, ty = (b[1] - a[1]) / len;
+            L.push([a[0] - ty * d, a[1] + tx * d, tx, ty]);
+        }
+        return L.map((B, i) => {
+            const A = L[(i + n - 1) % n];
+            const s = ((B[0] - A[0]) * B[3] - (B[1] - A[1]) * B[2]) / (A[2] * B[3] - A[3] * B[2]);
+            return [A[0] + A[2] * s, A[1] + A[3] * s];
+        });
+    }
+
+    // Erase the middle of a canvas: the stencil. Reach and fade are both
+    // fractions of the canvas's SHORT side, the same distance in from every
+    // edge, so the shape keeps its border at any aspect ratio.
     function trCutCentre(g, W, H) {
-        const clear = 1 - tr.grime.reach;
-        const blur = Math.round(W * tr.grime.fade);
+        const U = Math.min(W, H);
+        // Never past the middle: the window's inside is about 0.81 H tall.
+        const d = Math.min(tr.grime.inset * U, 0.38 * Math.min(W * 0.9, H * 0.81));
+        const blur = Math.round(U * tr.grime.soft);
         g.globalCompositeOperation = 'destination-out';
         g.fillStyle = '#000';
         if ('filter' in g) {
             if (blur) g.filter = 'blur(' + blur + 'px)';
             g.beginPath();
-            WINDOW.forEach((p, i) => {
-                const x = (WINDOW_C[0] + (p[0] - WINDOW_C[0]) * clear) / 1600 * W;
-                const y = (WINDOW_C[1] + (p[1] - WINDOW_C[1]) * clear) / 1000 * H;
-                if (i) g.lineTo(x, y); else g.moveTo(x, y);
-            });
+            trInsetWindow(W, H, d).forEach((p, i) => { if (i) g.lineTo(p[0], p[1]); else g.moveTo(p[0], p[1]); });
             g.closePath();
             g.fill();
             g.filter = 'none';
         } else {
             // No canvas filters: an ellipse fading out does the same job, a
             // little less faithfully to the window's corners.
+            const rx = W * 0.45 - d + blur, ry = H * 0.405 - d + blur;
             g.save();
             g.translate(W / 2, H * 0.495);
-            g.scale(W * 0.5 * clear + blur, H * 0.5 * clear + blur);
+            g.scale(rx, ry);
             const rg = g.createRadialGradient(0, 0, 0, 0, 0, 1);
-            const solid = clamp(1 - (2 * blur) / Math.max(1, W * 0.5 * clear + blur), 0, 0.99);
+            const solid = clamp(1 - (2 * blur) / Math.max(1, Math.min(rx, ry)), 0, 0.99);
             rg.addColorStop(0, 'rgba(0,0,0,1)');
             rg.addColorStop(solid, 'rgba(0,0,0,1)');
             rg.addColorStop(1, 'rgba(0,0,0,0)');
@@ -2757,9 +2893,16 @@
         g = grime.getContext('2d');
         g.clearRect(0, 0, W, H);
         if (img) {
-            // Cover, as background-size: cover would.
-            const k = Math.max(W / img.width, H / img.height);
-            g.drawImage(img, (W - img.width * k) / 2, (H - img.height * k) / 2, img.width * k, img.height * k);
+            // Cover, as background-size: cover would — turned a quarter on a
+            // portrait stage, so a landscape texture is not cropped to a strip.
+            const turn = H > W;
+            const iw = turn ? img.height : img.width, ih = turn ? img.width : img.height;
+            const k = Math.max(W / iw, H / ih);
+            g.save();
+            g.translate(W / 2, H / 2);
+            if (turn) g.rotate(Math.PI / 2);
+            g.drawImage(img, -img.width * k / 2, -img.height * k / 2, img.width * k, img.height * k);
+            g.restore();
             trCutCentre(g, W, H);
             const t = twin.getContext('2d');
             t.clearRect(0, 0, W, H);
@@ -2822,8 +2965,11 @@
         near: ['Lock distance', NEAR_MIN, NEAR_MAX, 4, () => tr.nearPx, (v) => { tr.nearPx = v; }, (v) => v + ' px'],
         bolt: ['Turret bolts', 30, 300, 10, () => tr.boltSpeed, (v) => { tr.boltSpeed = v; }, (v) => v + ' u/s'],
         zap: ['Enemy bolts', 20, 200, 5, () => tr.zapSpeed, (v) => { tr.zapSpeed = v; }, (v) => v + ' u/s'],
-        reach: ['Reach', 5, 60, 1, () => Math.round(tr.grime.reach * 100), (v) => { tr.grime.reach = v / 100; }, (v) => v + '%', true],
-        fade: ['Fade', 0, 30, 1, () => Math.round(tr.grime.fade * 100), (v) => { tr.grime.fade = v / 100; }, (v) => v + '%', true],
+        reach: ['Reach', 2, 50, 1, () => Math.round(tr.grime.inset * 100), (v) => { tr.grime.inset = v / 100; }, (v) => v + '%', true],
+        fade: ['Fade', 0, 30, 1, () => Math.round(tr.grime.soft * 100), (v) => { tr.grime.soft = v / 100; }, (v) => v + '%', true],
+        squish: ['Squish', 0, 80, 1, () => Math.round(tr.ships.squish * 100), (v) => { tr.ships.squish = v / 100; }, (v) => v + '%'],
+        shine: ['Shine', 0, 300, 5, () => Math.round(tr.ships.shine * 100),
+            (v) => { tr.ships.shine = v / 100; if (tr.shipShineK) tr.shipShineK.value = tr.ships.shine; }, (v) => v + '%'],
     };
 
     function trBuildDebug() {
@@ -2911,7 +3057,7 @@
         r.append(trEl('span', 'tr-dbg-label', 'Strength'), dual, dv);
         trDualShow();
         head(d, 'Stencil');
-        note(d, 'Reach: how far in from the window\'s edge grime and the hit flash may show. Fade: how soft their inner edge is.');
+        note(d, 'Reach: how far in from the window\'s edge grime and the hit flash may show. Fade: how soft their inner edge is. Both are a share of the screen\'s short side, so the border is the same depth on every edge.');
         slider(d, 'reach');
         slider(d, 'fade');
         head(d, 'Hit');
@@ -2919,6 +3065,15 @@
         r.append(trEl('span', 'tr-dbg-label', 'Hit colour'));
         color(r, 'hurtColor', tr.grime.hurt);
         r.append(trDbgBtn('Test', 'hurt'));
+
+        d = cat('ships', 'Ships');
+        note(d, 'The kit\'s own colours, but for the accent panels. Squish takes height off every fighter. Shine: darker panels shine more; this scales all of it (Medium and High only).');
+        r = row(d);
+        r.append(trEl('span', 'tr-dbg-label', 'Accent'));
+        color(r, 'shipAccent', tr.ships.accent);
+        r.append(trDbgBtn('Swoop', 'swoop'));
+        slider(d, 'squish');
+        slider(d, 'shine');
 
         d = cat('sound', 'Sound');
         note(d, 'Changing one plays it.');
@@ -3007,6 +3162,7 @@
         if (key === 'grimeOn') { tr.grime.on = t.checked; tr.glassOp = [-1, -1, -1]; trSaveDebug(); return; }
         if (key === 'grimeColor') { tr.grime.color = t.value; trBakeGrime(); trSaveDebug(); return; }
         if (key === 'hurtColor') { tr.grime.hurt = t.value; trBakeGrime(); trSaveDebug(); return; }
+        if (key === 'shipAccent') { tr.ships.accent = t.value; trShipColours(); trSaveDebug(); return; }
         if (key === 'probe') {
             $('tr-probe').classList.toggle('hidden', !t.checked);
             stSet('turret.probe', t.checked ? '1' : '0');
@@ -3040,6 +3196,9 @@
             tr.boom = 0; tr.nearPx = NEAR_PX; tr.sfx = {};
             tr.boltSpeed = BOLT_SPEED; tr.zapSpeed = ZAP_SPEED;
             tr.grime = Object.assign({}, GRIME);
+            tr.ships = Object.assign({}, SHIPS);
+            if (tr.shipShineK) tr.shipShineK.value = tr.ships.shine;
+            trShipColours();
             trBakeGrime();
             trSaveDebug();
             trBuildDebug();

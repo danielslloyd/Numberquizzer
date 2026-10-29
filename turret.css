@@ -8,15 +8,18 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 0 0 1rem;
+    padding: 0;
+    /* The screen is the flex child that gets whatever the viewport leaves
+       under the bars; spanning all of its rows, the column gets all of it. */
+    grid-row: 1 / -1;
+    min-height: 0;
 }
 
-/* 16:10 to match the Fire HD screens, but never taller than the viewport
-   leaves room for under the tab bars. */
+/* Everything the viewport leaves under the tab bar, at whatever shape it is. */
 .tr-stage {
     position: relative;
     width: 100%;
-    height: min(72vh, 62.5vw);
+    flex: 1 1 0;
     min-height: 240px;
     background: #05060d;
     overflow: hidden;
