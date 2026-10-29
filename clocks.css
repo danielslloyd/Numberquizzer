@@ -1,0 +1,82 @@
+/* clocks.js — the Clocks tab. Prefix ck. */
+
+.ck-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .8rem;
+    padding-bottom: 2rem;
+}
+
+.ck-config { display: flex; flex-wrap: wrap; gap: .6rem; justify-content: center; }
+
+.ck-score-bar {
+    display: flex;
+    gap: 1.6rem;
+    font-weight: 700;
+    color: #555;
+    font-size: .95rem;
+}
+
+.ck-prompt {
+    font-size: 1.35rem;
+    font-weight: 700;
+    text-align: center;
+    min-height: 1.8em;
+}
+.ck-prompt strong { color: #1565c0; }
+
+.ck-stage { display: flex; justify-content: center; }
+
+/* ---- the face ------------------------------------------------------------
+   Sized in vmin so the clock stays a clock on a phone. It is the whole
+   interface in Set mode, so it gets the room. */
+.ck-face { width: min(74vw, 300px); height: min(74vw, 300px); touch-action: none; }
+.ck-face.is-small { width: min(38vw, 160px); height: min(38vw, 160px); }
+
+.ck-dial { fill: #fff; stroke: #37474f; stroke-width: 3; }
+.ck-tick { stroke: #b0bec5; stroke-width: 1.5; }
+.ck-tick.is-hour { stroke: #37474f; stroke-width: 3; }
+.ck-num {
+    font-family: 'Fredoka', system-ui, sans-serif;
+    font-size: 17px;
+    font-weight: 600;
+    fill: #263238;
+    text-anchor: middle;
+    dominant-baseline: central;
+}
+
+/* The hour hand is short and fat, the minute hand long and thin. That contrast
+   is the first thing a child learns to read, so it is exaggerated here rather
+   than left to a two-pixel difference. */
+.ck-hand { stroke-linecap: round; }
+.ck-hand.is-hour { stroke: #263238; stroke-width: 8; }
+.ck-hand.is-minute { stroke: #1565c0; stroke-width: 5; }
+.ck-pin { fill: #263238; }
+
+.ck-grab { stroke: transparent; stroke-width: 22; stroke-linecap: round; cursor: grab; }
+.ck-grab:active { cursor: grabbing; }
+
+.ck-pair { display: flex; gap: 1.4rem; align-items: flex-start; flex-wrap: wrap; justify-content: center; }
+.ck-pair figure { margin: 0; display: flex; flex-direction: column; align-items: center; gap: .3rem; }
+.ck-pair figcaption { font-weight: 700; color: #607d8b; font-size: .9rem; }
+
+/* ---- answers -------------------------------------------------------------*/
+.ck-answer { display: flex; flex-wrap: wrap; gap: .5rem; justify-content: center; min-height: 3rem; }
+.ck-answer.is-choices .ck-choice { min-width: 5.5rem; font-size: 1.1rem; }
+
+.ck-choice.is-correct { background: #e8f5e9; border-color: #2e7d32; color: #1b5e20; }
+.ck-choice.is-wrong { background: #ffebee; border-color: #c62828; color: #b71c1c; }
+
+.ck-explain {
+    min-height: 2.6em;
+    text-align: center;
+    font-size: 1rem;
+    max-width: 30em;
+    padding: 0 .5rem;
+}
+.ck-explain.is-right { color: #2e7d32; font-weight: 600; }
+.ck-explain.is-wrong { color: #c62828; }
+
+.ck-next { min-width: 8rem; }
+.ck-next.hidden { display: none; }

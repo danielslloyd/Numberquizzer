@@ -254,6 +254,24 @@ Add it to `ITEM_TYPES` in `item-types.js` with `render` / `collect` / optional
 `autoSubmit`, `focus`, `clear`, `reveal`, add its grader to `GRADERS`, and add the
 name to `VALID_TYPES` in `tools/validate-curriculum.js`.
 
+**A renderer alone changes nothing.** A node lists the types it *permits*; the
+generator decides what it *emits*. Until a `gen/` pack actually builds items of
+the new type, every node declaring it carries on emitting multiple choice and
+nothing looks broken — which is exactly how `tap-token`, `match` and `sort-bins`
+sat declared-but-unbuilt across 49 nodes. `smoke-generators.js` is the check
+that matters: it fails an item whose type the node does not declare, and it
+grades every item against its own grader.
+
+Two traps, both found the hard way:
+
+- **`clear()` must undo `reveal()`, not just the selection.** Most types get
+  away with clearing only the selection because `render()` rebuilds the host
+  each item. A type graded *in place* — marks left on the sentence itself —
+  will otherwise show last question's feedback on this one.
+- **Delegate onto the container you just built, never onto `host`.** The
+  response host outlives every item, so a listener bound there is still
+  attached on the next question, and the one after that.
+
 Representation is an orthogonal axis, not a node. A concrete/pictorial/abstract
 variant of the same proficiency is a `params` flag on the generator — treating it
 as a separate node is the most common way lists like this bloat.

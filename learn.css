@@ -331,6 +331,183 @@
 }
 .ir-multi-note { width: 100%; text-align: center; color: #777; font-size: .88rem; margin: 0 0 .2rem; }
 
+/* ---- tap-token ----------------------------------------------------------
+   The sentence IS the response, so it is set at reading size and laid out as
+   running text rather than as a row of controls. Tokens keep a transparent
+   border of the same width they get when selected, so nothing reflows on tap —
+   a sentence that re-wraps under the finger loses the child's place. */
+.ir-taptok {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: center;
+    gap: .12rem .3rem;
+    font-size: 1.35rem;
+    line-height: 1.9;
+    max-width: 34em;
+    margin: 0 auto;
+}
+.ir-taptok.is-tight { gap: .12rem 0; }
+
+/* Whole sentences, stacked. Left-aligned and boxed, because picking the
+   evidence out of a passage is a different act from picking a word out of a
+   line — the eye needs to scan down a list, not along one. */
+.ir-taptok.is-blocks {
+    flex-direction: column;
+    align-items: stretch;
+    font-size: 1.05rem;
+    line-height: 1.55;
+    max-width: 40em;
+    gap: .4rem;
+}
+.ir-taptok.is-blocks .ir-tok {
+    text-align: left;
+    padding: .5rem .7rem;
+    border-color: #e0e0e0;
+}
+.ir-taptok.is-blocks .ir-tok.selected { border-color: #1565c0; }
+
+.ir-tok, .ir-tok-fixed {
+    font: inherit;
+    padding: .1rem .3rem;
+    border: 2px solid transparent;
+    border-radius: 6px;
+    background: none;
+    color: inherit;
+}
+.ir-tok { cursor: pointer; }
+.ir-tok:hover { border-color: #90caf9; }
+.ir-tok.selected { border-color: #1565c0; background: #e3f2fd; }
+.ir-tok-fixed { cursor: default; }
+
+/* A slot has to be visible before it is tapped or there is nothing to aim at,
+   but it must not read as punctuation that is already there — hence a hairline
+   that thickens on selection rather than a glyph. */
+.ir-slot {
+    width: 14px;
+    align-self: stretch;
+    min-height: 1.6em;
+    padding: 0;
+    border: none;
+    border-radius: 3px;
+    background: none;
+    cursor: pointer;
+    position: relative;
+}
+.ir-slot::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: .15em;
+    bottom: .15em;
+    width: 2px;
+    transform: translateX(-50%);
+    background: #d5d5d5;
+    border-radius: 2px;
+}
+.ir-slot:hover::before { background: #90caf9; }
+.ir-slot.selected::before { background: #1565c0; width: 4px; }
+
+/* Tapped-and-right, tapped-and-wrong, and should-have-been-tapped are three
+   different things to a learner, so they get three different marks. */
+.ir-tok.is-correct { border-color: #2e7d32; background: #e8f5e9; }
+.ir-tok.is-wrong   { border-color: #c62828; background: #ffebee; }
+.ir-tok.is-missed  { border-color: #2e7d32; border-style: dashed; }
+.ir-slot.is-correct::before { background: #2e7d32; width: 4px; }
+.ir-slot.is-wrong::before   { background: #c62828; width: 4px; }
+.ir-slot.is-missed::before  { background: #2e7d32; width: 4px; opacity: .45; }
+
+/* ---- match ---------------------------------------------------------------
+   Two columns with a fixed gutter. Rows are NOT aligned across the columns —
+   the right side is shuffled, and lining rows up would hint at the pairing. */
+.ir-match { display: flex; gap: 1.6rem; align-items: flex-start; justify-content: center; }
+.ir-match-col { display: flex; flex-direction: column; gap: .45rem; flex: 1 1 0; max-width: 15rem; }
+.ir-match-item {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    font: inherit;
+    font-size: 1rem;
+    text-align: left;
+    padding: .5rem .6rem;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    background: #fff;
+    cursor: pointer;
+}
+.ir-match-item:hover { border-color: #90caf9; }
+.ir-match-item.selected { border-color: #1565c0; background: #e3f2fd; }
+.ir-match-item.paired { background: #f6f6f6; color: #555; }
+.ir-match-text { flex: 1 1 auto; }
+/* The tag box is present from the start at its final size, so joining a pair
+   never nudges the columns and moves the thing being aimed at. */
+.ir-match-tag {
+    flex: 0 0 1.35rem;
+    height: 1.35rem;
+    line-height: 1.35rem;
+    text-align: center;
+    border-radius: 50%;
+    font-size: .8rem;
+    font-weight: 700;
+    color: #fff;
+    background: transparent;
+}
+.ir-match-item.paired .ir-match-tag { background: #607d8b; }
+.ir-match-item.is-correct { border-color: #2e7d32; background: #e8f5e9; color: #222; }
+.ir-match-item.is-wrong   { border-color: #c62828; background: #ffebee; color: #222; }
+.ir-match-item.is-correct .ir-match-tag { background: #2e7d32; }
+.ir-match-item.is-wrong .ir-match-tag   { background: #c62828; }
+
+/* ---- sort-bins ----------------------------------------------------------- */
+.ir-sort { flex-direction: column; gap: .9rem; }
+.ir-sort-tray {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: .4rem;
+    min-height: 2.6rem;
+    width: 100%;
+    padding: .4rem;
+    border: 2px dashed #ddd;
+    border-radius: 10px;
+}
+.ir-sort-item {
+    font: inherit;
+    font-size: 1rem;
+    padding: .4rem .7rem;
+    border: 2px solid #cfcfcf;
+    border-radius: 999px;
+    background: #fff;
+    cursor: pointer;
+}
+.ir-sort-item:hover { border-color: #90caf9; }
+.ir-sort-item.selected { border-color: #1565c0; background: #e3f2fd; }
+.ir-sort-bins { display: flex; flex-wrap: wrap; gap: .7rem; justify-content: center; width: 100%; }
+.ir-sort-bin {
+    flex: 1 1 9rem;
+    min-width: 8rem;
+    max-width: 15rem;
+    border: 2px solid #e0e0e0;
+    border-radius: 10px;
+    padding: .5rem;
+    background: #fafafa;
+    cursor: pointer;
+}
+.ir-sort-bin:hover { border-color: #90caf9; }
+.ir-sort-bin-label {
+    display: block;
+    text-align: center;
+    font-weight: 700;
+    font-size: .92rem;
+    color: #555;
+    margin-bottom: .4rem;
+}
+/* Holds its height empty so the bins do not grow and shuffle under the finger
+   as the first item lands in one of them. */
+.ir-sort-drop { display: flex; flex-wrap: wrap; gap: .35rem; justify-content: center; min-height: 2.4rem; }
+.ir-sort-item.is-correct { border-color: #2e7d32; background: #e8f5e9; }
+.ir-sort-item.is-wrong   { border-color: #c62828; background: #ffebee; }
+
 /* The strand a "maybe next" chip came from. The label alone does not say where
    it sits, and the chips are drawn from every strand at once. */
 .lb-chip-where {

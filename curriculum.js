@@ -53,6 +53,16 @@
         };
         // n distinct members, or the whole array if it is shorter than n.
         rng.sample = function (arr, n) { return rng.shuffle(arr).slice(0, n); };
+        /* One discarded step before the rng is handed out. xorshift32's first
+         * output is poorly diffused for structured seeds: every seed of the
+         * form small-base + k*0x9e3779b9 — which is exactly what generate()
+         * builds from a small caller seed — put its first draw in [0.42, 1),
+         * measured over 60 such seeds. A generator that gates a branch on its
+         * opening draw ("a third of the time, sort instead") then never takes
+         * it, and an opening pick() can never reach the front half of its
+         * array. One step of mixing is what the raw first draw lacks; nothing
+         * replays stored seeds, so no issued item depends on the old stream. */
+        rng();
         return rng;
     }
 

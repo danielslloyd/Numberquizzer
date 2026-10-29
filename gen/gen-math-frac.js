@@ -151,6 +151,24 @@
     };
 
     G['frac.equivalent.recognise'] = function (rng, p) {
+        /* Four equivalences joined at once. The bases all have DISTINCT values,
+         * which is what makes the pairing well-defined: if 1/2 and 2/4 were
+         * both on the left, each other's scaled forms would be defensible
+         * answers, and two defensible answers is the failure mode. */
+        if (rng.bool()) {
+            const bases = rng.sample([[1, 2], [1, 3], [1, 4], [2, 3], [3, 4], [2, 5]], 4);
+            return genMatch(rng, {
+                stem: 'Join each fraction to its equal.',
+                pairs: bases.map((b) => {
+                    const kk = rng.int(2, 3);
+                    return [fstr(b[0], b[1]), fstr(b[0] * kk, b[1] * kk)];
+                }),
+                hint: 'Top and bottom are multiplied by the same number.',
+                explain: 'Multiplying top and bottom by the same number keeps the value the same.',
+                sig: 'eqRecMatch:' + bases.map((b) => b.join('/')).join(','),
+            });
+        }
+
         const base = rng.pick([[1, 2], [1, 3], [1, 4], [2, 3], [3, 4], [2, 5]]);
         const k = rng.int(2, 3);
         const eq = [base[0] * k, base[1] * k];
@@ -251,6 +269,36 @@
     };
 
     G['frac.compare.benchmark'] = function (rng, p) {
+        /* Sorting several against the benchmark forces the half-of-the-bottom
+         * test to be applied each time; one fraction against one benchmark can
+         * be answered by vibes. Fractions exactly equal to a half are never
+         * dealt — an item with two defensible answers is this app's named
+         * failure mode, and "which bin does 2/4 go in" would be one. */
+        if (rng.bool()) {
+            const less = [], more = [], seen = {};
+            let guard = 0;
+            while ((less.length < 3 || more.length < 3) && guard++ < 60) {
+                const dd = rng.pick(dens(p).filter((x) => x >= 3));
+                const nn = rng.int(1, dd - 1);
+                const label = fstr(nn, dd);
+                if (nn * 2 === dd || seen[label]) continue;
+                seen[label] = true;
+                if (nn / dd < 0.5 && less.length < 3) less.push(label);
+                else if (nn / dd > 0.5 && more.length < 3) more.push(label);
+            }
+            if (less.length >= 2 && more.length >= 2) {
+                return genSortBins(rng, {
+                    stem: 'Sort each fraction: more or less than a half?',
+                    bins: [{ id: 'less', label: 'Less than a half' },
+                           { id: 'more', label: 'More than a half' }],
+                    put: { less: less, more: more },
+                    hint: 'Compare the top with half of the bottom.',
+                    explain: 'A fraction beats a half when its top is more than half its bottom.',
+                    sig: 'cmpBenchSort',
+                });
+            }
+        }
+
         const d = rng.pick(dens(p).filter((x) => x >= 3));
         let n = rng.int(1, d - 1);
         if (n * 2 === d) n = n === 1 ? d - 1 : n - 1;   // avoid exactly a half

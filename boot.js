@@ -26,7 +26,7 @@
 
     // Bump on ANY change to a local .js or .css file. This is the only version
     // number in the project — CLAUDE.md's per-file ?v=N rule is retired.
-    const ASSET_V = '64';
+    const ASSET_V = '103';
     window.ASSET_V = ASSET_V;
 
     // Order matters: storage and the curriculum registry come first so the node
@@ -88,6 +88,22 @@
         {
             file: 'patterns.js',
             tabs: [['patterns', 'Patterns']],
+        },
+        {
+            file: 'clocks.js',
+            tabs: [['clocks', 'Clocks']],
+        },
+        {
+            file: 'decimals.js',
+            tabs: [['decimals', 'Decimals']],
+        },
+        {
+            file: 'mazes.js',
+            tabs: [['mazes', 'Mazes']],
+        },
+        {
+            file: 'turret.js',
+            tabs: [['turret', 'Turret']],
         },
     ];
 

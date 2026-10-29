@@ -57,6 +57,24 @@
 
     G['omap.heartWords'] = function (rng) {
         const h = rng.pick(W.heart);
+
+        /* Tapping the odd part inside the assembled word beats picking it from
+         * a list: the list shows the parts already separated, which is most of
+         * the work. Tokens butt together so it still reads as one word. */
+        const at = h.parts.indexOf(h.odd);
+        if (at >= 0 && h.parts.join('') === h.w) {
+            return genTapToken({
+                stem: 'Tap the part of "' + h.w + '" that does not follow the usual rules.',
+                tokens: h.parts.slice(),
+                answer: [at],
+                join: 'none',
+                hint: 'Most of the word can be sounded out. Only one bit has to be learned by heart.',
+                explain: 'In "' + h.w + '", ' + h.why + '. The rest of the word behaves normally, which '
+                    + 'is why it is worth finding the odd part rather than memorising the whole shape.',
+                sig: 'heart:' + h.w,
+            });
+        }
+
         // The other parts of the SAME word. Offering pieces of other words would
         // let a learner answer without looking at this one.
         return genMc(rng, {

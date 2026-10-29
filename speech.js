@@ -21,6 +21,9 @@
  *     …
  *     spRelease(tok);
  *
+ * An optional `onNotice(kind, detail)` reports what the recogniser is doing —
+ * `error`, `restart` — for callers that want to show it. Nothing depends on it.
+ *
  * `onText` fires on every interim *and* final result. It is given the best
  * transcript plus every alternative the recogniser offered — when you are
  * matching against one known target, more alternatives is strictly better, so
@@ -47,6 +50,18 @@
 
     /** The live claim's token, or null. */
     function spActive() { return claim ? claim.token : null; }
+
+    /*
+     * Optional running commentary for a caller that wants to show what the
+     * recogniser is doing — errors, restarts, the stop-start churn callers are
+     * otherwise deliberately shielded from. Purely informational: a claim that
+     * does not ask for it behaves exactly as before.
+     */
+    function notice(kind, detail) {
+        if (claim && claim.onNotice) {
+            try { claim.onNotice(kind, detail || ''); } catch (e) { /* never let a logger break the mic */ }
+        }
+    }
 
     function indicator(on) {
         if (!claim || !claim.indicator) return;
@@ -79,6 +94,7 @@
         rec.onerror = (event) => {
             running = false;
             indicator(false);
+            notice('error', event.error || 'unknown');
             if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
                 const c = claim;
                 claim = null;
@@ -90,7 +106,7 @@
 
         rec.onend = () => {
             running = false;
-            if (claim) { schedule(100); return; }
+            if (claim) { notice('restart'); schedule(100); return; }
             indicator(false);
         };
     }
@@ -136,6 +152,7 @@
             onText: opts.onText,
             onStart: opts.onStart || null,
             onEnd: opts.onEnd || null,
+            onNotice: opts.onNotice || null,
             lang: opts.lang,
             alternatives: opts.alternatives,
             grammar: opts.grammar,

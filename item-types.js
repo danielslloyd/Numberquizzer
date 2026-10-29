@@ -66,7 +66,7 @@
      * the flash-card quiz has always done, which is a long-tested behaviour.
      */
     function listenForNumber(host, item, api) {
-        if (typeof spListen !== 'function' || typeof findNumberInSpeech !== 'function') return;
+        if (typeof spListen !== 'function' || typeof speechNumbers !== 'function') return;
         if (typeof spSupported !== 'function' || !spSupported()) return;
 
         const chip = document.createElement('p');
@@ -79,16 +79,18 @@
         const target = Number(item.answer);
         host.__numMic = spListen({
             lang: 'en-US',              // the number vocabulary is tuned for en-US
-            alternatives: 3,
+            alternatives: 6,
             onStart: () => { chip.classList.add('is-live'); },
             onEnd: () => { chip.classList.remove('is-live'); },
             onText: (transcript, info) => {
                 if (host.dataset.locked === '1') return;
+                // Membership, not the first number found: "twenty three" reads
+                // as 20 before it reads as 23, so asking for one number back
+                // loses every two-digit answer. Same matcher as flash cards.
                 for (const alt of info.alternatives) {
-                    const heard = findNumberInSpeech(alt);
-                    if (heard !== null && heard === target) {
+                    if (speechNumbers(alt).includes(target)) {
                         const input = host.querySelector('.ir-input');
-                        if (input) input.value = String(heard);
+                        if (input) input.value = String(target);
                         api.submit();
                         return;
                     }
@@ -207,7 +209,7 @@
 
         // [[left, right], ...] in any order.
         pairs: function (resp, item) {
-            const key = (p) => String(p[0]) + ' ' + String(p[1]);
+            const key = (p) => String(p[0]) + '\u0000' + String(p[1]);
             const got = new Set((resp || []).map(key));
             const want = (item.answer || []).map(key);
             if (!want.length) return ok(got.size === 0);
@@ -356,6 +358,295 @@
             },
             clear: function (host) {
                 host.querySelectorAll('.ir-choice').forEach((b) => b.classList.remove('selected'));
+            },
+        },
+
+        /* ---- tap inside the sentence -------------------------------------
+         *
+         * The question is asked ON the text rather than beside it: no options
+         * are listed, so there is nothing to eliminate and nothing to guess
+         * between. "Which sentence uses capitals correctly?" with two choices
+         * is a coin flip; "tap every word needing a capital" is the actual skill.
+         *
+         * Two shapes, because the thing being tapped is not always a word:
+         *
+         *   mode 'token'  the tokens themselves are the targets — tap the verb,
+         *                 tap the words needing a capital.
+         *   mode 'slot'   the GAPS between tokens are the targets — tap where a
+         *                 comma goes, tap where the word divides into syllables.
+         *                 Slot i sits after token i, so there are tokens-1 of
+         *                 them and no slot hangs off either end.
+         *
+         * `join: 'none'` butts tokens together, which is what makes slot mode
+         * read as syllable division (rab|bit) rather than as separate words.
+         * `tappable` restricts token mode to a subset; punctuation is displayed
+         * but inert, so a full stop can never be "the word you tapped".
+         *
+         * Graded by `set` — unordered, Jaccard partial credit, so tapping three
+         * of four capitals scores honestly instead of zero.
+         */
+        'tap-token': {
+            autoSubmit: false,
+            render: function (host, item) {
+                const tokens = item.tokens || [];
+                const slot = item.mode === 'slot';
+                const tight = item.join === 'none';
+                const canTap = item.tappable
+                    ? new Set(item.tappable.map(Number))
+                    : null;
+
+                const parts = [];
+                tokens.forEach((t, i) => {
+                    if (slot) {
+                        parts.push(`<span class="ir-tok-fixed">${esc(t)}</span>`);
+                        if (i < tokens.length - 1) {
+                            parts.push(
+                                `<button type="button" class="ir-slot" data-i="${i}"`
+                                + ` aria-label="after ${esc(t)}"></button>`);
+                        }
+                    } else if (!canTap || canTap.has(i)) {
+                        parts.push(`<button type="button" class="ir-tok" data-i="${i}">${esc(t)}</button>`);
+                    } else {
+                        parts.push(`<span class="ir-tok-fixed">${esc(t)}</span>`);
+                    }
+                });
+
+                const cls = 'ir-response ir-taptok'
+                    + (slot ? ' is-slots' : '')
+                    + (tight ? ' is-tight' : '')
+                    // Whole sentences stack and read left-aligned; words wrap
+                    // inline. Same renderer, because "tap the sentence that is
+                    // the evidence" is the same act as "tap the verb".
+                    + (item.layout === 'block' ? ' is-blocks' : '');
+                host.innerHTML =
+                    `<p class="ir-multi-note">${esc(item.tapNote || 'Tap your answer, then press Check.')}</p>`
+                    + `<div class="${cls}">${parts.join('')}</div>`;
+
+                host.querySelectorAll('.ir-tok, .ir-slot').forEach((b) => {
+                    b.addEventListener('click', () => {
+                        if (host.dataset.locked === '1') return;
+                        b.classList.toggle('selected');
+                    });
+                });
+            },
+            collect: function (host) {
+                return [...host.querySelectorAll('.ir-tok.selected, .ir-slot.selected')]
+                    .map((b) => Number(b.dataset.i))
+                    .sort((a, b) => a - b);
+            },
+            /* Drops the reveal marks as well as the selection. Every other type
+             * gets away with clearing only the selection because render()
+             * rebuilds the host for each item — but this one is graded in place
+             * against the sentence, so a stale is-correct left on a token would
+             * read as feedback about the answer just given. */
+            clear: function (host) {
+                host.querySelectorAll('.ir-tok, .ir-slot').forEach((b) => {
+                    b.classList.remove('selected', 'is-correct', 'is-wrong', 'is-missed');
+                });
+            },
+            /* Three outcomes, not two. A word they tapped wrongly and a word
+             * they failed to tap are different mistakes, and showing both is
+             * the whole feedback — there is no options list to re-read. */
+            reveal: function (host, item) {
+                const want = new Set((item.answer || []).map(Number));
+                host.querySelectorAll('.ir-tok, .ir-slot').forEach((b) => {
+                    const i = Number(b.dataset.i);
+                    const picked = b.classList.contains('selected');
+                    if (want.has(i)) b.classList.add(picked ? 'is-correct' : 'is-missed');
+                    else if (picked) b.classList.add('is-wrong');
+                });
+            },
+        },
+
+        /* ---- match two columns -------------------------------------------
+         *
+         * Tap one side then the other to join them; tap either half again to
+         * break the pair. Deliberately not drag-and-drop, even though the drag
+         * engines in word-sort and la-diag were there to borrow: those exist
+         * for tasks where the POSITION carries the answer — an ordering, a
+         * sentence diagram. Here the answer is only which two things go
+         * together, and a tap says that exactly as well while also working
+         * under a finger, a trackpad and a keyboard.
+         *
+         * Pairs are numbered rather than colour-coded. Six colours are hard to
+         * tell apart at a glance and impossible for a colour-blind reader; a
+         * digit on both halves is unambiguous.
+         *
+         * Graded by `pairs` — partial = share of the wanted pairs present.
+         */
+        match: {
+            autoSubmit: false,
+            render: function (host, item) {
+                const col = (side, labels) => labels.map((c, i) =>
+                    `<button type="button" class="ir-match-item is-${side}" data-i="${i}">`
+                    + `<span class="ir-match-tag"></span>`
+                    + `<span class="ir-match-text">${esc(typeof c === 'string' ? c : c.text)}</span>`
+                    + '</button>').join('');
+                host.innerHTML =
+                    '<p class="ir-multi-note">Tap one from each side to join them. Tap again to undo.</p>'
+                    + '<div class="ir-response ir-match">'
+                    + `<div class="ir-match-col">${col('left', item.left || [])}</div>`
+                    + `<div class="ir-match-col">${col('right', item.right || [])}</div>`
+                    + '</div>';
+
+                const sel = (s) => host.querySelector(s);
+                const nextTag = () => {
+                    const used = new Set([...host.querySelectorAll('[data-pair]')]
+                        .map((b) => Number(b.dataset.pair)));
+                    let n = 1;
+                    while (used.has(n)) n++;
+                    return n;
+                };
+                const unpair = (btn) => {
+                    const n = btn.dataset.pair;
+                    host.querySelectorAll(`[data-pair="${n}"]`).forEach((b) => {
+                        b.removeAttribute('data-pair');
+                        b.querySelector('.ir-match-tag').textContent = '';
+                        b.classList.remove('paired');
+                    });
+                };
+                host.querySelectorAll('.ir-match-item').forEach((btn) => {
+                    btn.addEventListener('click', () => {
+                        if (host.dataset.locked === '1') return;
+                        if (btn.dataset.pair) return unpair(btn);
+
+                        const side = btn.classList.contains('is-left') ? 'is-left' : 'is-right';
+                        const other = side === 'is-left' ? 'is-right' : 'is-left';
+                        const waiting = sel('.ir-match-item.' + other + '.selected');
+
+                        // Tapping a second one on the same side moves the
+                        // selection rather than doing nothing — a silent tap
+                        // reads as the control being broken.
+                        host.querySelectorAll('.ir-match-item.' + side + '.selected')
+                            .forEach((b) => b.classList.remove('selected'));
+
+                        if (!waiting) { btn.classList.add('selected'); return; }
+                        const n = nextTag();
+                        [waiting, btn].forEach((b) => {
+                            b.classList.remove('selected');
+                            b.classList.add('paired');
+                            b.dataset.pair = n;
+                            b.querySelector('.ir-match-tag').textContent = n;
+                        });
+                    });
+                });
+            },
+            collect: function (host) {
+                const out = [];
+                host.querySelectorAll('.ir-match-item.is-left[data-pair]').forEach((l) => {
+                    const r = host.querySelector(
+                        `.ir-match-item.is-right[data-pair="${l.dataset.pair}"]`);
+                    if (r) out.push([Number(l.dataset.i), Number(r.dataset.i)]);
+                });
+                return out;
+            },
+            clear: function (host) {
+                host.querySelectorAll('.ir-match-item').forEach((b) => {
+                    b.removeAttribute('data-pair');
+                    b.classList.remove('selected', 'paired', 'is-correct', 'is-wrong');
+                    b.querySelector('.ir-match-tag').textContent = '';
+                });
+            },
+            reveal: function (host, item) {
+                const want = new Set((item.answer || []).map((p) => p[0] + ' ' + p[1]));
+                host.querySelectorAll('.ir-match-item.is-left[data-pair]').forEach((l) => {
+                    const r = host.querySelector(
+                        `.ir-match-item.is-right[data-pair="${l.dataset.pair}"]`);
+                    if (!r) return;
+                    const good = want.has(l.dataset.i + ' ' + r.dataset.i);
+                    [l, r].forEach((b) => b.classList.add(good ? 'is-correct' : 'is-wrong'));
+                });
+            },
+        },
+
+        /* ---- sort into bins ----------------------------------------------
+         *
+         * Tap an item to pick it up, tap a bin to drop it in, tap it again to
+         * send it back to the tray. Same reasoning as `match` for not dragging.
+         *
+         * Graded by `partition` — partial = share of items sitting in the right
+         * bin, so sorting four of six scores accordingly. Note that grader only
+         * counts items it WANTED in each bin, so leaving items in the tray
+         * costs marks without needing a separate rule for it.
+         */
+        'sort-bins': {
+            autoSubmit: false,
+            render: function (host, item) {
+                const bins = item.bins || [];
+                const chip = (c, i) =>
+                    `<button type="button" class="ir-sort-item" data-i="${i}">`
+                    + `${esc(typeof c === 'string' ? c : c.text)}</button>`;
+                host.innerHTML =
+                    '<p class="ir-multi-note">Tap something, then tap the box it belongs in.</p>'
+                    + '<div class="ir-response ir-sort">'
+                    + `<div class="ir-sort-tray">${(item.items || []).map(chip).join('')}</div>`
+                    + '<div class="ir-sort-bins">'
+                    + bins.map((b) =>
+                        `<div class="ir-sort-bin" data-bin="${esc(b.id)}">`
+                        + `<span class="ir-sort-bin-label">${esc(b.label)}</span>`
+                        + '<div class="ir-sort-drop"></div></div>').join('')
+                    + '</div></div>';
+
+                const tray = host.querySelector('.ir-sort-tray');
+                // Delegated onto the freshly-built container, NOT onto `host`.
+                // The host element outlives every item — a listener bound there
+                // would still be attached on the next question, and the one
+                // after that, each firing in turn.
+                host.querySelector('.ir-sort').addEventListener('click', (e) => {
+                    if (host.dataset.locked === '1') return;
+                    const chipEl = e.target.closest('.ir-sort-item');
+                    if (chipEl) {
+                        // Already in a bin: take it back out. Otherwise select it.
+                        if (chipEl.closest('.ir-sort-drop')) {
+                            chipEl.classList.remove('selected');
+                            tray.appendChild(chipEl);
+                            return;
+                        }
+                        const was = chipEl.classList.contains('selected');
+                        host.querySelectorAll('.ir-sort-item.selected')
+                            .forEach((b) => b.classList.remove('selected'));
+                        if (!was) chipEl.classList.add('selected');
+                        return;
+                    }
+                    const bin = e.target.closest('.ir-sort-bin');
+                    if (bin) {
+                        const picked = host.querySelector('.ir-sort-item.selected');
+                        if (!picked) return;
+                        picked.classList.remove('selected');
+                        bin.querySelector('.ir-sort-drop').appendChild(picked);
+                    }
+                });
+            },
+            /* null, not an empty map, when nothing has been placed. The runner
+             * only treats null and an empty ARRAY as "no answer given", so an
+             * object of empty bins would sail through and be marked zero —
+             * scoring a child who has not started yet. */
+            collect: function (host) {
+                const out = {};
+                let placed = 0;
+                host.querySelectorAll('.ir-sort-bin').forEach((bin) => {
+                    const ids = [...bin.querySelectorAll('.ir-sort-item')]
+                        .map((b) => Number(b.dataset.i));
+                    placed += ids.length;
+                    out[bin.dataset.bin] = ids;
+                });
+                return placed ? out : null;
+            },
+            clear: function (host) {
+                const tray = host.querySelector('.ir-sort-tray');
+                host.querySelectorAll('.ir-sort-item').forEach((b) => {
+                    b.classList.remove('selected', 'is-correct', 'is-wrong');
+                    tray.appendChild(b);
+                });
+            },
+            reveal: function (host, item) {
+                const want = item.answer || {};
+                host.querySelectorAll('.ir-sort-bin').forEach((bin) => {
+                    const ok = new Set(want[bin.dataset.bin] || []);
+                    bin.querySelectorAll('.ir-sort-item').forEach((b) => {
+                        b.classList.add(ok.has(Number(b.dataset.i)) ? 'is-correct' : 'is-wrong');
+                    });
+                });
             },
         },
 

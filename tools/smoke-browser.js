@@ -704,6 +704,83 @@ function check(name, ok, detail) {
     });
     check('patterns: answering scores once and reveals the pattern', npPlay.length === 0, npPlay.join(' | '));
 
+    // ---- Mazes ----------------------------------------------------------
+    await page.evaluate(() => lbApplySection('maths', { enter: true }));
+    await page.waitForTimeout(60);
+    await page.click('#tab-bar .tab-btn[data-tab="mazes"]');
+    await page.waitForFunction(() => !!window.__MZ && !!document.querySelector('.mz-cell'), { timeout: 15000 })
+        .catch(() => {});
+    await page.waitForTimeout(200);
+    check('mazes.js fetched on click', fetched('mazes.js'));
+
+    const mzState = await page.evaluate(() => {
+        const Z = window.__MZ, errs = [];
+        const state = {
+            screen: (document.querySelector('.screen.active') || {}).id,
+            highlighted: !!document.querySelector('.tab-btn[data-tab="mazes"].active'),
+            mazesTabs: document.querySelectorAll('#tab-bar .tab-btn[data-tab="mazes"]').length,
+        };
+        let made = 0;
+        ['square', 'hex'].forEach((grid) => Object.keys(Z.SIZES).forEach((size) =>
+            Object.keys(Z.PATTERNS).forEach((p) => {
+                const P = Z.PATTERNS[p];
+                (P.xs || [null]).forEach((X) => {
+                    for (let r = 0; r < 3; r++) {
+                        const key = grid + '/' + size + '/' + p + '/' + X;
+                        let m;
+                        try { m = Z.mzMake(grid, size, p, X); } catch (e) { errs.push(key + ': ' + e.message); return; }
+                        made++;
+                        // Recount with a higher cap than the generator uses —
+                        // the question is "exactly one", not "fewer than two".
+                        const n = Z.mzCount(m, 5);
+                        if (n !== 1) errs.push(key + ': ' + n + ' routes');
+                        if (m.path[0] !== m.start || m.path[m.path.length - 1] !== m.end) errs.push(key + ': route misses an end');
+                        m.path.forEach((c, i) => {
+                            if (!i) return;
+                            if (m.G.nbrs[m.path[i - 1]].indexOf(c) === -1) errs.push(key + ': route jumps');
+                            if (!Z.mzLegal(m, m.path[i - 1], c)) errs.push(key + ': route breaks its own rule');
+                        });
+                        if (P.kind === 'set' && !P.ok(m.vals[m.start], X)) errs.push(key + ': START fails the rule');
+                        if (m.vals.some((v) => !Number.isInteger(v) || v < 0)) errs.push(key + ': a cell is not a whole number');
+                    }
+                });
+            })));
+        return { state, made, errs: Array.from(new Set(errs)) };
+    });
+    check('mazes screen opened after lazy load',
+        mzState.state.screen === 'mazes-screen' && mzState.state.highlighted && mzState.state.mazesTabs === 1,
+        JSON.stringify(mzState.state));
+    check('mazes: every maze has exactly one route (' + mzState.made + ' built)',
+        mzState.errs.length === 0, mzState.errs.slice(0, 4).join(' | '));
+
+    const mzPlay = await page.evaluate(() => {
+        const Z = window.__MZ, S = Z.state, errs = [];
+        const tap = (c) => document.querySelector('[data-mz-cell="' + c + '"]')
+            .dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        ['square', 'hex'].forEach((grid) => {
+            document.querySelector('.mz-grid-btn[data-mz-grid="' + grid + '"]').click();
+            const m = S.maze;
+            const bad = m.G.nbrs[m.start].find((c) => !Z.mzLegal(m, m.start, c));
+            if (bad !== undefined) {
+                tap(bad);
+                if (S.trail.length !== 1) errs.push(grid + ': an illegal step was taken');
+                if (S.wrong !== 1) errs.push(grid + ': an illegal step was not counted');
+            }
+            const far = Array.from({ length: m.G.n }, (_, i) => i)
+                .find((c) => c !== m.start && m.G.nbrs[m.start].indexOf(c) === -1);
+            tap(far);
+            if (S.trail.length !== 1) errs.push(grid + ': a non-adjacent cell was stepped to');
+            m.path.slice(1, 4).forEach(tap);
+            tap(m.path[1]);
+            if (S.trail.length !== 2) errs.push(grid + ': tapping the trail did not step back');
+            m.path.slice(2).forEach(tap);
+            if (!S.solved) errs.push(grid + ': walking the route did not solve it');
+        });
+        return errs;
+    });
+    check('mazes: illegal steps are refused, the trail steps back, the route solves',
+        mzPlay.length === 0, mzPlay.join(' | '));
+
     // ---- Learn: browse a ladder and run an assessment -------------------
     await page.evaluate(() => lbApplySection('learn', { enter: true }));
     await page.waitForTimeout(250);
@@ -1099,6 +1176,69 @@ function check(name, ok, detail) {
         quizMic.during, JSON.stringify(quizMic));
     check('flash cards release the microphone when the quiz ends',
         quizMic.after === null && quizMic.token === null, JSON.stringify(quizMic));
+
+    // ---- hearing a child ------------------------------------------------
+    // __SP.feed delivers a transcript exactly as a real result would, which is
+    // the only way to exercise the matcher — headless Chromium has a recogniser
+    // but no speech service behind it. What matters is that the matcher is
+    // generous about *how* a number arrives and strict about *which* number it
+    // was: "twenty three" once cost every two-digit answer a card, because the
+    // first number found was the tens word.
+    const heard = await page.evaluate(async () => {
+        TAB_ENTRY.flashcards();
+        state.operations = ['addition']; state.maxNumber = 5; state.shuffle = false;
+        state.animations = false;
+        startQuiz();
+        state.animations = false;       // startQuiz re-reads the toggle
+
+        const say = (deck, text) => {
+            state.questions = deck;
+            state.currentIndex = 0;
+            renderQuestion();
+            window.__SP.feed(text, true);
+            return state.currentIndex === 1;
+        };
+        const card = (answer) => [{ display: `?\n+\n?`, answer }, { display: `?\n+\n?`, answer: 0 }];
+
+        return {
+            compound:  say(card(23), 'twenty three'),
+            hyphen:    say(card(23), 'twenty-three'),
+            trailing:  say(card(23), '23.'),
+            tensAlone: say(card(23), 'twenty'),          // must NOT advance
+            misheard:  say(card(9),  'line'),
+            homophone: say(card(8),  'ate'),
+            filler:    say(card(7),  'um, seven'),
+            stutter:   say(card(8),  'four four'),       // must NOT advance
+            teenTy:    say(card(15), 'fifty'),           // must NOT advance
+        };
+    });
+    check('a two-digit answer is heard past its own tens word',
+        heard.compound && heard.hyphen && heard.trailing, JSON.stringify(heard));
+    check('half of a two-digit answer does not advance the card',
+        !heard.tensAlone, JSON.stringify(heard));
+    check('a misheard number word still answers the card',
+        heard.misheard && heard.homophone && heard.filler, JSON.stringify(heard));
+    check('a stutter is not arithmetic and a teen is not a ty',
+        !heard.stutter && !heard.teenTy, JSON.stringify(heard));
+
+    // The debugger is off by default and prints every reading when it is on.
+    const debugPanel = await page.evaluate(() => {
+        const offRows = document.getElementById('sd-log').childElementCount;
+        state.speechDebug = true;
+        state.questions = [{ display: '?\n+\n?', answer: 41 }, { display: '?\n+\n?', answer: 0 }];
+        state.currentIndex = 0;
+        window.__SP.feed(['forty one', 'forty won', 'party one'], true);
+        const rows = [...document.getElementById('sd-log').children].map(r => r.textContent);
+        state.speechDebug = false;
+        endQuiz();
+        return { offRows, rows, advanced: state.currentIndex };
+    });
+    check('the speech debugger prints nothing until it is switched on',
+        debugPanel.offRows === 0, JSON.stringify(debugPanel));
+    check('the speech debugger prints every alternative and what it parsed to',
+        debugPanel.rows.filter(r => /"/.test(r)).length === 3
+        && debugPanel.rows.some(r => r.includes('41')),
+        JSON.stringify(debugPanel.rows));
 
     // ---- the self-advance timer ------------------------------------------
     // A correct answer advances itself after 700ms. Pressing Next yourself

@@ -36,6 +36,37 @@
             && x.pronoun.options && x.pronoun.options.length >= 2);
         const p = rng.pick(usable);
         const q = 'In this passage, who or what does "' + p.pronoun.word + '" refer to?';
+
+        /* Tapping the referent where it stands is the real act — reading back
+         * through the text until you find it. Only offered when the answer
+         * appears in the passage word for word: `refersTo` is written as an
+         * answer ("the old man") and does not always match the wording on the
+         * page, and a tap item whose target is not on screen is unanswerable.
+         */
+        const toks = p.text.split(/\s+/);
+        const bare = (s) => s.replace(/[^A-Za-z'-]/g, '').toLowerCase();
+        const want = p.pronoun.refersTo.split(/\s+/).map(bare).filter(Boolean);
+        let span = null;
+        for (let i = 0; want.length && i + want.length <= toks.length; i++) {
+            if (want.every((w, k) => bare(toks[i + k]) === w)) {
+                span = want.map((_, k) => i + k);
+                break;
+            }
+        }
+        if (span) {
+            return genTapToken({
+                stem: q,
+                tapNote: 'Tap the words it stands for, then press Check.',
+                prompt: [{ t: 'text', s: q }],
+                tokens: toks,
+                answer: span,
+                hint: 'Read back to the last thing it could sensibly be.',
+                explain: '"' + p.pronoun.word + '" stands for ' + p.pronoun.refersTo
+                    + '. It is usually not simply the nearest noun — it is the one that makes sense.',
+                sig: 'ana:' + p.id,
+            });
+        }
+
         return genMc(rng, {
             stem: p.text + ' — ' + q,
             prompt: withPassage(p, q),
@@ -120,6 +151,25 @@
         // The supporting sentence is the one the inference answer draws on; the
         // rest of the passage supplies the foils, so all options are true.
         const best = sentences[sentences.length - 1];
+
+        /* Tapping the sentence where it sits in the passage is what "find the
+         * evidence" means. Lifting the sentences out into an options list also
+         * quietly destroys the task's context — the foils stop being part of a
+         * passage and become four free-floating claims. */
+        if (sentences.length >= 3) {
+            return genTapToken({
+                stem: 'Tap the sentence that best supports this: ' + claim,
+                tapNote: 'Tap one sentence, then press Check.',
+                prompt: [{ t: 'text', s: 'Which sentence best supports: ' + claim + '?' }],
+                layout: 'block',
+                tokens: sentences,
+                answer: [sentences.length - 1],
+                hint: 'All of them are in the passage. Which one actually backs up that idea?',
+                explain: 'Being true is not the same as being evidence for this particular claim.',
+                sig: 'evid:' + p.id,
+            });
+        }
+
         return genMc(rng, {
             stem: 'Which sentence best supports the idea that: ' + claim + '?',
             prompt: [{ t: 'text', s: p.text }, { t: 'text', s: 'Which sentence best supports: ' + claim + '?' }],

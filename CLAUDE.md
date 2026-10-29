@@ -36,6 +36,12 @@ geometry-proofs.js + .css     lazily loaded plug-in
 polygons.js + .css            lazily loaded plug-in
 sounds.js + .css              lazily loaded plug-in (vowel sandbox over audio.js)
 patterns.js + .css            lazily loaded plug-in (number sequences)
+clocks.js + .css              lazily loaded plug-in (read/set/elapsed time)
+decimals.js + .css            lazily loaded plug-in (hundredths grid, compare, round)
+mazes.js + .css               lazily loaded plug-in (number mazes, square/hex, play + PDF)
+turret.js + .css              lazily loaded plug-in (3D turret shooter, tablet-budget three.js)
+models/                       Kenney Space Kit fighter OBJs (CC0) the turret fetches
+textures/                     the turret's window-grime alpha PNG
 tools/                        manually-run validators; never a build gate
 netlify.toml                  publish = ".", must-revalidate on everything
 ```
@@ -74,14 +80,22 @@ instances fight over the input stream and the loser fails in a way that reads as
 the recogniser being flaky.
 
 ```js
-const tok = spListen({ onText, onEnd, lang, alternatives, indicator });
+const tok = spListen({ onText, onEnd, onNotice, lang, alternatives, indicator });
 spRelease(tok);      // stale tokens are ignored, so releasing twice is safe
 ```
 
 - A new claim supersedes the old one and tells it so via `onEnd('superseded')`
 - `onText` fires on every interim *and* final result, with all alternatives
-- Restarts are the module's problem, not the caller's; callers never see `onend`
-- `findNumberInSpeech()` scans all 1/2/3-word n-grams for a recognisable number
+- Restarts are the module's problem, not the caller's; callers never see `onend`;
+  a caller that wants to *display* them asks for the optional `onNotice`
+- `speechNumbers()` returns **every** number a transcript could be, longest
+  n-gram first, and the caller asks whether its target is among them. Returning
+  only the first is how `"twenty three"` used to be read as 20.
+- Mishearings are folded in three layers: an explicit table, then any word one
+  edit from exactly one number word, then nothing. **The teen/ty pairs are never
+  folded** — accepting "fifty" for 15 advances the card on a wrong answer, which
+  is worse than not hearing a right one.
+- `findNumberInSpeech()` is `speechNumbers()[0]`, kept for callers wanting one
 - Flash cards fall back to typed input (`#typed-section`) with no recogniser;
   the Learn runner falls back to tap items — see `docs/learn.md`
 
@@ -122,7 +136,7 @@ each plug-in's `injectTab` skips a button that already exists.
 
 ## Prefix table
 
-Every module namespaces its globals. Taken: `ws tg tt fr mn pv pg py vs np viz la gp sb`
+Every module namespaces its globals. Taken: `ws tg tt fr mn pv pg py vs np viz la gp sb ck dc mz tr`
 (activities), `cur ir lb pr st idr gen` (Learn), and `sp` (the shared
 recogniser) and `au` (on-device audio analysis). Pick a free one.
 
@@ -140,8 +154,11 @@ migration copies rather than moves and nothing is ever deleted.
 - **Zero can never be a divisor**
 - **Subtraction and division answers must be whole numbers within the range**
 - The settings burger is **only visible on the home screen**
-- `state.animations` and `state.showTranscript` are read at quiz start; they do
-  not hot-reload mid-quiz
+- `state.animations`, `state.showTranscript` and `state.speechDebug` are read at
+  quiz start; they do not hot-reload mid-quiz
+- The speech debugger (`sdHeard`, `#speech-debug`) only ever **reports**. Nothing
+  in it participates in matching, and it builds its rows from text nodes because
+  every string in it came off a microphone
 
 ### Learn
 - **No grade level in UI code.** It lives in `node.provenance` for authoring only,
@@ -214,6 +231,80 @@ migration copies rather than moves and nothing is ever deleted.
 - The step labels between the tiles are computed from the **terms on screen**
   (`npStepLabels`), never from the generator's intent. They are the explanation,
   so they stay true even if a generator is wrong.
+
+### Mazes
+- **Exactly one route, and the builder is not trusted.** `mzCount` counts
+  START→END paths using only `mzLegal` — the predicate the player is held to —
+  and a maze is kept only on a count of one.
+- For set rules the passable cells must stay a **tree**: the route may not
+  touch itself except step to step, and a dead-end cell may touch exactly one
+  passable cell. Loosen either and a shortcut appears.
+- Sequence steps must be **strictly monotonic**. The exact route count relies
+  on each value having one step index; a pattern that can repeat a value
+  (+2 −1) breaks it.
+- An illegal step is **refused, not drawn**. Dead ends are legal steps, so
+  refusing tells the player about the rule and nothing about the route.
+
+### Turret
+- **Nothing allocated per frame.** Scratch vectors and fixed pools only; a GC
+  pause on a Fire tablet reads as stutter. Allocation is fine on a tap, a
+  spawn or an answer, never in an `trUpdate*` loop.
+- **A hit is decided, not detected.** A locked bolt is aimed at the path's
+  intercept; a miss rewrites the fighter's path and checks it clears the bolt
+  by `MISS_BY`. A shot at a rock is steered onto it and always lands; enemy
+  fire is a hit or a miss from the moment it leaves the muzzle. Never add a
+  collision test between a shot and a target. The one proximity test is a
+  rock against the hull, and `INCOMING` rocks are aimed there on purpose. A
+  rock that hits breaks with no explosion, and its pieces start outside the
+  hull marked `safe` — without both, one rock is several hits.
+- **The player cannot lose.** Being hit is a red flash, a jolt and a filler
+  readout dipping — never a score, a life or a slower sortie.
+- **The aim point is where the finger lands.** There is no fixed reticle: a
+  shot goes through the tap, `#tr-tap` marks it, and the 3D guns turn to it.
+- **Windings are rewound, not just renormalled.** A double-sided Lambert
+  material lights the face you see by its winding, so a flipped normal alone
+  lights the outside as if it were the inside — the fighters were reverse-lit
+  that way. Kenney's models are trusted as wound (`trFaceted(…, null)`): the
+  centre test misreads concave shapes.
+- **Fighters enter off-screen and fly C1 paths.** `trPlanPath` starts every
+  path well outside the turret's view; `trHermite` scales each handle by its
+  segment's duration so speed is continuous through knots; `trSafePath`
+  re-plans any path that passes within `PASS_MIN` of the cockpit. Bank comes
+  from the lift the path needs, never from a hand-set angle.
+- **Lock distance is measured from the target box**, the one drawn on screen
+  (`trBoxHalf`), not from the fighter's centre: a tap locks when it lands
+  within `nearPx` of the box's edge. Rocks have their own fixed reach.
+- **Quality features belong to a tier.** Shiny (Phong) fighters are on Medium
+  and High; the muzzle light and the thruster lights are High only (below it
+  thrusters only glow); rocks are 180, 320 or 720 faces. The rock shape is a
+  fractal function of direction (`trRockShape`), so a finer tier is the same
+  rock resolved more finely, and its icosphere winding is trusted — the centre
+  test misreads a crater's steep side. The thruster lights are a fixed pool
+  of `MAX_ENEMIES`, dark when unused, for the same reason as the muzzle light. The light stays in the scene and is
+  hidden, because the light count is part of every lit shader: toggling it
+  recompiles once on a tier change, adding and removing it would on every shot.
+- **The glass is baked, not drawn.** Grime, its hit-coloured twin and the hit
+  wash share one stencil and are baked on resize or a settings change only. A
+  hit crossfades opacities; it never re-bakes. A lock does not turn the turret.
+  Reach and fade are fractions of the stage's **short side**, applied square to
+  every window edge (`trInsetWindow`) — a fraction of each axis changes the
+  border's shape with the aspect ratio.
+- **The stage fills the screen at any shape.** On a portrait stage the FOV
+  goes across (`trFov`), so the guns stay in view, and the grime is turned
+  a quarter so it is not cropped to a strip.
+- **Fighters keep the kit's colours.** Only accent faces (`metalRed`) take
+  the instance colour; the `accent`, `shine` and `glow` (thruster)
+  attributes and the r128 chunks `trShipShader` replaces carry that. Squish is in the instance
+  matrix, never baked into the geometry.
+- **A tap is never swallowed.** A full bolt pool gives up its oldest free
+  shot; a locked bolt is never taken. Taps fire once a card is answered —
+  only a card that is still asking holds the guns.
+- **Nothing owed is dropped.** A question open, or an ace in the air, when the
+  scene is torn down goes back in the deck or the ace queue.
+- **Bests come from whole sorties only**, and the turret never writes
+  `ttFact_*` — its own store is `nq.turret.*`.
+- **One recogniser claim per question**, released on answer and whenever the
+  loop stops. A final result naming another number is a miss; an interim is not.
 
 ### Sounds
 - The sandbox writes the same `voice.v1` anchors the Learn runner reads, so a

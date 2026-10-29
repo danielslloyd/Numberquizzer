@@ -160,6 +160,136 @@
         };
     };
 
+    /*
+     * Tap inside the text.  opts: {stem, tokens, answer, mode, join, tappable,
+     * tapNote, hint, explain, sig}
+     *
+     * `tokens` is what gets displayed, `answer` the indices that are right —
+     * of the tokens in the default mode, of the gaps between them when
+     * `mode: 'slot'` (slot i sits after token i).
+     *
+     * There is no shuffling here, unlike genMc: the order of a sentence is the
+     * question. That removes the usual guard against the answer sitting at a
+     * predictable index, so the SIGNATURE has to carry the answer — otherwise
+     * every capitalisation item off one sentence bank looks identical to the
+     * de-duplicator and a node collapses to a handful of questions.
+     */
+    window.genTapToken = function (opts) {
+        const answer = (opts.answer || []).slice().sort((a, b) => a - b);
+        const item = {
+            type: 'tap-token',
+            stem: opts.stem,
+            prompt: opts.prompt || [{ t: 'text', s: opts.stem }],
+            tokens: (opts.tokens || []).slice(),
+            answer: answer,
+            grade: 'set',
+            hint: opts.hint,
+            explain: opts.explain,
+            sig: sigOf(opts, (opts.tokens || []).join(' ') + '#' + answer.join(',')),
+        };
+        if (opts.mode === 'slot') item.mode = 'slot';
+        if (opts.join === 'none') item.join = 'none';
+        if (opts.tappable) item.tappable = opts.tappable.slice();
+        if (opts.tapNote) item.tapNote = opts.tapNote;
+        if (opts.layout === 'block') item.layout = 'block';
+        return item;
+    };
+
+    /*
+     * "Tap where this word divides" — one word, letter by letter, with the
+     * boundaries between its pieces as the answer. Four nodes want exactly this
+     * and differ only in what a piece IS: a phoneme (pa.segment), a syllable
+     * (phon.syllableDivision), a morpheme (morph.decomposeLong), or one half of
+     * a compound. Slot i sits after letter i, so a piece of length L ending the
+     * run so far puts a boundary at slot L-1.
+     *
+     * Returns null when the pieces do not spell the word — banks legitimately
+     * contain entries like 'un + forget + able' for "unforgettable", where a
+     * letter doubles at the join. The caller falls back to its old item rather
+     * than showing a division that does not line up with the letters on screen.
+     */
+    window.genSplitWord = function (opts) {
+        const word = String(opts.word || '');
+        const pieces = (opts.pieces || []).map(String).filter(Boolean);
+        if (pieces.length < 2 || pieces.join('') !== word) return null;
+
+        const answer = [];
+        let at = 0;
+        for (let i = 0; i < pieces.length - 1; i++) {
+            at += pieces[i].length;
+            answer.push(at - 1);
+        }
+        return window.genTapToken({
+            stem: opts.stem,
+            tapNote: opts.tapNote,
+            mode: 'slot',
+            join: 'none',
+            tokens: word.split(''),
+            answer: answer,
+            hint: opts.hint,
+            explain: opts.explain,
+            sig: opts.sig,
+        });
+    };
+
+    /*
+     * Join two columns.  opts: {stem, pairs:[[left,right],...], ...}
+     *
+     * The right column is shuffled independently of the left, so the answer is
+     * never "join row 1 to row 1". The pairs go in as LABELS and come out as
+     * index pairs against the shuffled columns, which is what the `pairs`
+     * grader compares — a generator never has to think about indices.
+     */
+    window.genMatch = function (rng, opts) {
+        const given = (opts.pairs || []).filter((p) => p && p.length === 2);
+        const left = given.map((p) => p[0]);
+        const right = rng.shuffle(given.map((p) => p[1]));
+        return {
+            type: 'match',
+            stem: opts.stem,
+            prompt: opts.prompt || [{ t: 'text', s: opts.stem }],
+            left: left,
+            right: right,
+            answer: given.map((p, i) => [i, right.indexOf(p[1])]),
+            grade: 'pairs',
+            hint: opts.hint,
+            explain: opts.explain,
+            sig: sigOf(opts, left.join('|')),
+        };
+    };
+
+    /*
+     * Sort into labelled boxes.  opts: {stem, bins:[{id,label}], put:{binId:[labels]}, ...}
+     *
+     * Items are pooled from every bin and shuffled together, so their order in
+     * the tray gives nothing away. `answer` is built from the same pool, so the
+     * item and its key cannot disagree.
+     */
+    window.genSortBins = function (rng, opts) {
+        const bins = (opts.bins || []).slice();
+        const put = opts.put || {};
+        const pool = [];
+        bins.forEach((b) => (put[b.id] || []).forEach((label) => pool.push({ label: label, bin: b.id })));
+        const mixed = rng.shuffle(pool);
+
+        const answer = {};
+        bins.forEach((b) => { answer[b.id] = []; });
+        mixed.forEach((x, i) => { answer[x.bin].push(i); });
+
+        return {
+            type: 'sort-bins',
+            stem: opts.stem,
+            prompt: opts.prompt || [{ t: 'text', s: opts.stem }],
+            bins: bins,
+            items: mixed.map((x) => x.label),
+            answer: answer,
+            grade: 'partition',
+            hint: opts.hint,
+            explain: opts.explain,
+            sig: sigOf(opts, mixed.map((x) => x.label).join('|')),
+        };
+    };
+
     // Tolerance defaults to a twentieth of the span: the skill is magnitude
     // estimation, not pixel accuracy.
     window.genNumberline = function (opts) {
