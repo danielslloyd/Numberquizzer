@@ -376,7 +376,7 @@
         flashcards: 'maths', 'make-ten': 'maths', 'ten-frame': 'maths', 'times-grid': 'maths',
         fractions: 'maths', money: 'maths', visualizer: 'maths', 'place-value': 'maths',
         worksheets: 'maths',
-        'geo-proofs': 'maths', polygons: 'maths', patterns: 'maths',
+        'geo-proofs': 'maths', polygons: 'maths', patterns: 'maths', turret: 'maths',
         sorting: 'english', 'la-vocab': 'english', 'la-cap': 'english', 'la-punct': 'english',
         'la-subj': 'english', 'la-diag': 'english', sounds: 'english',
         ciphers: 'tools', sudoku: 'tools',

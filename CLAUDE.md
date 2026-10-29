@@ -36,6 +36,7 @@ geometry-proofs.js + .css     lazily loaded plug-in
 polygons.js + .css            lazily loaded plug-in
 sounds.js + .css              lazily loaded plug-in (vowel sandbox over audio.js)
 patterns.js + .css            lazily loaded plug-in (number sequences)
+turret.js + .css              lazily loaded plug-in (3D turret shooter, tablet-budget three.js)
 tools/                        manually-run validators; never a build gate
 netlify.toml                  publish = ".", must-revalidate on everything
 ```
@@ -122,7 +123,7 @@ each plug-in's `injectTab` skips a button that already exists.
 
 ## Prefix table
 
-Every module namespaces its globals. Taken: `ws tg tt fr mn pv pg py vs np viz la gp sb`
+Every module namespaces its globals. Taken: `ws tg tt fr mn pv pg py vs np viz la gp sb tr`
 (activities), `cur ir lb pr st idr gen` (Learn), and `sp` (the shared
 recogniser) and `au` (on-device audio analysis). Pick a free one.
 
@@ -214,6 +215,20 @@ migration copies rather than moves and nothing is ever deleted.
 - The step labels between the tiles are computed from the **terms on screen**
   (`npStepLabels`), never from the generator's intent. They are the explanation,
   so they stay true even if a generator is wrong.
+
+### Turret
+- **Nothing allocated per frame.** Scratch vectors and fixed pools only; a GC
+  pause on a Fire tablet reads as stutter. Allocation is fine on a tap, a
+  spawn or an answer, never in an `trUpdate*` loop.
+- **A hit is decided, not detected.** A locked bolt is aimed at the path's
+  intercept; a miss rewrites the fighter's path and checks it clears the bolt
+  by `MISS_BY`. Never add a collision test.
+- **Nothing owed is dropped.** A question open, or an ace in the air, when the
+  scene is torn down goes back in the deck or the ace queue.
+- **Bests come from whole sorties only**, and the turret never writes
+  `ttFact_*` — its own store is `nq.turret.*`.
+- **One recogniser claim per question**, released on answer and whenever the
+  loop stops. A final result naming another number is a miss; an interim is not.
 
 ### Sounds
 - The sandbox writes the same `voice.v1` anchors the Learn runner reads, so a
