@@ -39,6 +39,18 @@
     height: 100%;
 }
 
+/* Window grime: over the 3D view and the guns, under the frame and the HUD.
+   Its opacity is set per frame from the sun; the bitmap is baked on resize. */
+.tr-grime {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    opacity: 0;
+    will-change: opacity;
+}
+
 /* ---- cockpit: SVG over the canvas, stretched to the stage ---- */
 .tr-cockpit {
     position: absolute;
@@ -54,43 +66,6 @@
     stroke-width: 3;
     vector-effect: non-scaling-stroke;
 }
-.tr-barrel {
-    fill: #1b1f29;
-    stroke: #3a4354;
-    stroke-width: 2;
-    vector-effect: non-scaling-stroke;
-}
-
-.tr-reticle {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    width: 44px;
-    height: 44px;
-    margin: -22px 0 0 -22px;
-    border: 2px solid rgba(120, 220, 255, .75);
-    border-radius: 50%;
-    pointer-events: none;
-}
-.tr-reticle::before,
-.tr-reticle::after {
-    content: '';
-    position: absolute;
-    background: rgba(120, 220, 255, .75);
-}
-.tr-reticle::before { left: 50%; top: -9px; bottom: -9px; width: 2px; margin-left: -1px;
-    -webkit-mask: linear-gradient(#000 0 9px, transparent 9px calc(100% - 9px), #000 calc(100% - 9px));
-            mask: linear-gradient(#000 0 9px, transparent 9px calc(100% - 9px), #000 calc(100% - 9px)); }
-.tr-reticle::after  { top: 50%; left: -9px; right: -9px; height: 2px; margin-top: -1px;
-    -webkit-mask: linear-gradient(90deg, #000 0 9px, transparent 9px calc(100% - 9px), #000 calc(100% - 9px));
-            mask: linear-gradient(90deg, #000 0 9px, transparent 9px calc(100% - 9px), #000 calc(100% - 9px)); }
-
-.tr-barrel.tr-fire { animation: tr-muzzle .14s ease-out; }
-@keyframes tr-muzzle {
-    0%   { fill: #bff6ff; stroke: #e8fdff; }
-    100% { fill: #1b1f29; stroke: #3a4354; }
-}
-
 /* Four corner brackets around a locked fighter. The box sits at the stage's
    top-left and is moved by transform each frame — no layout, just composite. */
 .tr-lock {
@@ -132,6 +107,132 @@
     transition: opacity .3s;
 }
 .tr-slowmo.tr-on { opacity: 1; }
+
+/* Hit: red at the edges, soft all the way in, gone in under a second. The
+   blur is the gradient's — a CSS blur filter over WebGL is what these
+   tablets cannot afford. */
+.tr-hurt {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+        radial-gradient(ellipse at center, transparent 38%, rgba(200, 20, 10, .28) 70%, rgba(150, 0, 0, .75) 100%);
+    opacity: 0;
+}
+.tr-hurt.tr-on { animation: tr-hurt .7s ease-out; }
+@keyframes tr-hurt {
+    0%   { opacity: 0; }
+    12%  { opacity: 1; }
+    100% { opacity: 0; }
+}
+
+/* Where a tap went: the shot goes there, so this is the aim point. */
+.tr-tap {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+    opacity: 0;
+}
+.tr-tap::before {
+    content: '';
+    position: absolute;
+    left: -14px;
+    top: -14px;
+    width: 24px;
+    height: 24px;
+    border: 2px solid rgba(120, 220, 255, .9);
+    border-radius: 50%;
+}
+.tr-tap::after {
+    content: '';
+    position: absolute;
+    left: -2px;
+    top: -2px;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    background: rgba(160, 235, 255, .95);
+}
+.tr-tap.tr-on { animation: tr-tap .45s ease-out; }
+/* The lock radius, shown on each tap while the debug panel is open. */
+.tr-tap i {
+    display: none;
+    position: absolute;
+    left: calc(-1 * var(--r, 56px));
+    top: calc(-1 * var(--r, 56px));
+    width: calc(2 * var(--r, 56px));
+    height: calc(2 * var(--r, 56px));
+    box-sizing: border-box;
+    border: 1px dashed rgba(255, 216, 74, .8);
+    border-radius: 50%;
+}
+.tr-dbg-on .tr-tap i { display: block; }
+@keyframes tr-tap {
+    0%   { opacity: 1; }
+    100% { opacity: 0; }
+}
+
+/* Target boxes: four corner brackets and a callsign, one per fighter. Moved
+   by transform; resized only when the fighter's distance changes the size. */
+.tr-tgts { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.tr-tgt {
+    position: absolute;
+    left: 0;
+    top: 0;
+    --tc: rgba(255, 110, 90, .85);
+    will-change: transform;
+}
+.tr-tgt.hidden { display: none; }
+.tr-tgt::before,
+.tr-tgt::after,
+.tr-tgt i::before,
+.tr-tgt i::after {
+    content: '';
+    position: absolute;
+    width: 22%;
+    height: 22%;
+    min-width: 6px;
+    min-height: 6px;
+    border: 0 solid var(--tc);
+}
+.tr-tgt::before   { left: 0;  top: 0;    border-width: 2px 0 0 2px; }
+.tr-tgt::after    { right: 0; top: 0;    border-width: 2px 2px 0 0; }
+.tr-tgt i::before { left: 0;  bottom: 0; border-width: 0 0 2px 2px; }
+.tr-tgt i::after  { right: 0; bottom: 0; border-width: 0 2px 2px 0; }
+.tr-tgt i { position: absolute; inset: 0; }
+.tr-tgt-label {
+    position: absolute;
+    left: 0;
+    top: 100%;
+    margin-top: 3px;
+    white-space: nowrap;
+    color: var(--tc);
+    font: 700 10px/1 ui-monospace, Menlo, Consolas, monospace;
+    letter-spacing: .06em;
+}
+.tr-tgt-ace { --tc: rgba(255, 216, 74, .95); }
+.tr-tgt-dim { --tc: rgba(150, 165, 185, .5); }
+
+/* Readouts: filler, low in the frame's two lower corners. */
+.tr-ro {
+    position: absolute;
+    bottom: 27%;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    color: rgba(120, 220, 255, .62);
+    font: 700 10px/1.15 ui-monospace, Menlo, Consolas, monospace;
+    letter-spacing: .08em;
+    pointer-events: none;
+    font-variant-numeric: tabular-nums;
+}
+.tr-ro-l { left: 6.5%; }
+.tr-ro-r { right: 6.5%; text-align: right; }
+.tr-ro .tr-ro-low { color: rgba(255, 120, 100, .9); }
+@media (max-width: 560px) { .tr-ro { display: none; } }
 
 /* Above everything else on the stage, the probe included. */
 .tr-ask { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
@@ -281,6 +382,48 @@
 .tr-icon-btn svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; vertical-align: middle; }
 .tr-fs-btn { right: 10px; }
 .tr-probe-btn { right: 58px; }
+.tr-dbg-btn { right: 154px; }
+
+/* ---- debug overlay: right side, scrolls inside the stage ---- */
+.tr-dbg {
+    position: absolute;
+    top: 56px;
+    right: 10px;
+    z-index: 6;
+    width: min(300px, calc(100% - 20px));
+    max-height: calc(100% - 66px);
+    overflow-y: auto;
+    padding: .5rem .6rem .6rem;
+    border-radius: 8px;
+    background: rgba(8, 10, 18, .9);
+    border: 1px solid #333b4a;
+    color: #d8e2f0;
+    font: 12px/1.35 system-ui, sans-serif;
+    touch-action: pan-y;
+}
+.tr-dbg.hidden { display: none; }
+.tr-dbg-sec { padding: .35rem 0; border-bottom: 1px solid #262c38; }
+.tr-dbg-h { font-weight: 800; letter-spacing: .04em; text-transform: uppercase; font-size: 11px; color: #8fd8ff; margin-bottom: .3rem; }
+.tr-dbg-note { color: #8b97a8; margin-bottom: .3rem; }
+.tr-dbg-row { display: flex; align-items: center; gap: .4rem; margin: .25rem 0; }
+.tr-dbg-wrap { flex-wrap: wrap; }
+.tr-dbg-label { flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tr-dbg select {
+    flex: 0 1 auto;
+    min-width: 0;
+    padding: .2rem .3rem;
+    border: 1px solid #4a5568;
+    border-radius: 6px;
+    background: #141824;
+    color: #eef6ff;
+    font: inherit;
+}
+.tr-dbg input[type=range] { flex: 1 1 auto; min-width: 0; }
+.tr-dbg-val { width: 4.5em; text-align: right; font-variant-numeric: tabular-nums; }
+.tr-dbg .tr-chip { padding: .25rem .55rem; }
+.tr-dbg-play { flex: 0 0 auto; }
+.tr-dbg-check { display: inline-flex; align-items: center; gap: .3rem; flex: 1 1 auto; }
+.tr-dbg input[type=color] { width: 44px; height: 26px; padding: 0; border: 1px solid #4a5568; border-radius: 6px; background: #141824; }
 
 .tr-lost {
     position: absolute;

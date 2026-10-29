@@ -1,0 +1,3 @@
+craft_*.obj — Space Kit 2.0 by Kenney (www.kenney.nl), CC0 1.0
+(http://creativecommons.org/publicdomain/zero/1.0/). OBJ files copied
+unchanged; the .mtl files are not used — turret.js paints them itself.

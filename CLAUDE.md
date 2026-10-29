@@ -37,6 +37,8 @@ polygons.js + .css            lazily loaded plug-in
 sounds.js + .css              lazily loaded plug-in (vowel sandbox over audio.js)
 patterns.js + .css            lazily loaded plug-in (number sequences)
 turret.js + .css              lazily loaded plug-in (3D turret shooter, tablet-budget three.js)
+models/                       Kenney Space Kit fighter OBJs (CC0) the turret fetches
+textures/                     the turret's window-grime alpha PNG
 tools/                        manually-run validators; never a build gate
 netlify.toml                  publish = ".", must-revalidate on everything
 ```
@@ -222,7 +224,31 @@ migration copies rather than moves and nothing is ever deleted.
   spawn or an answer, never in an `trUpdate*` loop.
 - **A hit is decided, not detected.** A locked bolt is aimed at the path's
   intercept; a miss rewrites the fighter's path and checks it clears the bolt
-  by `MISS_BY`. Never add a collision test.
+  by `MISS_BY`. A shot at a rock is steered onto it and always lands; enemy
+  fire is a hit or a miss from the moment it leaves the muzzle. Never add a
+  collision test between a shot and a target. The one proximity test is a
+  rock against the hull, and `INCOMING` rocks are aimed there on purpose.
+- **The player cannot lose.** Being hit is a red flash, a jolt and a filler
+  readout dipping — never a score, a life or a slower sortie.
+- **The aim point is where the finger lands.** There is no fixed reticle: a
+  shot goes through the tap, `#tr-tap` marks it, and the 3D guns turn to it.
+- **Windings are rewound, not just renormalled.** A double-sided Lambert
+  material lights the face you see by its winding, so a flipped normal alone
+  lights the outside as if it were the inside — the fighters were reverse-lit
+  that way. Kenney's models are trusted as wound (`trFaceted(…, null)`): the
+  centre test misreads concave shapes.
+- **Fighters enter off-screen and fly C1 paths.** `trPlanPath` starts every
+  path well outside the turret's view; `trHermite` scales each handle by its
+  segment's duration so speed is continuous through knots; `trSafePath`
+  re-plans any path that passes within `PASS_MIN` of the cockpit. Bank comes
+  from the lift the path needs, never from a hand-set angle.
+- **Lock distance is measured from the target box**, the one drawn on screen
+  (`trBoxHalf`), not from the fighter's centre: a tap locks when it lands
+  within `nearPx` of the box's edge. Rocks have their own fixed reach.
+- **Quality features belong to a tier.** Shiny (Phong) fighters are on Medium
+  and High only, so auto stepping down to Low takes the shine away first.
+- **The grime is baked, not drawn.** `trBakeGrime` runs on resize and colour
+  change only; a frame writes one opacity, and only when it moves by 0.01.
 - **Nothing owed is dropped.** A question open, or an ace in the air, when the
   scene is torn down goes back in the deck or the ace queue.
 - **Bests come from whole sorties only**, and the turret never writes

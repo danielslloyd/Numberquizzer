@@ -15,21 +15,29 @@
  *   a render scale; CSS upscales the canvas. Dark space with glowing things
  *   hides the softness far better than it hides a dropped frame.
  *
- *   THE COCKPIT IS NOT 3D. The player never leaves the turret, so the frame,
- *   barrels, reticle and HUD are SVG/DOM over the canvas — free to draw, and
- *   the frame covers the edges of the 3D view.
+ *   THE COCKPIT IS NOT 3D; THE GUNS ARE. The player never leaves the turret,
+ *   so the frame, target boxes and HUD are SVG/DOM over the canvas — free to
+ *   draw, and the frame covers the edges of the 3D view. The two guns are
+ *   meshes on the camera, drawn under the frame so they sit outside the
+ *   glass, and turn to wherever each shot goes.
  *
- *   NO LIGHTS, NO SHADOWS, NO POST. Meshes are MeshBasicMaterial with lighting
- *   baked into vertex colours once. Glow is an additive sprite, not bloom.
- *   The clear colour is the sky — a gradient sky would be a second full-screen
- *   fill, and fill rate is what these GPUs run out of first.
+ *   ONE LIGHT, NO SHADOWS, NO POST. The sun is one directional light and
+ *   meshes are Lambert, which lights per vertex — the cheapest lit material
+ *   there is, and flat-faceted geometry makes per-vertex lighting per face.
+ *   Nothing round is fuzzy: the sun, bolts, engine glows and explosion
+ *   circles are crisp discs or rings with an outline and a halo, from a few
+ *   small canvas textures. Bolts and engine glows are points — one draw call
+ *   a pool — with a size clamped in the shader, so a bolt leaving the muzzle
+ *   is not a screen-filling disc. The clear colour is the sky — a gradient
+ *   sky would be a second full-screen fill, and fill rate is what these GPUs
+ *   run out of first.
  *
  *   NOTHING IS ALLOCATED PER FRAME. Every vector is a module-level scratch and
  *   every moving thing comes from a fixed pool. A GC pause on these cores
  *   reads as stutter, and stutter is what the probe is there to catch.
  *
  *   THE SHIP NEVER MOVES. It sits at the origin heading −Z. When the pilot
- *   turns, the world turns the other way: dust and asteroids are rotated by
+ *   turns, the world turns the other way: asteroids are rotated by
  *   the inverse of each frame's turn and the sky group accumulates it. No
  *   float drift on a long flight, and no camera maths for the turret.
  *
@@ -68,25 +76,43 @@
 
     // Buffers and pools are allocated once at the largest tier; a tier only
     // changes how much of each is drawn or spawned.
+    // `rocks` caps what the spawner keeps in the air; fragments of a shot
+    // rock may go past it, up to the pool.
+    // `shiny` puts the fighters in Phong — per-pixel lighting with a
+    // highlight — instead of per-vertex Lambert. It is the first thing to go
+    // when auto steps a slow device down to Low.
     const TIERS = {
-        low:  { label: 'Low',  scale: 0.6,  stars: 300, dust: 80,  enemies: 3, rocks: 6 },
-        med:  { label: 'Med',  scale: 0.75, stars: 500, dust: 150, enemies: 4, rocks: 10 },
-        high: { label: 'High', scale: 1.0,  stars: 900, dust: 250, enemies: 5, rocks: 14 },
+        low:  { label: 'Low',  scale: 0.6,  stars: 300, enemies: 3, rocks: 12, shiny: false },
+        med:  { label: 'Med',  scale: 0.75, stars: 500, enemies: 4, rocks: 20, shiny: true },
+        high: { label: 'High', scale: 1.0,  stars: 900, enemies: 5, rocks: 28, shiny: true },
     };
     const TIER_ORDER = ['low', 'med', 'high'];
-    const MAX_STARS = 900, MAX_DUST = 250, MAX_ENEMIES = 5, MAX_ROCKS = 14;
-    const MAX_BOLTS = 10, MAX_SPARKS = 192;
+    const MAX_STARS = 900, MAX_ENEMIES = 5, MAX_ROCKS = 40;
+    const MAX_BOLTS = 10, MAX_ZAPS = 16, MAX_PUFFS = 40;
+    const HALO_K = 2;                       // a shape texture's disc is half its width; the rest is halo
 
     const BG = 0x05060d;
     const SPEED = 38;                       // world units per second, ship along −Z
-    const DUST_W = 70, DUST_H = 46, DUST_D = 140;
-    const STREAK = SPEED * 0.06;            // streak length tracks speed — longer reads faster
+    const SUN_DIR = [0.62, 0.3, -0.72];     // where the sun is, in the sky group's frame
     const YAW_LIMIT = 1.2, PITCH_MIN = -0.25, PITCH_MAX = 0.8;
 
+    // Fighter models (Kenney Space Kit, CC0), fetched once on first build and
+    // kept across context losses. Until they arrive — or if they never do —
+    // fighters are the built-in dart. Every model is painted red by instance
+    // colour (gold for an ace); the shades only tell one material from another.
+    const SHIP_MODELS = ['craft_racer', 'craft_speederA', 'craft_speederB', 'craft_speederC', 'craft_speederD'];
+    const SHIP_SHADE = { metal: 1, metalDark: 0.78, metalRed: 0.6, dark: 0.36 };
+    const SHIP_LEN = 3.6;                   // nose to tail, in the dart's units
+    const SHIP_GLOW = 0x240707;             // a red floor, so a fighter's shadow side still reads red
+    const SHIP_SPEC = 0xd8d0c8, SHIP_SHINE = 70;
     const SHIP_SCALE = 1.6;                 // a fighter at 60 units is a speck on a 7-inch screen otherwise
     const BOLT_SPEED = 110;
     const SIGHT = 110;                      // past this a fighter is still in the fog: not lockable
-    const LOCK_PX = 56;                     // minimum lock radius around a tap, CSS px
+    // A shot locks a fighter when it lands within this many CSS px of the
+    // fighter's target box. The debug slider sets it; 0 means on the box.
+    const NEAR_PX = 24, NEAR_MIN = 0, NEAR_MAX = 160;
+    const TAP_SLOP_MOUSE = 24;              // a mouse click while tracking a target moves a little
+    const GRIME = { on: true, color: '#ffffff', max: 0.6 };
     const TAP_SLOP = 10, TAP_MS = 400;      // a press that moves less, and lifts sooner, is a tap
 
     // Bullet time. The world eases to SLOW on a lock, then to a stop as the
@@ -98,6 +124,21 @@
     const RIGHT_S = 0.35;
     const MISS_BY = 8;                      // a swerve clears the bolt by at least this much
     const TIMERS = [0, 8, 15];              // seconds; 0 is no timer
+
+    // Rocks. A few come straight at the ship on purpose — that is what the
+    // damage flash is for, and shooting one first is the reward. A rock this
+    // small or smaller is dust when shot; a bigger one splits.
+    const INCOMING = 0.14;                  // fraction of spawned rocks aimed at the ship
+    const SPLIT_MIN = 1.7;
+    const HULL_R = 2.5;                     // a rock this close to the line of flight hits
+
+    // Enemy fire. Strafing paths carry a window, as a fraction of the path,
+    // in which the fighter shoots at the ship. Whether a shot hits is decided
+    // when it is fired, like the turret's, so a miss is aimed to pass by.
+    const ZAP_SPEED = 75;
+    const ZAP_EVERY = 0.36;                 // world seconds between shots on a run
+    const ZAP_HIT = 0.17;                   // about one hit a run: a flash every pass would wear thin
+    const DEFLECTOR_HIT = 12, DEFLECTOR_REGEN = 5, DEFLECTOR_MIN = 40;   // filler: a number that moves, nothing more
 
     // Sorties. A missed fact comes back on an ace — a gold fighter carrying
     // that one question — a few seconds later, not on the very next ship.
@@ -136,38 +177,42 @@
         { yaw: 0, pitch: -0.1, dur: [3, 5] },
     ];
 
-    /* ---- enemy swoops -----------------------------------------------------
-     * Chained cubic Béziers in ship space (x right, y up, −z ahead), each
-     * starting and ending out in the fog. Where two segments join, the
-     * control points either side of the joint are collinear with it, so the
-     * flight is smooth through it. Every path may be mirrored in x.
+    /* ---- enemy flight -----------------------------------------------------
+     * Paths are made at spawn, not picked from a list: each starts somewhere
+     * the turret is not looking — beside or behind — so a fighter is never
+     * seen to appear, and swoops into view. A path is a few knots, each with
+     * a heading and a speed, turned into cubic Béziers whose handles are
+     * scaled by each segment's duration: that makes velocity continuous
+     * through every knot, so there is no lurch where segments meet.
+     *
+     * Fighters fly like aircraft in air, not like things on rails: the nose
+     * follows the velocity, and the bank is whatever tilts the lift vector
+     * onto the acceleration the path asks for against a pretend gravity. A
+     * level turn banks into it; a pull-up out of a dive does not bank at all.
      */
-    const PATHS = [
-        { dur: 6, pts: [[-90, 10, -110], [-30, 22, -60], [30, -6, -42], [95, 8, -75]] },
-        { dur: 7, pts: [[10, 45, -130], [6, 30, -70], [0, 6, -36], [-8, 0, -28],
-            [-16, -6, -20], [-50, 10, -20], [-100, 25, -75]] },
-        { dur: 8, pts: [[60, 5, -120], [20, 30, -60], [-30, 30, -50], [-30, 5, -70],
-            [-30, -20, -90], [20, -10, -100], [85, 25, -115]] },
-        { dur: 7, pts: [[-95, -20, -80], [-20, -10, -45], [20, 40, -50], [60, 50, -95]] },
-        { dur: 8, pts: [[-60, 15, -110], [-20, 40, -90], [0, -8, -80], [30, 15, -75],
-            [60, 38, -70], [80, 10, -90], [100, 20, -130]] },
-    ];
+    const FLIGHT_G = 28;                    // pretend gravity, units/s² — what makes a turn bank
+    const ROLL_RATE = 5;                    // how fast the bank follows, 1/s
+    const ENTRY_OFF = [1.95, 2.6];          // radians from where the turret looks: off-screen
+    const PASS_MIN = 9;                     // no path comes nearer the cockpit than this
     const WING_OFFSET = [5, -3, 4];          // a wingman flies the leader's path, offset
     const WING_DELAY = 0.35;
 
     const tr = {
         stage: null, canvas: null, renderer: null, scene: null, camera: null, rig: null, sky: null,
-        stars: null, dust: null, dustP: null, rockMesh: null, enemyMesh: null, glows: null,
-        boltMesh: null, boltGlows: null, sparks: null, glowTex: null,
-        rocks: [], foes: [], bolts: [], spark: null,
+        stars: null, sun: null, rockMesh: null, shipMeshes: [], shipTail: [], shipN: null, glows: null,
+        boltPts: null, zapPts: null, glowTex: null, discTex: null, ringTex: null, boltTex: null, zapTex: null,
+        rocks: [], foes: [], bolts: [], zaps: [], puffs: [], tgts: [], guns: [],
+        boom: 0, nearPx: NEAR_PX, sfx: {}, dbgOpen: false, mouse: null, shiny: null,
+        grime: null, grimeImg: null, grimeOp: -1, grimeW: 0, grimeH: 0,
         pilot: null, spawnAt: 0, rockAt: 0, lockFoe: null, barrel: 1, hits: 0,
+        deflector: 100, hudLeft: 0, hud: null,
         running: false, lost: false, raf: 0, last: 0, wt: 0, timeScale: 1,
         tier: 'med', auto: true, cap: 30,
         ask: null, deck: [], aceQ: [], sortie: null, set: null,
         input: 'choice', kidInput: true, timer: 0, fluent: null, sound: true, spDenied: false,
-        toastLeft: 0, shake: 0, flash: null, flashLife: 0,
+        toastLeft: 0, shake: 0,
         yaw: 0, pitch: 0.12, aimYaw: 0, aimPitch: 0.12,
-        cssW: 0, cssH: 0,
+        cssW: 0, cssH: 0, track: 0, near: 0,
     };
 
     const probe = {
@@ -175,7 +220,7 @@
         i: 0, n: 0, lastReport: 0, settleUntil: 0,
     };
 
-    let V1, V2, V3, V4, SIZE, DUMMY, DQ, EUL, UP;    // scratch, made once THREE exists
+    let V1, V2, V3, V4, V5, V6, SIZE, DUMMY, DQ, EUL, UP;    // scratch, made once THREE exists
     let FOE_COL, ACE_COL;
     const FOE_GLOW = [1, 0.54, 0.24], ACE_GLOW = [1, 0.86, 0.4];
 
@@ -195,6 +240,28 @@
         tr.fluent = {};
         MODES.forEach((m) => { tr.fluent[m] = FLUENT_CHOICES.indexOf(Number(fl[m])) >= 0 ? Number(fl[m]) : FLUENT_MS[m]; });
         tr.set = trCleanSet(stJSON('turret.set', null));
+        // Debug choices: explosion style, auto-aim radius, a version of each
+        // sound. Stored apart from the grown-up settings — they tune the game,
+        // not the child's practice.
+        const dbg = stJSON('turret.debug', null) || {};
+        tr.boom = Number.isInteger(dbg.boom) && dbg.boom >= 0 && dbg.boom < BOOMS.length ? dbg.boom : 0;
+        // `near` replaced an older radius-round-the-tap setting; that one is ignored.
+        tr.nearPx = Number.isFinite(dbg.near) ? clamp(dbg.near, NEAR_MIN, NEAR_MAX) : NEAR_PX;
+        const g = dbg.grime || {};
+        tr.grime = {
+            on: g.on === undefined ? GRIME.on : !!g.on,
+            color: /^#[0-9a-f]{6}$/i.test(g.color) ? g.color : GRIME.color,
+            max: Number.isFinite(g.max) ? clamp(g.max, 0, 1) : GRIME.max,
+        };
+        tr.sfx = {};
+        Object.keys(SFX).forEach((k) => {
+            const v = dbg.sfx && dbg.sfx[k];
+            if (Number.isInteger(v) && v > 0 && v < SFX[k].length) tr.sfx[k] = v;
+        });
+    }
+
+    function trSaveDebug() {
+        stSetJSON('turret.debug', { boom: tr.boom, near: tr.nearPx, sfx: tr.sfx, grime: tr.grime });
     }
 
     function trSaveSettings() {
@@ -373,7 +440,7 @@
         $('tr-hud').classList.remove('hidden');
         $('tr-end').classList.remove('hidden');
         $('tr-gear').classList.add('hidden');
-        trToast('Drag to aim · tap a ship to fire', 6);
+        trToast('Drag to aim · tap a ship to fire · tap rocks to break them', 6);
         trHud();
     }
 
@@ -525,33 +592,110 @@
         return tex;
     }
 
+    // A flat disc with a soft rim — one explosion circle.
+    /* A crisp round shape: a disc (or a ring) of radius half the texture,
+     * a brighter outline on its edge, and a halo fading out to the texture's
+     * edge. White ones are tinted per use; bolts bake their colours in, so a
+     * white-hot core can have a coloured rim. */
+    function trShapeTexture(size, fill, rim, halo, ring) {
+        const c = document.createElement('canvas');
+        c.width = c.height = size;
+        const g = c.getContext('2d');
+        const R = size / 2, r = R * 0.5;
+        const grad = g.createRadialGradient(R, R, 0, R, R, R);
+        // Transparent in the halo's own colour, not transparent black: the
+        // gradient blends colour as well as alpha, and fading toward black
+        // leaves a dark smudge round every shape.
+        const clear = halo.replace(/[\d.]+\)$/, '0)');
+        if (ring) {
+            grad.addColorStop(0, clear);
+            grad.addColorStop(0.3, clear);
+            grad.addColorStop(0.5, halo);
+            grad.addColorStop(1, clear);
+        } else {
+            grad.addColorStop(0, halo);
+            grad.addColorStop(0.5, halo);
+            grad.addColorStop(1, clear);
+        }
+        g.fillStyle = grad;
+        g.fillRect(0, 0, size, size);
+        const w = Math.max(1.5, R * (ring ? 0.1 : 0.08));
+        g.beginPath();
+        g.arc(R, R, r - w / 2, 0, Math.PI * 2);
+        if (fill) { g.fillStyle = fill; g.fill(); }
+        g.lineWidth = w;
+        g.strokeStyle = rim;
+        g.stroke();
+        const tex = new THREE.CanvasTexture(c);
+        tex.minFilter = THREE.LinearFilter;
+        return tex;
+    }
+
     /* ---- geometry ---------------------------------------------------------
-     * Shading is baked per face from a fixed light, so no material needs
-     * lights. `rgbOf(k)` gives face k its base colour.
+     * Non-indexed, so every face has its own three vertices and its own
+     * normal: under per-vertex lighting that is flat shading for free.
+     * `rgbOf(k)` gives face k its base colour; the sun does the rest.
      */
-    function trBake(pos, rgbOf, centre) {
+    function trFaceted(pos, rgbOf, centreOf) {
         const col = new Float32Array(pos.length);
-        const light = new THREE.Vector3(0.4, 1, 0.3).normalize();
+        const nrm = new Float32Array(pos.length);
         const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
         const n = new THREE.Vector3(), e = new THREE.Vector3(), mid = new THREE.Vector3();
         for (let k = 0; k < pos.length / 9; k++) {
             a.fromArray(pos, k * 9); b.fromArray(pos, k * 9 + 3); c.fromArray(pos, k * 9 + 6);
             n.subVectors(b, a).cross(e.subVectors(c, a)).normalize();
-            // Windings are not trusted, so take whichever normal faces away
-            // from the centre. Materials are double-sided where it matters.
-            mid.copy(a).add(b).add(c).divideScalar(3).sub(centre);
-            if (n.dot(mid) < 0) n.negate();
-            const shade = 0.35 + 0.65 * Math.max(0, n.dot(light));
+            // Windings are not trusted: a face whose winding points inward is
+            // rewound, not just given a flipped normal. A double-sided
+            // material lights the face the camera sees by its winding, so a
+            // flipped normal alone lights the outside as if it were the
+            // inside — which is how the fighters came out reverse-lit.
+            // No centre means the file's winding is trusted as it is.
+            if (centreOf) mid.copy(a).add(b).add(c).divideScalar(3).sub(typeof centreOf === 'function' ? centreOf(k) : centreOf);
+            if (centreOf && n.dot(mid) < 0) {
+                n.negate();
+                for (let j = 0; j < 3; j++) {
+                    const t = pos[k * 9 + 3 + j];
+                    pos[k * 9 + 3 + j] = pos[k * 9 + 6 + j];
+                    pos[k * 9 + 6 + j] = t;
+                }
+            }
             const rgb = rgbOf(k);
             for (let j = 0; j < 3; j++) {
                 const o = k * 9 + j * 3;
-                col[o] = rgb[0] * shade; col[o + 1] = rgb[1] * shade; col[o + 2] = rgb[2] * shade;
+                col[o] = rgb[0]; col[o + 1] = rgb[1]; col[o + 2] = rgb[2];
+                nrm[o] = n.x; nrm[o + 1] = n.y; nrm[o + 2] = n.z;
             }
         }
         const geo = new THREE.BufferGeometry();
         geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+        geo.setAttribute('normal', new THREE.BufferAttribute(nrm, 3));
         geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
         return geo;
+    }
+
+    // A gun: hexagonal housing, hexagonal barrel and a muzzle collar, all on
+    // +Z from the pivot, so Object3D.lookAt points it down the line of fire.
+    const GUN_PARTS = [[0.12, 0, 0.45, [0.24, 0.26, 0.31]], [0.048, 0.45, 1.95, [0.42, 0.45, 0.52]],
+        [0.068, 1.76, 1.95, [0.62, 0.66, 0.74]]];
+    const GUN_LEN = 1.95;
+
+    function trGunGeometry() {
+        const tris = [], part = [];
+        GUN_PARTS.forEach(([r, z0, z1], p) => {
+            const v = (i, z) => {
+                const a = (i % 6) * Math.PI / 3 + Math.PI / 6;
+                return [r * Math.cos(a), r * Math.sin(a), z];
+            };
+            for (let i = 0; i < 6; i++) {
+                tris.push([v(i, z0), v(i + 1, z0), v(i + 1, z1)], [v(i, z0), v(i + 1, z1), v(i, z1)]);
+                tris.push([[0, 0, z0], v(i + 1, z0), v(i, z0)], [[0, 0, z1], v(i, z1), v(i + 1, z1)]);
+                part.push(p, p, p, p);
+            }
+        });
+        const pos = new Float32Array(tris.length * 9);
+        tris.forEach((t, k) => { for (let j = 0; j < 3; j++) pos.set(t[j], k * 9 + j * 3); });
+        const centres = GUN_PARTS.map(([, z0, z1]) => new THREE.Vector3(0, 0, (z0 + z1) / 2));
+        return trFaceted(pos, (k) => GUN_PARTS[part[k]][3], (k) => centres[part[k]]);
     }
 
     // A fighter: a diamond-section dart, two wings and a fin, nose along +Z
@@ -570,7 +714,7 @@
         ];
         const pos = new Float32Array(tris.length * 9);
         tris.forEach((t, k) => { for (let j = 0; j < 3; j++) pos.set(t[j], k * 9 + j * 3); });
-        return trBake(pos, (k) => tris[k][3], new THREE.Vector3(0, 0, -0.4));
+        return trFaceted(pos, (k) => tris[k][3], new THREE.Vector3(0, 0, -0.4));
     }
 
     // A lumpy rock: an icosphere with each vertex pushed in or out by a hash
@@ -590,9 +734,9 @@
             const f = 0.75 + 0.45 * hash(pos[i], pos[i + 1], pos[i + 2]);
             pos[i] *= f; pos[i + 1] *= f * 0.85; pos[i + 2] *= f;
         }
-        return trBake(pos, (k) => {
+        return trFaceted(pos, (k) => {
             const v = 0.85 + 0.3 * hash(k, k * 0.37, 1);
-            return [0.44 * v, 0.39 * v, 0.34 * v];
+            return [0.62 * v, 0.55 * v, 0.47 * v];
         }, new THREE.Vector3());
     }
 
@@ -634,38 +778,103 @@
             });
     }
 
-    /* ---- scene: dust ------------------------------------------------------*/
-    function trRespawnDust(i, anywhere) {
-        const p = tr.dustP;
-        let x, y;
-        // Keep streaks off the line of flight: one passing through the camera
-        // is a full-screen flash, not dust.
-        do {
-            x = (Math.random() - 0.5) * DUST_W;
-            y = (Math.random() - 0.5) * DUST_H;
-        } while (Math.abs(x) < 3 && Math.abs(y) < 3);
-        p[i * 3] = x; p[i * 3 + 1] = y;
-        p[i * 3 + 2] = anywhere ? -DUST_D * 0.8 + Math.random() * DUST_D : -DUST_D * 0.8;
+    /* ---- scene: the sun ---------------------------------------------------
+     * Close enough to be a disc, not a star. It lives in the sky group, so it
+     * swings round as the pilot turns; the light is moved to match each frame.
+     */
+    function trBuildSun(group) {
+        const dir = new THREE.Vector3().fromArray(SUN_DIR).normalize();
+        const halo = new THREE.Sprite(new THREE.SpriteMaterial({
+            map: tr.glowTex, color: 0xffc27a, transparent: true, opacity: 0.55,
+            blending: THREE.AdditiveBlending, depthWrite: false, fog: false,
+        }));
+        halo.position.copy(dir).multiplyScalar(135);
+        halo.scale.set(70, 70, 1);
+        halo.renderOrder = -1;
+        const disc = new THREE.Sprite(new THREE.SpriteMaterial({
+            map: tr.discTex, color: 0xfff1d0, transparent: true, depthWrite: false, fog: false,
+        }));
+        disc.position.copy(halo.position);
+        disc.scale.set(10 * HALO_K, 10 * HALO_K, 1);
+        disc.renderOrder = -1;
+        group.add(halo, disc);
     }
 
-    function trBuildDust() {
-        tr.dustP = new Float32Array(MAX_DUST * 3);
-        for (let i = 0; i < MAX_DUST; i++) trRespawnDust(i, true);
-        const pos = new Float32Array(MAX_DUST * 6);
-        const col = new Float32Array(MAX_DUST * 6);
-        for (let i = 0; i < MAX_DUST; i++) {
-            // Bright head, black tail: under additive blending black is
-            // nothing, so the streak fades out behind itself for free.
-            const lum = 0.45 + Math.random() * 0.55;
-            col[i * 6] = 0.75 * lum; col[i * 6 + 1] = 0.85 * lum; col[i * 6 + 2] = lum;
-        }
-        const geo = new THREE.BufferGeometry();
-        geo.setAttribute('position', new THREE.BufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage));
-        geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
-        const mat = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false });
-        const lines = new THREE.LineSegments(geo, mat);
-        lines.frustumCulled = false;         // the bounding sphere would be computed once, from the first frame
-        return lines;
+    /* ---- ship models ------------------------------------------------------
+     * A minimal OBJ reader — positions, faces and material names, nothing
+     * else — so no loader script has to be added. Faces are fanned into
+     * triangles; each triangle remembers its material's shade. The model is
+     * centred and scaled to SHIP_LEN; Kenney's craft already point their
+     * noses along +Z, which is the dart's convention too.
+     */
+    let MODELS = null;                      // [{ pos, shade, tail }], once loaded
+    let modelsLoading = false;
+
+    function trParseObj(text) {
+        const v = [], tris = [], shade = [];
+        let cur = 1;
+        text.split(/\r?\n/).forEach((line) => {
+            const p = line.trim().split(/\s+/);
+            if (p[0] === 'v') v.push([Number(p[1]), Number(p[2]), Number(p[3])]);
+            else if (p[0] === 'usemtl') cur = SHIP_SHADE[p[1]] === undefined ? 1 : SHIP_SHADE[p[1]];
+            else if (p[0] === 'f') {
+                const idx = p.slice(1).map((t) => parseInt(t, 10)).map((i) => (i < 0 ? v.length + i : i - 1));
+                for (let k = 1; k + 1 < idx.length; k++) { tris.push(idx[0], idx[k], idx[k + 1]); shade.push(cur); }
+            }
+        });
+        const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+        v.forEach((q) => q.forEach((c, i) => { lo[i] = Math.min(lo[i], c); hi[i] = Math.max(hi[i], c); }));
+        const k = SHIP_LEN / Math.max(1e-6, hi[2] - lo[2]);
+        const mid = [(lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2, (lo[2] + hi[2]) / 2];
+        const pos = new Float32Array(tris.length * 3);
+        tris.forEach((i, j) => { for (let c = 0; c < 3; c++) pos[j * 3 + c] = (v[i][c] - mid[c]) * k; });
+        return { pos, shade, tail: -SHIP_LEN / 2 };
+    }
+
+    function trLoadModels() {
+        if (MODELS || modelsLoading || typeof fetch !== 'function') return;
+        modelsLoading = true;
+        const v = window.ASSET_V || '1';
+        Promise.all(SHIP_MODELS.map((n) => fetch('models/' + n + '.obj?v=' + v)
+            .then((r) => { if (!r.ok) throw new Error(n + ' ' + r.status); return r.text(); })
+            .then(trParseObj)))
+            .then((list) => {
+                MODELS = list.filter((m) => m.pos.length);
+                if (tr.scene) trAddShipMeshes();
+            })
+            // No models is not an error the player needs to see: the dart flies.
+            .catch(() => { modelsLoading = false; });
+    }
+
+    function trShipMat(kind) {
+        return tr.shipMats[tr.shiny ? 'shiny' : 'matte'][kind];
+    }
+
+    function trShipMesh(geo, kind) {
+        const mesh = trInstanced(geo, trShipMat(kind), MAX_ENEMIES);
+        // Every slot gets a colour now: the instance-colour attribute changes
+        // the shader, and adding it after the first draw would mean a recompile.
+        // Made by hand because setColorAt sizes it from `count`, which is 0.
+        mesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX_ENEMIES * 3), 3)
+            .setUsage(THREE.DynamicDrawUsage);
+        for (let i = 0; i < MAX_ENEMIES; i++) mesh.setColorAt(i, FOE_COL);
+        mesh.visible = false;
+        mesh.userData.kind = kind;
+        return mesh;
+    }
+
+    // Model meshes join the dart (mesh 0). Single-sided: the files' windings
+    // are sound, and a single side cannot light a face from behind.
+    function trAddShipMeshes() {
+        if (!MODELS || tr.shipMeshes.length > 1) return;
+        MODELS.forEach((m) => {
+            const geo = trFaceted(Float32Array.from(m.pos), (k) => [m.shade[k], m.shade[k], m.shade[k]], null);
+            const mesh = trShipMesh(geo, 'model');
+            tr.scene.add(mesh);
+            tr.shipMeshes.push(mesh);
+            tr.shipTail.push(m.tail);
+        });
+        tr.shipN = new Int32Array(tr.shipMeshes.length);
     }
 
     /* ---- scene: pools -----------------------------------------------------
@@ -683,74 +892,129 @@
         return mesh;
     }
 
-    function trGlowPoints(max, hex, size) {
+    /* Points for bolts and engine glows. PointsMaterial's attenuation has no
+     * ceiling, and a bolt starts a couple of units from the camera, where it
+     * would be hundreds of pixels across; this clamps it. Each point is
+     * tinted by its own `tint`, and fades into the fog by alpha, which a
+     * normal-blended crisp disc needs where an additive glow would not. */
+    const PT_VERT = [
+        'uniform float size; uniform float scale; uniform float minPx; uniform float maxPx;',
+        'attribute vec3 tint; varying vec3 vTint; varying float vDepth;',
+        'void main() {',
+        '  vTint = tint;',
+        '  vec4 mv = modelViewMatrix * vec4(position, 1.0);',
+        '  vDepth = -mv.z;',
+        '  gl_PointSize = clamp(size * scale / -mv.z, minPx, maxPx);',
+        '  gl_Position = projectionMatrix * mv;',
+        '}'].join('\n');
+    const PT_FRAG = [
+        'uniform sampler2D map; uniform float fogNear; uniform float fogFar;',
+        'varying vec3 vTint; varying float vDepth;',
+        'void main() {',
+        '  vec4 c = texture2D(map, gl_PointCoord);',
+        '  c.rgb *= vTint;',
+        '  c.a *= 1.0 - smoothstep(fogNear, fogFar, vDepth);',
+        '  if (c.a < 0.01) discard;',
+        '  gl_FragColor = c;',
+        '}'].join('\n');
+
+    function trShapePoints(max, tex, size, minPx, maxPx) {
         const geo = new THREE.BufferGeometry();
         geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(max * 3), 3).setUsage(THREE.DynamicDrawUsage));
+        geo.setAttribute('tint', new THREE.BufferAttribute(new Float32Array(max * 3).fill(1), 3).setUsage(THREE.DynamicDrawUsage));
         geo.setDrawRange(0, 0);
-        const mat = new THREE.PointsMaterial({
-            map: tr.glowTex, color: hex, size, sizeAttenuation: true,
-            transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
+        const mat = new THREE.ShaderMaterial({
+            uniforms: {
+                map: { value: tex }, size: { value: size }, scale: { value: 300 },
+                minPx: { value: minPx }, maxPx: { value: maxPx }, fogNear: { value: 25 }, fogFar: { value: 120 },
+            },
+            vertexShader: PT_VERT, fragmentShader: PT_FRAG, transparent: true, depthWrite: false,
         });
+        mat.userData.px = [minPx, maxPx];       // CSS px; trResize scales them to the buffer
         const pts = new THREE.Points(geo, mat);
         pts.frustumCulled = false;
         return pts;
     }
 
     function trBuildPools() {
-        tr.rockMesh = trInstanced(trRockGeometry(), new THREE.MeshBasicMaterial({ vertexColors: true }), MAX_ROCKS);
+        tr.rockMesh = trInstanced(trRockGeometry(), new THREE.MeshLambertMaterial({ vertexColors: true }), MAX_ROCKS);
         tr.rocks = [];
         for (let i = 0; i < MAX_ROCKS; i++) {
-            tr.rocks.push({ active: false, pos: new THREE.Vector3(), axis: new THREE.Vector3(), angle: 0, spin: 0, size: 1 });
+            // `gen` counts reuses of the slot, so a bolt aimed at a rock that
+            // has since been shot, or flown past and respawned, knows it.
+            tr.rocks.push({ active: false, gen: 0, pos: new THREE.Vector3(), vel: new THREE.Vector3(),
+                axis: new THREE.Vector3(), angle: 0, spin: 0, size: 1 });
         }
 
-        tr.enemyMesh = trInstanced(trShipGeometry(),
-            new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide }), MAX_ENEMIES);
-        // Every slot gets a colour now: the instance-colour attribute changes
-        // the shader, and adding it after the first draw would mean a recompile.
-        // Made by hand because setColorAt sizes it from `count`, which is 0.
-        tr.enemyMesh.instanceColor = new THREE.InstancedBufferAttribute(new Float32Array(MAX_ENEMIES * 3), 3)
-            .setUsage(THREE.DynamicDrawUsage);
-        for (let i = 0; i < MAX_ENEMIES; i++) tr.enemyMesh.setColorAt(i, FOE_COL);
-        tr.glows = trGlowPoints(MAX_ENEMIES, 0xffffff, 2.4);
-        tr.glows.material.vertexColors = true;
-        tr.glows.geometry.setAttribute('color',
-            new THREE.BufferAttribute(new Float32Array(MAX_ENEMIES * 3), 3).setUsage(THREE.DynamicDrawUsage));
+        // Two materials for each kind of ship, swapped by tier. Phong lights
+        // per pixel and adds a highlight; Lambert lights per vertex.
+        tr.shipMats = {
+            matte: {
+                dart: new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide, emissive: SHIP_GLOW }),
+                model: new THREE.MeshLambertMaterial({ vertexColors: true, emissive: SHIP_GLOW }),
+            },
+            shiny: {
+                dart: new THREE.MeshPhongMaterial({ vertexColors: true, side: THREE.DoubleSide, emissive: SHIP_GLOW,
+                    specular: SHIP_SPEC, shininess: SHIP_SHINE }),
+                model: new THREE.MeshPhongMaterial({ vertexColors: true, emissive: SHIP_GLOW,
+                    specular: SHIP_SPEC, shininess: SHIP_SHINE }),
+            },
+        };
+        tr.shiny = TIERS[tr.tier].shiny;
+        // Mesh 0 is the built-in dart; trAddShipMeshes appends the models.
+        tr.shipMeshes = [trShipMesh(trShipGeometry(), 'dart')];
+        tr.shipTail = [-1.5];
+        tr.shipN = new Int32Array(1);
+        tr.glows = trShapePoints(MAX_ENEMIES, tr.discTex, 1.5, 3, 20);
         tr.foes = [];
         for (let i = 0; i < MAX_ENEMIES; i++) {
-            tr.foes.push({ active: false, locked: false, dodging: false, ace: null, rollDir: 1,
-                pts: new Float32Array(21), segs: 1, t0: 0, dur: 1, pos: new THREE.Vector3() });
+            tr.foes.push({ active: false, locked: false, dodging: false, ace: null, rollDir: 1, strafe: null, shotAt: 0,
+                tag: '', model: 0, pts: new Float32Array(30), segs: 1, segEnd: new Float32Array(3), t0: 0, dur: 1, bank: 0,
+                pos: new THREE.Vector3(), nose: new THREE.Vector3() });
         }
 
-        const boltGeo = new THREE.OctahedronGeometry(1, 0);
-        boltGeo.scale(0.16, 0.16, 2.0);
-        tr.boltMesh = trInstanced(boltGeo, new THREE.MeshBasicMaterial({
-            color: 0x8ff3ff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false,
-        }), MAX_BOLTS);
-        tr.boltGlows = trGlowPoints(MAX_BOLTS, 0x5fd8ff, 2.6);
+        tr.boltPts = trShapePoints(MAX_BOLTS, tr.boltTex, 1.6, 7, 30);
         tr.bolts = [];
         for (let i = 0; i < MAX_BOLTS; i++) {
-            tr.bolts.push({ active: false, from: new THREE.Vector3(), to: new THREE.Vector3(), t0: 0, t1: 1, target: null });
+            tr.bolts.push({ active: false, from: new THREE.Vector3(), to: new THREE.Vector3(), t0: 0, t1: 1,
+                target: null, rock: null, rockGen: 0 });
         }
 
-        // Sparks fade by darkening — under additive blending a black point is
-        // no point — so dead sparks need no compaction, just a zero colour.
-        const sgeo = new THREE.BufferGeometry();
-        sgeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(MAX_SPARKS * 3), 3).setUsage(THREE.DynamicDrawUsage));
-        sgeo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(MAX_SPARKS * 3), 3).setUsage(THREE.DynamicDrawUsage));
-        tr.sparks = new THREE.Points(sgeo, new THREE.PointsMaterial({
-            map: tr.glowTex, size: 1.8, sizeAttenuation: true, vertexColors: true,
-            transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
-        }));
-        tr.sparks.frustumCulled = false;
-        tr.spark = {
-            vel: new Float32Array(MAX_SPARKS * 3), base: new Float32Array(MAX_SPARKS * 3),
-            life: new Float32Array(MAX_SPARKS), max: new Float32Array(MAX_SPARKS), next: 0,
-        };
+        tr.zapPts = trShapePoints(MAX_ZAPS, tr.zapTex, 2, 8, 36);
+        tr.zaps = [];
+        for (let i = 0; i < MAX_ZAPS; i++) {
+            tr.zaps.push({ active: false, from: new THREE.Vector3(), to: new THREE.Vector3(), t0: 0, t1: 1, hit: false });
+        }
+
+        // Explosion shapes: one sprite each, each with its own material so
+        // each can fade, recolour and change blending on its own.
+        tr.puffs = [];
+        for (let i = 0; i < MAX_PUFFS; i++) {
+            const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+                map: tr.discTex, transparent: true, depthWrite: false, fog: false,
+            }));
+            sp.visible = false;
+            tr.puffs.push({ sp, life: 0, max: 1, delay: 0, r0: 1, r1: 2, curve: 0, fade: 0.6,
+                vel: new THREE.Vector3(), c0: new THREE.Color(), c1: new THREE.Color() });
+        }
+
+        // The guns: children of the camera, so they turn with the turret. A
+        // pivot each, aimed by lookAt; the mesh inside slides back to recoil.
+        const gunGeo = trGunGeometry(), gunMat = new THREE.MeshLambertMaterial({ vertexColors: true });
+        tr.guns = [-1, 1].map((side) => {
+            const pivot = new THREE.Object3D();
+            pivot.position.set(side * 0.8, -1.0, -1.25);
+            const mesh = new THREE.Mesh(gunGeo, gunMat);
+            pivot.add(mesh);
+            tr.camera.add(pivot);
+            return { side, pivot, mesh, aim: new THREE.Vector3(0, 0, -60), want: new THREE.Vector3(), hold: 0, recoil: 0 };
+        });
     }
 
     function trBuild() {
         if (typeof THREE === 'undefined') { trShowLost('3D graphics did not load. Check the connection and refresh.'); return false; }
         V1 = new THREE.Vector3(); V2 = new THREE.Vector3(); V3 = new THREE.Vector3(); V4 = new THREE.Vector3();
+        V5 = new THREE.Vector3(); V6 = new THREE.Vector3();
         SIZE = new THREE.Vector2(); DUMMY = new THREE.Object3D();
         DQ = new THREE.Quaternion(); EUL = new THREE.Euler(0, 0, 0, 'YXZ'); UP = new THREE.Vector3(0, 1, 0);
         FOE_COL = new THREE.Color(0.82, 0.24, 0.2); ACE_COL = new THREE.Color(1.0, 0.78, 0.2);
@@ -782,23 +1046,27 @@
         tr.scene.add(tr.rig);
 
         tr.glowTex = trGlowTexture(64, 0.3);
+        tr.discTex = trShapeTexture(128, '#d4d4d4', '#ffffff', 'rgba(255,255,255,0.32)', false);
+        tr.ringTex = trShapeTexture(128, null, '#ffffff', 'rgba(255,255,255,0.4)', true);
+        tr.boltTex = trShapeTexture(64, '#f0ffff', '#3fd2ff', 'rgba(63,210,255,0.45)', false);
+        tr.zapTex = trShapeTexture(64, '#fff2ea', '#ff4a30', 'rgba(255,74,48,0.45)', false);
         tr.sky = new THREE.Group();
         tr.stars = trBuildStars();
         tr.sky.add(tr.stars);
         trBuildNebulae(tr.sky);
+        trBuildSun(tr.sky);
         tr.scene.add(tr.sky);
-        tr.dust = trBuildDust();
-        tr.scene.add(tr.dust);
+        // Hard sun, faint fill: the dark side of a rock is nearly black, which
+        // is what makes the light read as coming from somewhere.
+        tr.sun = new THREE.DirectionalLight(0xfff0d8, 1.7);
+        tr.scene.add(tr.sun, new THREE.AmbientLight(0x6a78a8, 0.32));
         trBuildPools();
-        [tr.rockMesh, tr.enemyMesh, tr.glows, tr.boltMesh, tr.boltGlows, tr.sparks].forEach((o) => tr.scene.add(o));
-        // One flash for an explosion, reused: a sprite swelling and fading
-        // reads as a fireball for the price of one quad.
-        tr.flash = new THREE.Sprite(new THREE.SpriteMaterial({
-            map: tr.glowTex, color: 0xffd9a0, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false,
-        }));
-        tr.flash.visible = false;
-        tr.flashLife = 0;
-        tr.scene.add(tr.flash);
+        [tr.rockMesh, tr.shipMeshes[0], tr.glows, tr.boltPts, tr.zapPts].forEach((o) => tr.scene.add(o));
+        trLoadGrime();
+        trAddShipMeshes();
+        trLoadModels();
+        tr.puffs.forEach((p) => tr.scene.add(p.sp));
+        tr.deflector = 100;
 
         tr.pilot = { m: MANOEUVRES[0], since: tr.wt, until: tr.wt + 3, yawRate: 0, pitchRate: 0, belt: false, beltUntil: tr.wt + 6 };
         tr.spawnAt = tr.wt + 1;
@@ -841,7 +1109,17 @@
             trCloseAsk();
         }
         tr.timeScale = 1;
-        tr.flash = null;
+        // Materials not on a mesh at teardown are not reached by the traverse.
+        if (tr.shipMats) ['matte', 'shiny'].forEach((k) => { tr.shipMats[k].dart.dispose(); tr.shipMats[k].model.dispose(); });
+        tr.shipMats = null;
+        tr.shiny = null;
+        tr.puffs = [];
+        tr.zaps = [];
+        tr.guns = [];
+        tr.shipMeshes = [];
+        tr.shipTail = [];
+        $('tr-hurt').classList.remove('tr-on');
+        trHideTargets();
     }
 
     /* ---- context loss -----------------------------------------------------*/
@@ -870,7 +1148,12 @@
         const T = TIERS[tr.tier];
         if (tr.renderer) {
             tr.stars.geometry.setDrawRange(0, T.stars);
-            tr.dust.geometry.setDrawRange(0, T.dust * 2);
+            // Swapping a material compiles its program the first time: a
+            // hitch once, when auto steps down, not a cost every frame.
+            if (tr.shiny !== T.shiny) {
+                tr.shiny = T.shiny;
+                tr.shipMeshes.forEach((m) => { m.material = trShipMat(m.userData.kind); });
+            }
             trResize();
         }
         trProbeReset();
@@ -895,9 +1178,16 @@
         if (!w || !h) return;                // display:none reports zero; keep the last good size
         tr.cssW = w; tr.cssH = h;
         const s = TIERS[tr.tier].scale;
-        tr.renderer.setSize(Math.max(1, Math.round(w * s)), Math.max(1, Math.round(h * s)), false);
+        const bh = Math.max(1, Math.round(h * s));
+        tr.renderer.setSize(Math.max(1, Math.round(w * s)), bh, false);
         tr.camera.aspect = w / h;
         tr.camera.updateProjectionMatrix();
+        [tr.glows, tr.boltPts, tr.zapPts].forEach((p) => {
+            const u = p.material.uniforms, px = p.material.userData.px;
+            u.scale.value = bh / 2;
+            u.minPx.value = px[0] * s;
+            u.maxPx.value = px[1] * s;
+        });
     }
 
     /* ---- loop -------------------------------------------------------------*/
@@ -959,14 +1249,17 @@
         else if (tr.shake) { tr.shake = 0; tr.camera.position.set(0, 0, 0); }
 
         trUpdatePilot(wdt);
-        trUpdateDust(wdt);
+        trUpdateGuns(dt);
+        trUpdateGrime();
         trUpdateRocks(wdt);
         trUpdateSpawner();
-        trUpdateFoes();
+        trUpdateFoes(wdt);
         trUpdateBolts();
-        trUpdateSparks(wdt);
-        trUpdateFlash(wdt);
+        trUpdateZaps();
+        trUpdatePuffs(wdt);
         trUpdateLockMark();
+        trUpdateTargets();
+        trUpdateHudText(dt);
         trUpdateAsk(dt);
         trUpdateSortie(dt);
     }
@@ -1005,29 +1298,64 @@
         EUL.set(-P.pitchRate * wdt, -P.yawRate * wdt, 0);
         DQ.setFromEuler(EUL);
         tr.sky.quaternion.premultiply(DQ).normalize();   // thousands of products drift off unit length
+        tr.sun.position.fromArray(SUN_DIR).applyQuaternion(tr.sky.quaternion);
     }
 
-    /* ---- the world: dust and rocks ----------------------------------------*/
-    function trUpdateDust(wdt) {
-        const T = TIERS[tr.tier];
-        const p = tr.dustP;
-        const arr = tr.dust.geometry.attributes.position.array;
-        const step = SPEED * wdt;
-        for (let i = 0; i < T.dust; i++) {
-            V1.fromArray(p, i * 3).applyQuaternion(DQ);
-            V1.z += step;
-            V1.toArray(p, i * 3);
-            // A hard turn sweeps dust out of the box sideways as well as past.
-            if (V1.z > DUST_D * 0.2 || V1.z < -DUST_D || Math.abs(V1.x) > DUST_W || Math.abs(V1.y) > DUST_H) {
-                trRespawnDust(i, false);
-            }
-            const o = i * 6;
-            arr[o] = arr[o + 3] = p[i * 3];
-            arr[o + 1] = arr[o + 4] = p[i * 3 + 1];
-            arr[o + 2] = p[i * 3 + 2];
-            arr[o + 5] = p[i * 3 + 2] - STREAK;
+    /* ---- the world: rocks -------------------------------------------------
+     * Rocks drift in world space — the ship's flight carries them past and
+     * the pilot's turns swing them round. A fragment has a velocity of its
+     * own on top, away from where its parent was shot.
+     */
+    function trRock() {
+        const r = tr.rocks.find((x) => !x.active);
+        if (!r) return null;
+        r.gen++;
+        r.active = true;
+        r.vel.set(0, 0, 0);
+        r.axis.set(rand(-1, 1), rand(-1, 1), rand(-1, 1)).normalize();
+        r.angle = rand(0, 6.3);
+        r.spin = rand(-0.6, 0.6);
+        return r;
+    }
+
+    function trSpawnRock(incoming) {
+        const r = trRock();
+        if (!r) return;
+        let x, y;
+        if (incoming === undefined ? Math.random() < INCOMING : incoming) {
+            // On the line of flight, near enough to hit. It grows on screen
+            // for four seconds first — long enough to see it and shoot it.
+            x = rand(-1.5, 1.5); y = rand(-1.2, 1.2);
+            r.size = rand(1.6, 3);
+        } else {
+            x = rand(-75, 75); y = rand(-48, 48);
+            // Never near the line of flight by accident: a rock through the
+            // cockpit is the set piece above, not a coin toss.
+            if (Math.abs(x) < 12 && Math.abs(y) < 9) x = x < 0 ? x - 14 : x + 14;
+            r.size = rand(1.5, 6);
         }
-        tr.dust.geometry.attributes.position.needsUpdate = true;
+        r.pos.set(x, y, rand(-185, -150));
+    }
+
+    // Shot, a big rock splits into two to four pieces flung out from its
+    // centre and a small one is only a flash. Against the hull it only
+    // bursts: pieces born that close would hit the hull again.
+    function trShatter(r, rammed) {
+        const big = !rammed && r.size >= SPLIT_MIN;
+        trRockBoom(r.pos, r.size * 0.9, big ? 3 : 2);
+        r.active = false;
+        if (!big) return;
+        const n = r.size > 4 ? 4 : r.size > 2.6 ? 3 : 2;
+        const ox = r.pos.x, oy = r.pos.y, oz = r.pos.z, size = r.size;
+        for (let k = 0; k < n; k++) {
+            const f = trRock();
+            if (!f) return;                             // a full pool loses the smaller pieces, nothing else
+            f.size = size * rand(0.38, 0.55);
+            V1.set(rand(-1, 1), rand(-1, 1), rand(-1, 1)).normalize();
+            f.pos.set(ox, oy, oz).addScaledVector(V1, size * 0.5);
+            f.vel.copy(V1).multiplyScalar(rand(7, 15));
+            f.spin = rand(-2.4, 2.4);
+        }
     }
 
     function trUpdateRocks(wdt) {
@@ -1035,21 +1363,12 @@
         let live = 0;
         for (let i = 0; i < MAX_ROCKS; i++) if (tr.rocks[i].active) live++;
 
-        // A belt is the same rocks spawned faster. Between belts nothing new
-        // is spawned and the field thins out on its own.
-        if (tr.pilot.belt && tr.wt >= tr.rockAt && live < T.rocks) {
-            const r = tr.rocks.find((x) => !x.active);
-            let x = rand(-70, 70), y = rand(-45, 45);
-            // Never on the line of flight: a rock through the cockpit is not a set piece.
-            if (Math.abs(x) < 12 && Math.abs(y) < 9) x = x < 0 ? x - 14 : x + 14;
-            r.pos.set(x, y, rand(-180, -150));
-            r.axis.set(rand(-1, 1), rand(-1, 1), rand(-1, 1)).normalize();
-            r.angle = rand(0, 6.3);
-            r.spin = rand(-0.6, 0.6);
-            r.size = rand(1.5, 5.5);
-            r.active = true;
-            // A rock lives about five seconds, so this keeps a belt near full.
-            tr.rockAt = tr.wt + rand(0.3, 0.7);
+        // There are always some rocks about. A belt is the same rocks spawned
+        // much faster, and the field thins out on its own after one.
+        if (tr.wt >= tr.rockAt && live < T.rocks) {
+            trSpawnRock();
+            // A rock lives about five seconds; a belt keeps the field near full.
+            tr.rockAt = tr.wt + (tr.pilot.belt ? rand(0.12, 0.3) : rand(0.6, 1.3));
         }
 
         let n = 0;
@@ -1057,7 +1376,15 @@
             const r = tr.rocks[i];
             if (!r.active) continue;
             r.pos.applyQuaternion(DQ);
+            r.vel.applyQuaternion(DQ);
+            r.pos.addScaledVector(r.vel, wdt);
             r.pos.z += SPEED * wdt;
+            // Into the hull: the ship takes it, the rock does not survive it.
+            if (r.pos.z > -r.size - 1 && r.pos.z < 1 && Math.hypot(r.pos.x, r.pos.y) < r.size + HULL_R) {
+                trShatter(r, true);
+                trHurt(0.9);
+                continue;
+            }
             if (r.pos.z > 15) { r.active = false; continue; }
             r.angle += r.spin * wdt;
             DUMMY.position.copy(r.pos);
@@ -1072,10 +1399,11 @@
 
     /* ---- enemies ----------------------------------------------------------*/
     function trPathAt(e, wt, out) {
-        const u = clamp((wt - e.t0) / e.dur, 0, 1);
-        const f = u * e.segs;
-        const s = Math.min(e.segs - 1, Math.floor(f));
-        const t = f - s, it = 1 - t;
+        const tt = clamp(wt - e.t0, 0, e.dur);
+        let s = 0;
+        while (s < e.segs - 1 && tt > e.segEnd[s]) s++;
+        const a = s ? e.segEnd[s - 1] : 0;
+        const t = (tt - a) / (e.segEnd[s] - a), it = 1 - t;
         const b0 = it * it * it, b1 = 3 * it * it * t, b2 = 3 * it * t * t, b3 = t * t * t;
         const p = e.pts, o = s * 9;
         return out.set(
@@ -1085,29 +1413,106 @@
         );
     }
 
-    function trSpawnFoe(path, mirror, delay, offset, ace) {
-        const e = tr.foes.find((x) => !x.active);
-        if (!e) return;
-        e.ace = ace || null;
-        const last = path.pts.length - 1;
-        path.pts.forEach((pt, i) => {
-            // Jitter the inner control points so no two passes are identical;
-            // the end points stay out in the fog where they belong.
-            const j = i === 0 || i === last ? 0 : 6;
-            e.pts[i * 3] = (mirror ? -pt[0] : pt[0]) + rand(-j, j) + (offset ? offset[0] : 0);
-            e.pts[i * 3 + 1] = pt[1] + rand(-j, j) + (offset ? offset[1] : 0);
-            e.pts[i * 3 + 2] = pt[2] + rand(-j, j) + (offset ? offset[2] : 0);
-        });
-        // Jitter breaks the collinearity at a joint; restore it by putting
-        // each joint back at the midpoint of its neighbours.
-        for (let s = 3; s < last; s += 3) {
-            for (let c = 0; c < 3; c++) e.pts[s * 3 + c] = (e.pts[(s - 1) * 3 + c] + e.pts[(s + 1) * 3 + c]) / 2;
+    // A point in ship space at a yaw (0 ahead, positive left — the turret's
+    // convention), a range, and a height.
+    function trAt(yaw, range, y) {
+        return new THREE.Vector3(-Math.sin(yaw) * range, y, -Math.cos(yaw) * range);
+    }
+
+    // Knots, unit headings and speeds → Bézier control points and segment
+    // end times. Handles are speed × duration / 3, the Hermite form.
+    function trHermite(knots, heads, speeds) {
+        const pts = [], ends = [];
+        let t = 0;
+        for (let i = 0; i < knots.length - 1; i++) {
+            const A = knots[i], B = knots[i + 1];
+            const T = 1.1 * A.distanceTo(B) / ((speeds[i] + speeds[i + 1]) / 2);
+            if (!i) pts.push(A);
+            pts.push(A.clone().addScaledVector(heads[i], speeds[i] * T / 3),
+                B.clone().addScaledVector(heads[i + 1], -speeds[i + 1] * T / 3), B);
+            t += T;
+            ends.push(t);
         }
-        e.segs = last / 3;
+        return { pts, ends, dur: t };
+    }
+
+    // A swoop: in from off-screen, across the view, out into the fog. A
+    // strafing run: in from off-screen, round onto a head-on line at the
+    // ship, past it over or under, and away behind.
+    function trPlanPath(strafe) {
+        const cy = tr.yaw, side = Math.random() < 0.5 ? -1 : 1;
+        const start = trAt(cy + side * rand(ENTRY_OFF[0], ENTRY_OFF[1]), rand(55, 80), rand(-12, 38));
+        const mid = (a, b) => b.clone().sub(a).normalize();
+        if (!strafe) {
+            const range = rand(35, 65);
+            const seen = trAt(cy + rand(-0.35, 0.35), range, range * Math.tan(tr.pitch) + rand(-8, 10));
+            const out = Math.random() < 0.5
+                ? trAt(cy - side * rand(1.4, 2.2), 135, rand(-10, 50))
+                : trAt(cy + rand(-0.6, 0.6), 140, rand(30, 70));
+            // Heading in curves toward the view; across it, along the line
+            // from entry to exit; out, climbing a little.
+            const h0 = mid(start, seen).addScaledVector(V1.set(0, 1, 0).cross(mid(start, seen)), side * 0.6).normalize();
+            const h1 = mid(start, out);
+            const h2 = mid(seen, out).add(V1.set(0, 0.25, 0)).normalize();
+            const p = trHermite([start, seen, out], [h0, h1, h2], [48, rand(34, 46), 62]);
+            p.strafe = null;
+            return p;
+        }
+        const lineUp = trAt(cy + rand(-0.3, 0.3), rand(95, 115), rand(5, 24));
+        const over = Math.random() < 0.6 ? 1 : -1;
+        const pass = new THREE.Vector3((Math.random() < 0.5 ? -1 : 1) * rand(5, 9), over * rand(9, 14), -10);
+        const away = new THREE.Vector3(pass.x * 6, over * rand(50, 80), rand(80, 110));
+        const run = mid(lineUp, pass);
+        const h0 = mid(start, lineUp).addScaledVector(V1.set(0, 1, 0).cross(mid(start, lineUp)), side * 0.5).normalize();
+        const h1 = mid(start, lineUp).lerp(run, 0.75).normalize();
+        const h3 = mid(pass, away);
+        const p = trHermite([start, lineUp, pass, away], [h0, h1, run, h3], [52, 44, 52, 66]);
+        // Guns open on the head-on leg, and stop short of the pass.
+        p.strafe = [p.ends[0] / p.dur, (p.ends[0] + (p.ends[1] - p.ends[0]) * 0.8) / p.dur];
+        return p;
+    }
+
+    // The planner is not trusted near the cockpit: a path is sampled, and
+    // one that comes too close is planned again.
+    function trSafePath(strafe) {
+        const probeFoe = { pts: null, segs: 0, segEnd: null, t0: 0, dur: 0 };
+        for (let tries = 0; tries < 12; tries++) {
+            const p = trPlanPath(strafe);
+            probeFoe.pts = []; p.pts.forEach((v) => probeFoe.pts.push(v.x, v.y, v.z));
+            probeFoe.segs = p.ends.length; probeFoe.segEnd = p.ends; probeFoe.dur = p.dur;
+            let near = Infinity;
+            for (let i = 0; i <= 60; i++) near = Math.min(near, trPathAt(probeFoe, p.dur * i / 60, V1).length());
+            if (near >= PASS_MIN) return p;
+        }
+        return null;
+    }
+
+    function trPickModel() {
+        const n = tr.shipMeshes.length;
+        return n > 1 ? 1 + Math.floor(Math.random() * (n - 1)) : 0;
+    }
+
+    function trSpawnFoe(path, delay, offset, ace, model) {
+        const e = tr.foes.find((x) => !x.active);
+        if (!e || !path) return;
+        e.ace = ace || null;
+        e.model = model === undefined ? trPickModel() : model;
+        path.pts.forEach((v, i) => {
+            e.pts[i * 3] = v.x + (offset ? offset[0] : 0);
+            e.pts[i * 3 + 1] = v.y + (offset ? offset[1] : 0);
+            e.pts[i * 3 + 2] = v.z + (offset ? offset[2] : 0);
+        });
+        e.segs = path.ends.length;
+        for (let i = 0; i < e.segs; i++) e.segEnd[i] = path.ends[i];
         e.dur = path.dur;
         e.t0 = tr.wt + delay;
         e.locked = false;
         e.dodging = false;
+        e.strafe = path.strafe;
+        e.shotAt = 0;
+        e.bank = 0;
+        // A callsign for the target box. Nothing reads it but the player.
+        e.tag = e.ace ? 'ACE' : 'ABCDEFGHJKLMNPRSTVXZ'[Math.floor(Math.random() * 20)] + '-' + (10 + Math.floor(Math.random() * 90));
         e.active = true;
         trPathAt(e, e.t0, e.pos);
     }
@@ -1118,8 +1523,9 @@
         let busy = 0;
         for (let i = 0; i < MAX_ENEMIES; i++) if (tr.foes[i].active) busy++;
         if (busy >= T.enemies) { tr.spawnAt = tr.wt + 0.5; return; }
-        const path = PATHS[Math.floor(Math.random() * PATHS.length)];
-        const mirror = Math.random() < 0.5;
+        // About one run in three is a strafing run.
+        const path = trSafePath(Math.random() < 0.35);
+        if (!path) { tr.spawnAt = tr.wt + 0.3; return; }
         const S = tr.sortie;
         if (S && !S.finishing) {
             // A due ace goes first. With the deck spent there is nothing else
@@ -1127,7 +1533,7 @@
             const spent = !tr.deck.length;
             for (let i = 0; i < tr.aceQ.length; i++) {
                 if (!spent && tr.aceQ[i].at > tr.wt) continue;
-                trSpawnFoe(path, mirror, 0, null, tr.aceQ.splice(i, 1)[0].q);
+                trSpawnFoe(path, 0, null, tr.aceQ.splice(i, 1)[0].q);
                 trSfx('ace');
                 if (!S.toldAce && !tr.ask) {
                     S.toldAce = true;
@@ -1138,14 +1544,19 @@
             }
             if (spent) { tr.spawnAt = tr.wt + 0.5; return; }
         }
-        trSpawnFoe(path, mirror, 0, null);
-        if (busy + 2 <= T.enemies && Math.random() < 0.3) trSpawnFoe(path, mirror, WING_DELAY, WING_OFFSET);
+        const model = trPickModel();
+        trSpawnFoe(path, 0, null, null, model);
+        if (busy + 2 <= T.enemies && Math.random() < 0.3) trSpawnFoe(path, WING_DELAY, WING_OFFSET, null, model);
         tr.spawnAt = tr.wt + rand(1.2, 2.8);
     }
 
-    function trUpdateFoes() {
+    function trUpdateFoes(wdt) {
         const gpos = tr.glows.geometry.attributes.position.array;
-        const gcol = tr.glows.geometry.attributes.color.array;
+        const gcol = tr.glows.geometry.attributes.tint.array;
+        const H = 0.05;
+        const kRoll = 1 - Math.exp(-wdt * ROLL_RATE);
+        const N = tr.shipN;
+        N.fill(0);
         let n = 0;
         for (let i = 0; i < MAX_ENEMIES; i++) {
             const e = tr.foes[i];
@@ -1163,18 +1574,38 @@
             }
 
             trPathAt(e, tr.wt, e.pos);
-            trPathAt(e, tr.wt + 0.05, V2);
-            trPathAt(e, tr.wt - 0.05, V3);
-            // Bank from lateral acceleration: the second difference over the
-            // step squared, projected on the side axis.
-            V4.subVectors(V2, V3);                      // velocity × 0.1
-            V1.copy(V2).add(V3).addScaledVector(e.pos, -2);
-            const lateral = V1.dot(V4.cross(UP).normalize()) / 0.0025;
-            let bank = clamp(lateral * 0.015, -1.2, 1.2);
+            trPathAt(e, tr.wt + H, V2);
+            trPathAt(e, tr.wt - H, V3);
+            // Velocity and acceleration by central differences. The lift has
+            // to supply the acceleration and hold the craft up as well; the
+            // bank is the angle that lift leans from the wings-level up.
+            V4.subVectors(V2, V3).normalize();          // forward
+            V1.copy(V2).add(V3).addScaledVector(e.pos, -2).divideScalar(H * H);   // acceleration
+            V1.y += FLIGHT_G;                           // lift
+            V1.addScaledVector(V4, -V1.dot(V4));        // across the flight path only
+            V5.copy(UP).addScaledVector(V4, -V4.y);     // wings-level up
+            if (V5.lengthSq() > 1e-4) {
+                V5.normalize();
+                V6.crossVectors(V4, V5);                // the pilot's right
+                const want = clamp(Math.atan2(V1.dot(V6), V1.dot(V5)), -1.4, 1.4);
+                e.bank += (want - e.bank) * kRoll;
+            }
+            let bank = e.bank;
             // A swerving fighter throws in a full barrel roll, toward its break.
             if (e.dodging) {
                 const r = clamp((tr.wt - e.t0) / 0.7, 0, 1);
                 bank += e.rollDir * Math.PI * 2 * r * r * (3 - 2 * r);
+            }
+
+            // On a strafing run, inside its window, it shoots at the ship.
+            // A locked one is held, and one breaking away has other things to do.
+            if (e.strafe && !e.locked && !e.dodging && tr.wt >= e.shotAt) {
+                const u = (tr.wt - e.t0) / e.dur;
+                if (u >= e.strafe[0] && u <= e.strafe[1] && e.pos.length() < SIGHT) {
+                    e.nose.copy(e.pos).addScaledVector(V4, 2.2 * SHIP_SCALE);
+                    trEnemyFire(e.nose);
+                    e.shotAt = tr.wt + ZAP_EVERY * rand(0.8, 1.3);
+                }
             }
 
             DUMMY.position.copy(e.pos);
@@ -1182,32 +1613,52 @@
             DUMMY.lookAt(V2);
             DUMMY.rotateZ(bank);
             DUMMY.updateMatrix();
-            tr.enemyMesh.setMatrixAt(n, DUMMY.matrix);
-            tr.enemyMesh.setColorAt(n, e.ace ? ACE_COL : FOE_COL);
+            const m = e.model < tr.shipMeshes.length ? e.model : 0;
+            tr.shipMeshes[m].setMatrixAt(N[m], DUMMY.matrix);
+            tr.shipMeshes[m].setColorAt(N[m], e.ace ? ACE_COL : FOE_COL);
+            N[m]++;
 
             // Engine glow behind the hull, along the direction of travel.
-            V1.subVectors(e.pos, V2).normalize().multiplyScalar(1.5 * SHIP_SCALE).add(e.pos);
+            V1.copy(e.pos).addScaledVector(V4, tr.shipTail[m] * SHIP_SCALE);
             gpos[n * 3] = V1.x; gpos[n * 3 + 1] = V1.y; gpos[n * 3 + 2] = V1.z;
             const g = e.ace ? ACE_GLOW : FOE_GLOW;
             gcol[n * 3] = g[0]; gcol[n * 3 + 1] = g[1]; gcol[n * 3 + 2] = g[2];
             n++;
         }
-        tr.enemyMesh.count = n;
-        tr.enemyMesh.instanceMatrix.needsUpdate = true;
-        tr.enemyMesh.instanceColor.needsUpdate = true;
+        for (let m = 0; m < tr.shipMeshes.length; m++) {
+            const mesh = tr.shipMeshes[m];
+            mesh.count = N[m];
+            mesh.visible = N[m] > 0;            // no empty draw call for a model nobody is flying
+            if (N[m]) {
+                mesh.instanceMatrix.needsUpdate = true;
+                mesh.instanceColor.needsUpdate = true;
+            }
+        }
         tr.glows.geometry.setDrawRange(0, n);
         tr.glows.geometry.attributes.position.needsUpdate = true;
-        tr.glows.geometry.attributes.color.needsUpdate = true;
+        tr.glows.geometry.attributes.tint.needsUpdate = true;
     }
 
     /* ---- firing -----------------------------------------------------------*/
     // The nearest fighter to a tap, on screen, inside the lock radius.
     // Locks only happen in a sortie, and a plain fighter is only worth
     // locking while the deck still has a question for it.
+    // Half a target box, in CSS px, for a fighter this far into the view.
+    // The same size trUpdateTargets draws, so "near the box" means the box
+    // the player can see.
+    function trBoxHalf(depth, h) {
+        const f = (h / 2) / Math.tan(THREE.MathUtils.degToRad(tr.camera.fov / 2));
+        return clamp(3.4 * SHIP_SCALE * f / depth, 24, 140) / 2;
+    }
+
+    // The fighter a shot is aimed at: the one whose target box the tap lands
+    // nearest, if that is within the lock distance. Locks only happen in a
+    // sortie, and a plain fighter is only worth locking while the deck still
+    // has a question for it.
     function trPickFoe(nx, ny, w, h) {
         const S = tr.sortie;
         if (!S || S.finishing) return null;
-        let best = null, bestD = Math.max(LOCK_PX, w * 0.08);
+        let best = null, bestD = tr.nearPx;
         for (const e of tr.foes) {
             if (!e.active || e.locked || e.dodging || tr.wt < e.t0) continue;
             if (!e.ace && !tr.deck.length) continue;
@@ -1215,8 +1666,32 @@
             V3.copy(e.pos).applyMatrix4(tr.camera.matrixWorldInverse);
             if (V3.z > -1) continue;                    // behind the turret
             V2.copy(e.pos).project(tr.camera);
+            const half = trBoxHalf(-V3.z, h);
+            // Distance from the tap to the box's edge; inside the box is 0.
+            const dx = Math.max(0, Math.abs((V2.x - nx) * w / 2) - half);
+            const dy = Math.max(0, Math.abs((V2.y - ny) * h / 2) - half);
+            const d = Math.hypot(dx, dy);
+            if (d <= bestD) { best = e; bestD = d; }
+        }
+        return best;
+    }
+
+    // The rock under a tap: any rock near enough to see, whose disc on
+    // screen — padded, a rock is a small thing to hit with a finger — holds
+    // the tap. Nearest the tap wins. No sortie needed: rocks ask nothing.
+    function trPickRock(nx, ny, w, h) {
+        const f = (h / 2) / Math.tan(THREE.MathUtils.degToRad(tr.camera.fov / 2));
+        let best = null, bestD = Infinity;
+        for (const r of tr.rocks) {
+            if (!r.active) continue;
+            const dist = r.pos.length();
+            if (dist > SIGHT) continue;
+            V3.copy(r.pos).applyMatrix4(tr.camera.matrixWorldInverse);
+            if (V3.z > -1) continue;
+            V2.copy(r.pos).project(tr.camera);
             const d = Math.hypot((V2.x - nx) * w / 2, (V2.y - ny) * h / 2);
-            if (d < bestD) { best = e; bestD = d; }
+            const reach = Math.max(26, (r.size * f) / -V3.z * 1.3);
+            if (d < reach && d < bestD) { best = r; bestD = d; }
         }
         return best;
     }
@@ -1233,13 +1708,44 @@
         return t;
     }
 
-    function trMuzzle(out) {
-        // The overlay's barrel tips, put into the 3D view: 12.5% of the half-
-        // width either side of centre, 58% of the half-height down.
-        const hh = 1.6 * Math.tan(THREE.MathUtils.degToRad(tr.camera.fov / 2));
-        tr.barrel = -tr.barrel;
-        out.set(tr.barrel * 0.125 * hh * tr.camera.aspect, -0.58 * hh, -1.6);
-        return tr.camera.localToWorld(out);
+    /* ---- the guns ---------------------------------------------------------
+     * Both turn to each shot, snapping on the trigger, and hold there a
+     * moment before easing back to centre; while a fighter is locked they
+     * track it. Barrels alternate, and the one that fires kicks back.
+     */
+    const GUN_HOLD = 0.6, GUN_KICK = 0.32;
+
+    function trUpdateGuns(dt) {
+        tr.rig.updateMatrixWorld();                     // lookAt reads the camera's world matrix
+        const k = 1 - Math.exp(-dt * 16), kr = Math.exp(-dt * 26);
+        for (const g of tr.guns) {
+            if (tr.lockFoe) g.want.copy(tr.lockFoe.pos);
+            else if (g.hold > 0) g.hold -= dt;
+            else if (tr.mouse) {
+                // Where the pointer is, 60 units out along its ray.
+                V3.set(tr.mouse.nx, tr.mouse.ny, 0.5).unproject(tr.camera).sub(tr.camera.getWorldPosition(g.want)).normalize();
+                g.want.addScaledVector(V3, 60);
+            } else tr.camera.localToWorld(g.want.set(0, 0, -60));
+            g.aim.lerp(g.want, k);
+            g.pivot.lookAt(g.aim);
+            g.recoil *= kr;
+            g.mesh.position.z = -g.recoil;
+        }
+    }
+
+    function trAimGuns(point) {
+        tr.rig.updateMatrixWorld();
+        for (const g of tr.guns) {
+            g.want.copy(point);
+            g.aim.copy(point);
+            g.hold = GUN_HOLD;
+            g.pivot.lookAt(point);
+            g.pivot.updateMatrixWorld(true);
+        }
+    }
+
+    function trGunTip(g, out) {
+        return g.mesh.localToWorld(out.set(0, 0, GUN_LEN));
     }
 
     function trSpawnBolt(from, to, t1, target) {
@@ -1250,8 +1756,20 @@
         b.t0 = tr.wt;
         b.t1 = t1;
         b.target = target;
+        b.rock = null;
         b.active = true;
         return b;
+    }
+
+    // A shot at a rock always hits. Rocks have no question to ask, so there
+    // is no reason a fair shot should miss; the bolt is steered onto the rock
+    // all the way in (trUpdateBolts), so a turn mid-flight cannot spoil it.
+    function trShootRock(r, muzzle) {
+        const t = r.pos.distanceTo(muzzle) / (BOLT_SPEED + SPEED);
+        const b = trSpawnBolt(muzzle, r.pos, tr.wt + t, null);
+        if (!b) return;
+        b.rock = r;
+        b.rockGen = r.gen;
     }
 
     function trFire(clientX, clientY) {
@@ -1263,27 +1781,36 @@
         const nx = ((clientX - r.left) / r.width) * 2 - 1;
         const ny = -((clientY - r.top) / r.height) * 2 + 1;
         tr.scene.updateMatrixWorld();                   // the camera's matrices, as of this frame's aim
-
-        const muzzle = trMuzzle(V1);
-        const flash = $(tr.barrel > 0 ? 'tr-barrel-r' : 'tr-barrel-l');
-        flash.classList.remove('tr-fire');
-        void flash.getBoundingClientRect();             // restart the flash if the same barrel fires twice
-        flash.classList.add('tr-fire');
         trSfx('zap');
         tr.shake = Math.max(tr.shake, 0.06);
+        trTapMark(clientX - r.left, clientY - r.top, r.width);
 
-        const foe = trPickFoe(nx, ny, r.width, r.height);
-        if (foe) {
-            const tHit = trLead(foe, muzzle);
-            if (tHit < foe.t0 + foe.dur - 0.15) {
-                trOnLock(foe, muzzle, tHit);
-                return;
+        // The target is chosen first, so the guns can turn to it before
+        // the bolt leaves. The gun's pivot stands in for the muzzle while
+        // leading; the lead is redone from the real muzzle afterwards.
+        tr.barrel = -tr.barrel;
+        const gun = tr.guns[tr.barrel > 0 ? 1 : 0];
+        gun.pivot.getWorldPosition(V5);
+        let foe = trPickFoe(nx, ny, r.width, r.height), rock = null;
+        if (foe && trLead(foe, V5) >= foe.t0 + foe.dur - 0.15) foe = null;
+        if (foe) trPathAt(foe, trLead(foe, V5), V6);
+        else {
+            rock = trPickRock(nx, ny, r.width, r.height);
+            if (rock) V6.copy(rock.pos);
+            else {
+                // A free shot, along the ray through the tap.
+                V2.set(nx, ny, 0.5).unproject(tr.camera).sub(tr.camera.getWorldPosition(V3)).normalize();
+                V6.copy(V3).addScaledVector(V2, 150);
             }
         }
-        // A free shot, along the ray through the tap.
-        V2.set(nx, ny, 0.5).unproject(tr.camera).sub(tr.camera.getWorldPosition(V3)).normalize();
-        V3.addScaledVector(V2, 150);
-        trSpawnBolt(muzzle, V3, tr.wt + muzzle.distanceTo(V3) / BOLT_SPEED, null);
+        trAimGuns(V6);
+        const muzzle = trGunTip(gun, V1);
+        gun.recoil = GUN_KICK;
+        trPuff({ at: muzzle, c0: 0xeaffff, c1: 0x3fd2ff, r0: 0.1, r1: 0.26, life: 0.07, add: true, fade: 0.3 });
+
+        if (foe) { trOnLock(foe, muzzle, trLead(foe, muzzle)); return; }
+        if (rock) { trShootRock(rock, muzzle); return; }
+        trSpawnBolt(muzzle, V6, tr.wt + muzzle.distanceTo(V6) / BOLT_SPEED, null);
     }
 
     // A lock fires a bolt that WILL hit — it is aimed at where the path puts
@@ -1323,8 +1850,8 @@
         }
     }
 
-    // Swing the turret so the target sits under the crosshair, where the
-    // question card does not cover it.
+    // Swing the turret so the target sits mid-screen, where the question
+    // card does not cover it.
     function trSlewTo(pos) {
         tr.rig.updateMatrixWorld();
         V3.copy(pos);
@@ -1391,19 +1918,20 @@
         $('tr-slowmo').classList.add('tr-on');
     }
 
+    // Fires the instant the digits are the answer, and misses the instant
+    // they cannot become it: for 35, a 4 is wrong on the 4, and so is a
+    // leading 0. Otherwise a child could walk the digits until one fired.
+    // FIRE on a part-typed answer answers with what is there.
     function trKey(k) {
         const A = tr.ask;
         if (!A || A.phase !== 'ask' || A.mode !== 'keypad') return;
-        const need = String(A.q.answer).length;
+        const want = String(A.q.answer);
         if (k === 'back') A.entry = A.entry.slice(0, -1);
         else if (k === 'fire') { if (A.entry) trAnswer(Number(A.entry)); return; }
-        else if (A.entry.length < 4) A.entry = (A.entry === '0' ? '' : A.entry) + k;
+        else if (A.entry.length < 4) A.entry += k;
         $('tr-q-entry').textContent = A.entry || '?';
-        // Fires the instant the value is right. As many digits as the answer
-        // has, and wrong, is a miss — otherwise a child could walk the digits
-        // up until one fired.
-        if (A.entry && Number(A.entry) === A.q.answer) trAnswer(A.q.answer);
-        else if (A.entry.length >= need && A.entry !== '0') trAnswer(Number(A.entry));
+        if (A.entry === want) trAnswer(A.q.answer);
+        else if (A.entry && want.indexOf(A.entry) !== 0) trAnswer(Number(A.entry));
     }
 
     /* Spoken answers. The claim lasts one question: taken when the card goes
@@ -1567,6 +2095,7 @@
             if (P3.length() < 135) P3.setLength(135);   // leave through the fog, not in plain sight
             [p0, P1, P2, P3].forEach((v, i) => v.toArray(p, i * 3));
             foe.segs = 1;
+            foe.segEnd[0] = dur;
             foe.t0 = tr.wt;
             foe.dur = dur;
             if (trPathAt(foe, passAt, at).distanceTo(aimed) >= MISS_BY) break;
@@ -1580,38 +2109,31 @@
     }
 
     function trUpdateBolts() {
-        const gpos = tr.boltGlows.geometry.attributes.position.array;
+        const pos = tr.boltPts.geometry.attributes.position.array;
         let n = 0;
         for (let i = 0; i < MAX_BOLTS; i++) {
             const b = tr.bolts[i];
             if (!b.active) continue;
+            const live = b.rock && b.rock.active && b.rock.gen === b.rockGen;
+            if (live) b.to.copy(b.rock.pos);
             const u = (tr.wt - b.t0) / (b.t1 - b.t0);
             if (u >= 1) {
                 b.active = false;
                 if (b.target) trHit(b.target);
+                else if (live) { trShatter(b.rock, false); trSfx('crack'); }
                 continue;
             }
             V1.lerpVectors(b.from, b.to, u);
-            DUMMY.position.copy(V1);
-            DUMMY.scale.setScalar(1);
-            DUMMY.lookAt(b.to);
-            DUMMY.updateMatrix();
-            tr.boltMesh.setMatrixAt(n, DUMMY.matrix);
-            gpos[n * 3] = V1.x; gpos[n * 3 + 1] = V1.y; gpos[n * 3 + 2] = V1.z;
+            pos[n * 3] = V1.x; pos[n * 3 + 1] = V1.y; pos[n * 3 + 2] = V1.z;
             n++;
         }
-        tr.boltMesh.count = n;
-        tr.boltMesh.instanceMatrix.needsUpdate = true;
-        tr.boltGlows.geometry.setDrawRange(0, n);
-        tr.boltGlows.geometry.attributes.position.needsUpdate = true;
+        tr.boltPts.geometry.setDrawRange(0, n);
+        tr.boltPts.geometry.attributes.position.needsUpdate = true;
     }
 
     function trHit(foe) {
-        trBurst(foe.pos, 28, 18, 1.0, 0.55, 0.2);
-        trBurst(foe.pos, 10, 8, 1.0, 0.95, 0.8);
-        tr.flash.position.copy(foe.pos);
-        tr.flash.visible = true;
-        tr.flashLife = 1;
+        trPathAt(foe, tr.wt + 0.05, V2);
+        trExplode(foe.pos, V2.sub(foe.pos).normalize());
         // Closer blasts shake harder; one in the fog barely at all.
         tr.shake = Math.max(tr.shake, clamp(1.2 - foe.pos.length() / 60, 0.1, 0.6));
         foe.active = false;
@@ -1622,13 +2144,198 @@
         trSfx('boom');
     }
 
-    function trUpdateFlash(wdt) {
-        if (!tr.flashLife) return;
-        tr.flashLife = Math.max(0, tr.flashLife - wdt / 0.4);
-        const f = tr.flashLife;
-        tr.flash.scale.setScalar(4 + 14 * (1 - f));
-        tr.flash.material.opacity = f * f;
-        if (!f) tr.flash.visible = false;
+    /* ---- enemy fire -------------------------------------------------------
+     * Decided at the muzzle, like the turret's: a hit is aimed at the hull
+     * and lands when it gets there; a miss is aimed a few units wide and flies
+     * on past. Nothing is tested for collision.
+     */
+    function trEnemyFire(from) {
+        const z = tr.zaps.find((x) => !x.active);
+        if (!z) return;
+        z.hit = Math.random() < ZAP_HIT;
+        z.from.copy(from);
+        if (z.hit) z.to.set(rand(-1.2, 1.2), rand(-1, 0.4), -1.2);
+        else {
+            // Wide of the hull, then on behind it.
+            V3.set(rand(-1, 1), rand(-0.6, 1), 0).normalize().multiplyScalar(rand(5, 9));
+            z.to.subVectors(V3, from).normalize().multiplyScalar(from.length() + 40).add(from);
+        }
+        z.t0 = tr.wt;
+        z.t1 = tr.wt + z.from.distanceTo(z.to) / ZAP_SPEED;
+        z.active = true;
+        trSfx('pew');
+    }
+
+    function trUpdateZaps() {
+        const pos = tr.zapPts.geometry.attributes.position.array;
+        let n = 0;
+        for (let i = 0; i < MAX_ZAPS; i++) {
+            const z = tr.zaps[i];
+            if (!z.active) continue;
+            const u = (tr.wt - z.t0) / (z.t1 - z.t0);
+            if (u >= 1) {
+                z.active = false;
+                if (z.hit) trHurt(0.6);
+                continue;
+            }
+            V1.lerpVectors(z.from, z.to, u);
+            pos[n * 3] = V1.x; pos[n * 3 + 1] = V1.y; pos[n * 3 + 2] = V1.z;
+            n++;
+        }
+        tr.zapPts.geometry.setDrawRange(0, n);
+        tr.zapPts.geometry.attributes.position.needsUpdate = true;
+    }
+
+    // The ship is hit. It cannot be hurt — the player cannot lose — so this
+    // is a red flash at the edges, a jolt, and a filler number dipping.
+    function trHurt(k) {
+        const el = $('tr-hurt');
+        el.classList.remove('tr-on');
+        void el.offsetWidth;                            // restart the flash if hit twice running
+        el.classList.add('tr-on');
+        tr.shake = Math.max(tr.shake, 0.5 * k);
+        tr.deflector = Math.max(DEFLECTOR_MIN, tr.deflector - DEFLECTOR_HIT * k);
+        tr.hudLeft = 0;                                 // show the dip now, not at the next tick
+        trSfx('hurt');
+    }
+
+    /* ---- explosions -------------------------------------------------------
+     * Every explosion is a handful of crisp discs and rings from one pool,
+     * each with its own size curve, colour fade, drift and delay. A ring of
+     * the pool: an explosion when the pool is busy takes the oldest shapes.
+     * Ten styles, picked in the debug panel; rocks always crumble the same.
+     *
+     * Curves: 'out' swells fast then slows; 'pop' grows and shrinks to
+     * nothing; 'shrink' starts at r0 and dwindles toward r1.
+     */
+    let puffNext = 0;
+
+    function trPuff(o) {
+        const p = tr.puffs[puffNext];
+        puffNext = (puffNext + 1) % MAX_PUFFS;
+        const m = p.sp.material;
+        m.map = o.ring ? tr.ringTex : tr.discTex;
+        m.blending = o.add ? THREE.AdditiveBlending : THREE.NormalBlending;
+        p.c0.setHex(o.c0);
+        p.c1.setHex(o.c1 === undefined ? o.c0 : o.c1);
+        p.sp.position.copy(o.at);
+        if (o.off) p.sp.position.add(o.off);
+        if (o.vel) p.vel.copy(o.vel); else p.vel.set(0, 0, 0);
+        p.r0 = o.r0 || 0;
+        p.r1 = o.r1;
+        p.curve = o.curve === 'pop' ? 1 : o.curve === 'shrink' ? 2 : 0;
+        p.fade = o.fade === undefined ? 0.6 : o.fade;
+        p.delay = o.delay || 0;
+        p.life = p.max = o.life;
+        // Later shapes draw over earlier ones, so smoke covers the core.
+        p.sp.renderOrder = o.order || 0;
+        p.sp.visible = false;
+    }
+
+    function trUpdatePuffs(wdt) {
+        const drag = Math.exp(-2 * wdt);
+        for (let i = 0; i < MAX_PUFFS; i++) {
+            const p = tr.puffs[i];
+            if (p.life <= 0) continue;
+            if (p.delay > 0) { p.delay -= wdt; continue; }
+            p.life -= wdt;
+            if (p.life <= 0) { p.sp.visible = false; continue; }
+            const f = 1 - p.life / p.max;               // 0 → 1 over the shape's life
+            let r;
+            if (p.curve === 1) r = p.r1 * Math.sin(Math.PI * f);
+            else if (p.curve === 2) r = p.r0 + (p.r1 - p.r0) * f;
+            else r = p.r0 + (p.r1 - p.r0) * (1 - (1 - f) * (1 - f));
+            p.sp.position.addScaledVector(p.vel, wdt);
+            p.vel.multiplyScalar(drag);
+            p.sp.visible = true;
+            p.sp.scale.setScalar(Math.max(0.001, r * 2 * HALO_K));
+            p.sp.material.color.copy(p.c0).lerp(p.c1, f);
+            p.sp.material.opacity = f < p.fade ? 1 : 1 - (f - p.fade) / (1 - p.fade);
+        }
+    }
+
+    const jit = (r) => new THREE.Vector3(rand(-r, r), rand(-r, r), rand(-r, r));
+
+    // [label, fn(at, R, dir, right, up)]. R is the fighter's size; dir its
+    // heading; right and up span the screen, for shapes laid out flat to it.
+    const BOOMS = [
+        ['Circles', (at, R) => {
+            trPuff({ at, c0: 0xfff8d8, c1: 0xffc04d, r0: 0.8 * R, r1: 2.2 * R, life: 0.45 });
+            [[0xff9e2e, 0xbf3314], [0xff6a1f, 0x5a1a10], [0xf2d8a0, 0x4d4440]].forEach(([a, b], k) =>
+                trPuff({ at, off: jit(0.55 * R), c0: a, c1: b, r0: 0.5 * R, r1: rand(1.4, 2) * R,
+                    life: rand(0.4, 0.55) + k * 0.05, delay: (k + 1) * 0.06, order: k + 1 }));
+        }],
+        ['Bolt ring', (at, R) => {
+            trPuff({ at, ring: true, add: true, c0: 0xa8f4ff, c1: 0x3fd2ff, r0: 0.2 * R, r1: 2.8 * R, life: 0.28, fade: 0.3 });
+            trPuff({ at, add: true, c0: 0xf0ffff, c1: 0x3fd2ff, r0: 0.6 * R, r1: 1.2 * R, life: 0.18, order: 1 });
+            for (let k = 0; k < 2; k++) {
+                trPuff({ at, add: true, off: jit(0.7 * R), c0: 0x8fe8ff, c1: 0x2a8fd8, r0: 0.4 * R, r1: 0.9 * R, life: 0.3, delay: 0.05, order: 2 });
+            }
+        }],
+        ['Ring and core', (at, R) => {
+            trPuff({ at, curve: 'pop', c0: 0xfff6c8, c1: 0xffb040, r1: 1.6 * R, life: 0.35, fade: 1 });
+            trPuff({ at, ring: true, add: true, c0: 0xffc060, c1: 0xff5a20, r0: 0.4 * R, r1: 3 * R, life: 0.45, delay: 0.03, order: 1 });
+        }],
+        ['Double ring', (at, R) => {
+            trPuff({ at, curve: 'pop', c0: 0xffffff, c1: 0xbff4ff, r1: 0.8 * R, life: 0.2, fade: 1 });
+            trPuff({ at, ring: true, add: true, c0: 0xa8f4ff, c1: 0x3fd2ff, r0: 0.2 * R, r1: 2.4 * R, life: 0.3, order: 1 });
+            trPuff({ at, ring: true, add: true, c0: 0xffb060, c1: 0xff4a20, r0: 0.3 * R, r1: 3.4 * R, life: 0.5, delay: 0.1, order: 2 });
+        }],
+        ['Pop', (at, R) => {
+            trPuff({ at, curve: 'pop', c0: 0xffe080, c1: 0xff4020, r1: 2 * R, life: 0.38, fade: 1 });
+        }],
+        ['Scatter', (at, R) => {
+            trPuff({ at, curve: 'pop', c0: 0xffffff, c1: 0xffd080, r1: R, life: 0.2, fade: 1 });
+            for (let k = 0; k < 7; k++) {
+                trPuff({ at, vel: jit(1).normalize().multiplyScalar(rand(12, 20)), curve: 'shrink',
+                    c0: k % 2 ? 0xffd040 : 0xff7a20, c1: 0xb02a10, r0: 0.55 * R, r1: 0.05 * R, life: rand(0.4, 0.6), order: 1 });
+            }
+        }],
+        ['Flash and smoke', (at, R) => {
+            trPuff({ at, add: true, c0: 0xffffff, c1: 0xffe0a0, r0: 1.2 * R, r1: 2.4 * R, life: 0.14, fade: 0.2 });
+            for (let k = 0; k < 3; k++) {
+                trPuff({ at, off: jit(0.5 * R), vel: jit(1.2).add(V1.set(0, 1.6, 0)), c0: 0x8a8580, c1: 0x3a3836,
+                    r0: 0.6 * R, r1: rand(1.4, 1.8) * R, life: rand(0.9, 1.2), delay: 0.05 + k * 0.04, fade: 0.3, order: k + 1 });
+            }
+        }],
+        ['Shockwave', (at, R) => {
+            trPuff({ at, curve: 'pop', c0: 0xffd070, c1: 0xff5020, r1: 1.4 * R, life: 0.4, fade: 1, order: 1 });
+            trPuff({ at, ring: true, add: true, c0: 0xe0f0ff, c1: 0x6a8cff, r0: 0.2 * R, r1: 5.5 * R, life: 0.65, fade: 0.2 });
+        }],
+        ['Chain', (at, R, dir) => {
+            for (let k = 0; k < 3; k++) {
+                const off = dir.clone().multiplyScalar(-k * 1.6 * R);
+                trPuff({ at, off, curve: 'pop', c0: 0xfff0b0, c1: 0xff6020, r1: 1.3 * R, life: 0.3, delay: k * 0.12, fade: 1, order: k });
+                trPuff({ at, off, ring: true, add: true, c0: 0xffc070, c1: 0xff4020, r0: 0.3 * R, r1: 1.8 * R, life: 0.3, delay: k * 0.12 });
+            }
+        }],
+        ['Starburst', (at, R, dir, right, up) => {
+            trPuff({ at, curve: 'pop', c0: 0xffffff, c1: 0xffe070, r1: 1.2 * R, life: 0.28, fade: 1, order: 1 });
+            trPuff({ at, ring: true, add: true, c0: 0xfff0a0, c1: 0xffa030, r0: 0.3 * R, r1: 2.2 * R, life: 0.35 });
+            for (let k = 0; k < 8; k++) {
+                const a = k * Math.PI / 4;
+                const v = right.clone().multiplyScalar(Math.cos(a)).addScaledVector(up, Math.sin(a)).multiplyScalar(16);
+                trPuff({ at, vel: v, curve: 'shrink', c0: 0xffe070, c1: 0xff6020, r0: 0.4 * R, r1: 0.05 * R, life: 0.5, order: 2 });
+            }
+        }],
+    ];
+
+    function trExplode(at, dir) {
+        const m = tr.camera.matrixWorld;
+        const right = new THREE.Vector3().setFromMatrixColumn(m, 0).normalize();
+        const up = new THREE.Vector3().setFromMatrixColumn(m, 1).normalize();
+        (BOOMS[tr.boom] || BOOMS[0])[1](at.clone(), 1.6 * SHIP_SCALE, dir.clone(), right, up);
+    }
+
+    // A rock crumbles: a pale flash and dusty discs, whatever the style.
+    function trRockBoom(at, r, count) {
+        trPuff({ at, c0: 0xffe6b0, c1: 0xcc7a33, r0: 0.6 * r, r1: 1.8 * r, life: 0.32 });
+        const dust = [[0xc7a885, 0x524840], [0x9e8d78, 0x38332e]];
+        for (let k = 1; k < count; k++) {
+            const d = dust[k % 2];
+            trPuff({ at, off: jit(0.5 * r), c0: d[0], c1: d[1], r0: 0.5 * r, r1: rand(1.2, 1.7) * r,
+                life: rand(0.45, 0.6), delay: k * 0.05, order: k });
+        }
     }
 
     /* ---- sound ------------------------------------------------------------
@@ -1639,8 +2346,8 @@
      */
     let AC = null, MASTER = null, NOISE = null;
 
-    function trAudioUnlock() {
-        if (!tr.sound) return;
+    function trAudioUnlock(force) {
+        if (!tr.sound && !force) return;
         const Ctx = window.AudioContext || window.webkitAudioContext;
         if (!Ctx) return;
         if (!AC) {
@@ -1680,49 +2387,63 @@
         s.start(t); s.stop(t + dur);
     }
 
+    // Each sound has a few versions to choose between in the debug panel.
+    // The first of each is the default; 'Off' silences that one sound.
+    const SFX = {
+        zap: [['Laser', () => trTone('square', 1500, 240, 0.12, 0.06)],
+            ['Pew', () => trTone('sine', 1300, 380, 0.15, 0.12)],
+            ['Blip', () => trTone('triangle', 900, 860, 0.06, 0.12)],
+            ['Thump', () => { trNoise(0.08, 0.25, 1800); trTone('sine', 220, 90, 0.1, 0.18); }],
+            ['Off', null]],
+        boom: [['Rumble', () => { trNoise(0.65, 0.55, 2600); trTone('sine', 150, 38, 0.5, 0.35); }],
+            ['Crack', () => { trNoise(0.3, 0.6, 7000); trTone('square', 300, 60, 0.18, 0.08); }],
+            ['Deep', () => { trNoise(1.0, 0.5, 900); trTone('sine', 90, 28, 0.8, 0.45); }],
+            ['Arcade', () => { trTone('square', 440, 40, 0.4, 0.1); trNoise(0.35, 0.3, 3000); }],
+            ['Off', null]],
+        slow: [['Drop', () => trTone('sine', 440, 80, 0.55, 0.16)],
+            ['Whoosh', () => trNoise(0.6, 0.25, 4000)],
+            ['Tape stop', () => trTone('sawtooth', 320, 35, 0.7, 0.05)],
+            ['Off', null]],
+        right: [['Ding-ding', () => { trTone('triangle', 660, 660, 0.09, 0.14); trTone('triangle', 990, 990, 0.16, 0.14, 0.08); }],
+            ['Chime', () => [784, 988, 1319].forEach((f, i) => trTone('triangle', f, f, 0.14, 0.12, i * 0.07))],
+            ['Coin', () => { trTone('square', 988, 988, 0.07, 0.06); trTone('square', 1319, 1319, 0.22, 0.06, 0.07); }],
+            ['Off', null]],
+        miss: [['Buzz', () => trTone('sawtooth', 320, 130, 0.32, 0.06)],
+            ['Bonk', () => trTone('sine', 210, 120, 0.22, 0.25)],
+            ['Wah-wah', () => { trTone('triangle', 420, 300, 0.15, 0.12); trTone('triangle', 300, 180, 0.25, 0.12, 0.15); }],
+            ['Off', null]],
+        ace: [['Rise', () => trTone('triangle', 880, 1320, 0.2, 0.07)],
+            ['Fanfare', () => { trTone('triangle', 660, 660, 0.1, 0.1); trTone('triangle', 990, 990, 0.22, 0.1, 0.1); }],
+            ['Shimmer', () => [1320, 1568, 1760].forEach((f, i) => trTone('sine', f, f, 0.12, 0.07, i * 0.05))],
+            ['Off', null]],
+        done: [['Arpeggio', () => [523, 659, 784, 1047].forEach((f, i) => trTone('triangle', f, f, 0.2, 0.12, i * 0.11))],
+            ['Fanfare', () => { trTone('triangle', 523, 523, 0.12, 0.12); trTone('triangle', 523, 523, 0.12, 0.12, 0.14); trTone('triangle', 784, 784, 0.45, 0.12, 0.28); }],
+            ['Chord', () => [523, 659, 784].forEach((f) => trTone('triangle', f, f, 0.6, 0.08))],
+            ['Off', null]],
+        crack: [['Crunch', () => trNoise(0.3, 0.3, 1600)],
+            ['Thud', () => { trNoise(0.2, 0.35, 600); trTone('sine', 120, 60, 0.2, 0.2); }],
+            ['Glass', () => { trNoise(0.15, 0.25, 8000); trTone('triangle', 2000, 1500, 0.12, 0.05); }],
+            ['Off', null]],
+        pew: [['Saw', () => trTone('sawtooth', 900, 300, 0.1, 0.025)],
+            ['Zip', () => trTone('square', 1800, 600, 0.07, 0.02)],
+            ['Low pulse', () => trTone('sine', 500, 250, 0.12, 0.06)],
+            ['Off', null]],
+        hurt: [['Thud', () => { trNoise(0.4, 0.5, 700); trTone('sine', 90, 45, 0.35, 0.3); }],
+            ['Static', () => trNoise(0.35, 0.35, 5000)],
+            ['Alarm', () => { trTone('square', 880, 880, 0.08, 0.05); trTone('square', 660, 660, 0.1, 0.05, 0.1); }],
+            ['Off', null]],
+    };
+    const SFX_LABEL = {
+        zap: 'Turret shot', boom: 'Fighter explodes', crack: 'Rock breaks', pew: 'Enemy shot', hurt: 'Ship hit',
+        slow: 'Lock / slow-mo', right: 'Right answer', miss: 'Wrong answer', ace: 'Ace arrives', done: 'Sortie done',
+    };
+
     function trSfx(name) {
         if (!tr.sound || !AC || AC.state !== 'running') return;
-        if (name === 'zap') trTone('square', 1500, 240, 0.12, 0.06);
-        else if (name === 'boom') { trNoise(0.65, 0.55, 2600); trTone('sine', 150, 38, 0.5, 0.35); }
-        else if (name === 'slow') trTone('sine', 440, 80, 0.55, 0.16);
-        else if (name === 'right') { trTone('triangle', 660, 660, 0.09, 0.14); trTone('triangle', 990, 990, 0.16, 0.14, 0.08); }
-        else if (name === 'miss') trTone('sawtooth', 320, 130, 0.32, 0.06);
-        else if (name === 'ace') trTone('triangle', 880, 1320, 0.2, 0.07);
-        else if (name === 'done') [523, 659, 784, 1047].forEach((f, i) => trTone('triangle', f, f, 0.2, 0.12, i * 0.11));
-    }
-
-    /* ---- sparks -----------------------------------------------------------*/
-    function trBurst(at, count, speed, r, g, b) {
-        const S = tr.spark;
-        const pos = tr.sparks.geometry.attributes.position.array;
-        for (let k = 0; k < count; k++) {
-            const i = S.next;
-            S.next = (i + 1) % MAX_SPARKS;              // a ring: the oldest spark gives way
-            const u = Math.random() * 2 - 1, th = Math.random() * Math.PI * 2, s = Math.sqrt(1 - u * u);
-            const v = speed * (0.3 + 0.7 * Math.random());
-            S.vel[i * 3] = v * s * Math.cos(th); S.vel[i * 3 + 1] = v * u; S.vel[i * 3 + 2] = v * s * Math.sin(th);
-            pos[i * 3] = at.x; pos[i * 3 + 1] = at.y; pos[i * 3 + 2] = at.z;
-            S.base[i * 3] = r; S.base[i * 3 + 1] = g; S.base[i * 3 + 2] = b;
-            S.life[i] = S.max[i] = rand(0.45, 0.9);
-        }
-    }
-
-    function trUpdateSparks(wdt) {
-        const S = tr.spark;
-        const pos = tr.sparks.geometry.attributes.position.array;
-        const col = tr.sparks.geometry.attributes.color.array;
-        const drag = Math.exp(-2.5 * wdt);
-        for (let i = 0; i < MAX_SPARKS; i++) {
-            if (S.life[i] <= 0) continue;
-            S.life[i] -= wdt;
-            const f = S.life[i] > 0 ? S.life[i] / S.max[i] : 0;
-            const o = i * 3;
-            S.vel[o] *= drag; S.vel[o + 1] *= drag; S.vel[o + 2] *= drag;
-            pos[o] += S.vel[o] * wdt; pos[o + 1] += S.vel[o + 1] * wdt; pos[o + 2] += S.vel[o + 2] * wdt;
-            col[o] = S.base[o] * f * f; col[o + 1] = S.base[o + 1] * f * f; col[o + 2] = S.base[o + 2] * f * f;
-        }
-        tr.sparks.geometry.attributes.position.needsUpdate = true;
-        tr.sparks.geometry.attributes.color.needsUpdate = true;
+        const list = SFX[name];
+        if (!list) return;
+        const v = list[tr.sfx[name] || 0] || list[0];
+        if (v[1]) v[1]();
     }
 
     /* ---- lock bracket: DOM, following the projected target ----------------*/
@@ -1735,6 +2456,114 @@
         el.classList.remove('hidden');
         el.style.transform = 'translate(' + ((V2.x + 1) / 2 * tr.cssW).toFixed(1) + 'px,'
             + ((1 - V2.y) / 2 * tr.cssH).toFixed(1) + 'px)';
+    }
+
+    /* ---- target boxes: DOM, one per fighter slot -------------------------
+     * Sized to the fighter, so a near one gets a big box. Each box is written
+     * only when it has moved half a pixel or changed size, and its label only
+     * when the text changes — at most five small boxes, so no frame pays much.
+     */
+    function trBuildTargets() {
+        const box = $('tr-tgts');
+        box.textContent = '';
+        tr.tgts = [];
+        for (let i = 0; i < MAX_ENEMIES; i++) {
+            const el = trEl('div', 'tr-tgt hidden');
+            const label = trEl('span', 'tr-tgt-label');
+            el.append(trEl('i'), label);
+            box.appendChild(el);
+            tr.tgts.push({ el, label, x: -1, y: -1, s: 0, text: '', cls: '', shown: false });
+        }
+    }
+
+    function trHideTargets() {
+        for (const t of tr.tgts) if (t.shown) { t.el.classList.add('hidden'); t.shown = false; }
+    }
+
+    function trUpdateTargets() {
+        const f = (tr.cssH / 2) / Math.tan(THREE.MathUtils.degToRad(tr.camera.fov / 2));
+        const S = tr.sortie;
+        const open = S && !S.finishing;
+        let track = 0, near = Infinity;
+        for (let i = 0; i < MAX_ENEMIES; i++) {
+            const e = tr.foes[i], t = tr.tgts[i];
+            let show = e && e.active && !e.locked && tr.wt >= e.t0;
+            let dist = 0;
+            if (show) {
+                dist = e.pos.length();
+                V3.copy(e.pos).applyMatrix4(tr.camera.matrixWorldInverse);
+                show = dist < SIGHT && V3.z < -1;
+            }
+            if (show) {
+                V2.copy(e.pos).project(tr.camera);
+                show = Math.abs(V2.x) < 1.05 && Math.abs(V2.y) < 1.05;
+            }
+            if (!show) {
+                if (t.shown) { t.el.classList.add('hidden'); t.shown = false; }
+                continue;
+            }
+            track++;
+            if (dist < near) near = dist;
+            const x = (V2.x + 1) / 2 * tr.cssW, y = (1 - V2.y) / 2 * tr.cssH;
+            const size = 2 * Math.round(trBoxHalf(-V3.z, tr.cssH));
+            if (!t.shown) { t.el.classList.remove('hidden'); t.shown = true; }
+            if (size !== t.s) { t.s = size; t.el.style.width = t.el.style.height = size + 'px'; t.x = -1; }
+            if (Math.abs(x - t.x) > 0.5 || Math.abs(y - t.y) > 0.5) {
+                t.x = x; t.y = y;
+                t.el.style.transform = 'translate(' + (x - size / 2).toFixed(1) + 'px,' + (y - size / 2).toFixed(1) + 'px)';
+            }
+            // Dim is not lockable: no sortie, or a plain fighter with the deck spent.
+            const cls = e.ace ? 'tr-tgt-ace' : !open || !tr.deck.length ? 'tr-tgt-dim' : '';
+            if (cls !== t.cls) {
+                t.el.classList.remove('tr-tgt-ace', 'tr-tgt-dim');
+                if (cls) t.el.classList.add(cls);
+                t.cls = cls;
+            }
+            const text = e.tag + ' ' + Math.round(dist * 2) * 5 + 'm';
+            if (text !== t.text) { t.text = text; t.label.textContent = text; }
+        }
+        tr.track = track;
+        tr.near = near;
+    }
+
+    // Where the tap landed. The shot goes there, so the mark is the aim point.
+    function trTapMark(x, y, w) {
+        const el = $('tr-tap');
+        el.style.transform = 'translate(' + x.toFixed(0) + 'px,' + y.toFixed(0) + 'px)';
+        if (tr.dbgOpen) el.style.setProperty('--r', Math.max(2, tr.nearPx) + 'px');
+        el.classList.remove('tr-on');
+        void el.offsetWidth;
+        el.classList.add('tr-on');
+    }
+
+    /* ---- readouts: filler that moves --------------------------------------
+     * A heading and an elevation from the pilot's flying, how many contacts
+     * are boxed and how far the nearest is, and a deflector number that dips
+     * on a hit and recovers. Twice a second, and only changed text is written.
+     */
+    function trSetText(id, text) {
+        const el = $(id);
+        if (el.textContent !== text) el.textContent = text;
+    }
+
+    function trUpdateHudText(dt) {
+        tr.deflector = Math.min(100, tr.deflector + DEFLECTOR_REGEN * dt);
+        tr.hudLeft -= dt;
+        if (tr.hudLeft > 0) return;
+        tr.hudLeft = 0.5;
+        // The ship's heading in the sky's frame: the sky holds the inverse of
+        // every turn, so undo it on the forward axis.
+        DQ.copy(tr.sky.quaternion).invert();
+        V1.set(0, 0, -1).applyQuaternion(DQ);
+        const hdg = (Math.round(THREE.MathUtils.radToDeg(Math.atan2(-V1.x, -V1.z))) + 360) % 360;
+        const elv = Math.round(THREE.MathUtils.radToDeg(Math.asin(clamp(V1.y, -1, 1))));
+        trSetText('tr-ro-hdg', 'HDG ' + String(hdg).padStart(3, '0'));
+        trSetText('tr-ro-elv', 'ELV ' + (elv >= 0 ? '+' : '') + elv);
+        trSetText('tr-ro-trk', 'TRK ' + tr.track);
+        trSetText('tr-ro-rng', 'RNG ' + (tr.track ? Math.round(tr.near * 2) * 5 : '----'));
+        const d = Math.round(tr.deflector);
+        trSetText('tr-ro-dfl', 'DEFL ' + d + '%');
+        $('tr-ro-dfl').classList.toggle('tr-ro-low', d < 80);
     }
 
     /* ---- probe ------------------------------------------------------------
@@ -1797,8 +2626,261 @@
         $('tr-probe-frame').textContent = 'frame ' + s.avg.toFixed(1) + ' ms · p95 ' + s.p95.toFixed(1);
         $('tr-probe-cpu').textContent = 'cpu ' + s.cpu.toFixed(1) + ' ms';
         $('tr-probe-gpu').textContent = info.calls + ' calls · ' + info.triangles + ' tris · '
-            + size.x + '×' + size.y + ' (' + TIERS[tr.tier].label + (tr.auto ? ', auto' : '') + ')';
+            + size.x + '×' + size.y + ' (' + TIERS[tr.tier].label + (tr.auto ? ', auto' : '')
+            + (tr.shiny ? ', shiny' : ', matte') + ')';
         $('tr-probe-fps').classList.toggle('tr-bad', s.p95 > budget * 1.35);
+    }
+
+    /* ---- window grime -----------------------------------------------------
+     * Dirt on the glass, lit up by the sun. A canvas between the 3D view and
+     * the cockpit frame: over the guns and the scene, under every piece of
+     * HUD. It is baked only when the stage changes size or the colour
+     * changes — the texture, tinted, with the middle of the window cut out
+     * by a blurred copy of the window shape — so each frame costs one
+     * opacity write at most, set by how squarely the turret faces the sun.
+     */
+    const WINDOW = [[260, 90], [1340, 90], [1520, 300], [1520, 760], [1380, 900], [220, 900], [80, 760], [80, 300]];
+    const WINDOW_C = [800, 495];
+    const GRIME_CLEAR = 0.7;                // the clear middle, as a fraction of the window
+    const GRIME_SCALE = 0.5;                // baked at half the stage's size; it is soft anyway
+
+    function trLoadGrime() {
+        if (tr.grimeImg) return;
+        const img = new Image();
+        img.onload = () => { tr.grimeImg = img; trBakeGrime(); };
+        img.src = 'textures/window-grime.png?v=' + (window.ASSET_V || '1');
+    }
+
+    function trBakeGrime() {
+        const cv = $('tr-grime');
+        const img = tr.grimeImg;
+        if (!cv || !img || !tr.cssW) return;
+        const W = Math.max(1, Math.round(tr.cssW * GRIME_SCALE)), H = Math.max(1, Math.round(tr.cssH * GRIME_SCALE));
+        cv.width = W; cv.height = H;
+        tr.grimeW = tr.cssW; tr.grimeH = tr.cssH;
+        const g = cv.getContext('2d');
+        g.clearRect(0, 0, W, H);
+        // Cover, as background-size: cover would.
+        const k = Math.max(W / img.width, H / img.height);
+        g.drawImage(img, (W - img.width * k) / 2, (H - img.height * k) / 2, img.width * k, img.height * k);
+        // Cut the middle out: the window shape, shrunk toward its centre and
+        // blurred, erases the grime there and fades it in toward the edges.
+        g.globalCompositeOperation = 'destination-out';
+        const blur = Math.round(W * 0.09);
+        const pt = (p) => [(WINDOW_C[0] + (p[0] - WINDOW_C[0]) * GRIME_CLEAR) / 1600 * W,
+            (WINDOW_C[1] + (p[1] - WINDOW_C[1]) * GRIME_CLEAR) / 1000 * H];
+        if ('filter' in g) {
+            g.filter = 'blur(' + blur + 'px)';
+            g.beginPath();
+            WINDOW.forEach((p, i) => { const q = pt(p); if (i) g.lineTo(q[0], q[1]); else g.moveTo(q[0], q[1]); });
+            g.closePath();
+            g.fillStyle = '#000';
+            g.fill();
+            g.filter = 'none';
+        } else {
+            // No canvas filters: an ellipse fading out does the same job, a
+            // little less faithfully to the window's corners.
+            g.save();
+            g.translate(W / 2, H * 0.495);
+            g.scale(W * 0.5, H * 0.5);
+            const rg = g.createRadialGradient(0, 0, 0, 0, 0, 1);
+            rg.addColorStop(0, 'rgba(0,0,0,1)');
+            rg.addColorStop(0.55, 'rgba(0,0,0,1)');
+            rg.addColorStop(1, 'rgba(0,0,0,0)');
+            g.fillStyle = rg;
+            g.fillRect(-1, -1, 2, 2);
+            g.restore();
+        }
+        // Whatever is left takes the colour.
+        g.globalCompositeOperation = 'source-in';
+        g.fillStyle = tr.grime.color;
+        g.fillRect(0, 0, W, H);
+        g.globalCompositeOperation = 'source-over';
+        tr.grimeOp = -1;
+    }
+
+    function trUpdateGrime() {
+        const cv = $('tr-grime');
+        let op = 0;
+        if (tr.grime.on && tr.grimeImg) {
+            if (tr.cssW !== tr.grimeW || tr.cssH !== tr.grimeH) trBakeGrime();
+            // The turret's forward against the sun: dead on is full strength,
+            // side-on or behind is next to nothing. Squared, so it builds as
+            // the sun comes round into the window rather than all at once.
+            V1.set(0, 0, -1).transformDirection(tr.camera.matrixWorld);
+            V2.copy(tr.sun.position).normalize();
+            const k = Math.max(0, V1.dot(V2));
+            op = tr.grime.max * (0.04 + 0.96 * k * k);
+        }
+        if (Math.abs(op - tr.grimeOp) < 0.01) return;
+        tr.grimeOp = op;
+        cv.style.opacity = op.toFixed(3);
+    }
+
+    /* ---- debug overlay ----------------------------------------------------
+     * For tuning, not for the child: explosion style, auto-aim radius, a
+     * version of every sound, and buttons that make things happen now.
+     * Choices are kept under nq.turret.debug.
+     */
+    function trDbgBtn(text, act, cls) {
+        const b = trEl('button', 'tr-chip' + (cls ? ' ' + cls : ''), text);
+        b.dataset.trDbgAct = act;
+        return b;
+    }
+
+    function trBuildDebug() {
+        const box = $('tr-dbg');
+        box.textContent = '';
+        const sec = (title, note) => {
+            const d = trEl('div', 'tr-dbg-sec');
+            d.appendChild(trEl('div', 'tr-dbg-h', title));
+            if (note) d.appendChild(trEl('div', 'tr-dbg-note', note));
+            box.appendChild(d);
+            return d;
+        };
+        const row = (parent) => parent.appendChild(trEl('div', 'tr-dbg-row'));
+
+        let d = sec('Explosion');
+        let r = row(d);
+        const boom = trEl('select');
+        boom.dataset.trDbg = 'boom';
+        BOOMS.forEach(([label], i) => {
+            const o = trEl('option', null, (i + 1) + '. ' + label);
+            o.value = String(i);
+            boom.appendChild(o);
+        });
+        boom.value = String(tr.boom);
+        r.append(boom, trDbgBtn('Test', 'boom'));
+
+        d = sec('Lock distance', 'How far outside a fighter\'s target box a shot may land and still lock it — slow-mo and a question. 0 is on the box. While this panel is open, each tap shows the distance as a dashed ring.');
+        r = row(d);
+        const aim = trEl('input');
+        aim.type = 'range';
+        aim.min = String(NEAR_MIN); aim.max = String(NEAR_MAX); aim.step = '4';
+        aim.value = String(tr.nearPx);
+        aim.dataset.trDbg = 'near';
+        const val = trEl('span', 'tr-dbg-val', tr.nearPx + ' px');
+        val.id = 'tr-dbg-near';
+        r.append(aim, val);
+
+        d = sec('Window grime', 'On the glass, strongest at the edges, and only when the turret faces the sun.');
+        r = row(d);
+        const on = trEl('input');
+        on.type = 'checkbox';
+        on.checked = tr.grime.on;
+        on.dataset.trDbg = 'grimeOn';
+        const lab = trEl('label', 'tr-dbg-check');
+        lab.append(on, document.createTextNode(' Show'));
+        const col = trEl('input');
+        col.type = 'color';
+        col.value = tr.grime.color;
+        col.dataset.trDbg = 'grimeColor';
+        r.append(lab, col);
+        r = row(d);
+        const max = trEl('input');
+        max.type = 'range';
+        max.min = '0'; max.max = '100'; max.step = '5';
+        max.value = String(Math.round(tr.grime.max * 100));
+        max.dataset.trDbg = 'grimeMax';
+        const mv = trEl('span', 'tr-dbg-val', Math.round(tr.grime.max * 100) + '%');
+        mv.id = 'tr-dbg-grime';
+        r.append(trEl('span', 'tr-dbg-label', 'Strength'), max, mv);
+
+        d = sec('Sounds', 'Changing one plays it.');
+        Object.keys(SFX_LABEL).forEach((k) => {
+            r = row(d);
+            const sel = trEl('select');
+            sel.dataset.trDbgSfx = k;
+            SFX[k].forEach(([label], i) => {
+                const o = trEl('option', null, label);
+                o.value = String(i);
+                sel.appendChild(o);
+            });
+            sel.value = String(tr.sfx[k] || 0);
+            const play = trDbgBtn('▶', 'play', 'tr-dbg-play');
+            play.dataset.trDbgSfxPlay = k;
+            play.setAttribute('aria-label', 'Play ' + SFX_LABEL[k]);
+            r.append(trEl('span', 'tr-dbg-label', SFX_LABEL[k]), sel, play);
+        });
+
+        d = sec('Make it happen');
+        r = row(d);
+        r.classList.add('tr-dbg-wrap');
+        r.append(trDbgBtn('Swoop', 'swoop'), trDbgBtn('Strafing run', 'strafe'), trDbgBtn('Incoming rock', 'rock'),
+            trDbgBtn('Rock belt', 'belt'), trDbgBtn('Hit flash', 'hurt'));
+
+        r = row(box);
+        r.append(trDbgBtn('Reset to defaults', 'reset'));
+    }
+
+    function trSetDebugOpen(open) {
+        tr.dbgOpen = open;
+        $('tr-dbg').classList.toggle('hidden', !open);
+        tr.stage.classList.toggle('tr-dbg-on', open);
+        if (open) trBuildDebug();
+    }
+
+    function trPreview(name) {
+        trAudioUnlock(true);
+        if (!AC) return;
+        const v = SFX[name][tr.sfx[name] || 0];
+        if (!v || !v[1]) return;
+        if (AC.state === 'running') v[1]();
+        else AC.resume().then(() => v[1]());
+    }
+
+    function trDebugChange(e) {
+        const t = e.target;
+        if (t.dataset.trDbg === 'boom') { tr.boom = Number(t.value); trSaveDebug(); return; }
+        if (t.dataset.trDbg === 'near') {
+            tr.nearPx = clamp(Number(t.value), NEAR_MIN, NEAR_MAX);
+            $('tr-dbg-near').textContent = tr.nearPx + ' px';
+            trSaveDebug();
+            return;
+        }
+        if (t.dataset.trDbg === 'grimeOn') { tr.grime.on = t.checked; tr.grimeOp = -1; trSaveDebug(); return; }
+        if (t.dataset.trDbg === 'grimeColor') { tr.grime.color = t.value; trBakeGrime(); trSaveDebug(); return; }
+        if (t.dataset.trDbg === 'grimeMax') {
+            tr.grime.max = clamp(Number(t.value) / 100, 0, 1);
+            $('tr-dbg-grime').textContent = Math.round(tr.grime.max * 100) + '%';
+            tr.grimeOp = -1;
+            trSaveDebug();
+            return;
+        }
+        const k = t.dataset.trDbgSfx;
+        if (k && e.type === 'change') {
+            const v = Number(t.value);
+            if (v) tr.sfx[k] = v; else delete tr.sfx[k];
+            trSaveDebug();
+            trPreview(k);
+        }
+    }
+
+    function trDebugClick(e) {
+        const b = e.target.closest('[data-tr-dbg-act]');
+        if (!b) return;
+        const act = b.dataset.trDbgAct;
+        if (act === 'play') { trPreview(b.dataset.trDbgSfxPlay); return; }
+        if (act === 'reset') {
+            tr.boom = 0; tr.nearPx = NEAR_PX; tr.sfx = {};
+            tr.grime = { on: GRIME.on, color: GRIME.color, max: GRIME.max };
+            tr.grimeOp = -1;
+            trBakeGrime();
+            trSaveDebug();
+            trBuildDebug();
+            return;
+        }
+        if (!tr.renderer) return;
+        if (act === 'boom') {
+            // Straight ahead of the turret, near enough to see properly.
+            tr.scene.updateMatrixWorld();
+            const at = tr.camera.localToWorld(new THREE.Vector3(rand(-4, 4), rand(-2, 3), -32));
+            trExplode(at, new THREE.Vector3().setFromMatrixColumn(tr.camera.matrixWorld, 0));
+            trSfx('boom');
+        } else if (act === 'swoop' || act === 'strafe') trSpawnFoe(trSafePath(act === 'strafe'), 0, null);
+        else if (act === 'rock') trSpawnRock(true);
+        else if (act === 'belt') { tr.pilot.belt = true; tr.pilot.beltUntil = tr.wt + 15; }
+        else if (act === 'hurt') trHurt(1);
     }
 
     /* ---- input ------------------------------------------------------------
@@ -1811,17 +2893,29 @@
         const presses = new Map();
         let aimer = null;
         st.addEventListener('pointerdown', (e) => {
-            if (e.target.closest('button, .tr-probe')) return;
+            if (e.target.closest('button, select, input, .tr-probe, .tr-dbg')) return;
             presses.set(e.pointerId, { sx: e.clientX, sy: e.clientY, px: e.clientX, py: e.clientY, t: performance.now(), drag: false });
             // Capture keeps a drag alive when the finger leaves the stage;
             // without it the drag still works, so a refusal is not an error.
             try { st.setPointerCapture(e.pointerId); } catch (err) { /* no capture */ }
         });
+        // A mouse is a pointer that moves without a press. While one is over
+        // the stage the guns follow it; it is forgotten when it leaves.
+        const track = (e) => {
+            if (e.pointerType !== 'mouse') return;
+            const r = st.getBoundingClientRect();
+            if (!tr.mouse) tr.mouse = { nx: 0, ny: 0 };
+            tr.mouse.nx = ((e.clientX - r.left) / r.width) * 2 - 1;
+            tr.mouse.ny = -((e.clientY - r.top) / r.height) * 2 + 1;
+        };
+        st.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') tr.mouse = null; });
         st.addEventListener('pointermove', (e) => {
+            track(e);
             const p = presses.get(e.pointerId);
             if (!p) return;
             if (!p.drag) {
-                if (Math.hypot(e.clientX - p.sx, e.clientY - p.sy) < TAP_SLOP || aimer !== null) return;
+                const slop = e.pointerType === 'mouse' ? TAP_SLOP_MOUSE : TAP_SLOP;
+                if (Math.hypot(e.clientX - p.sx, e.clientY - p.sy) < slop || aimer !== null) return;
                 p.drag = true;
                 aimer = e.pointerId;
                 $('tr-hint').classList.add('tr-gone');
@@ -2354,18 +3448,25 @@
     const SCREEN_HTML = `
         <div class="container tr-container">
             <div class="tr-stage" id="tr-stage">
+                <canvas class="tr-grime" id="tr-grime" aria-hidden="true"></canvas>
                 <svg class="tr-cockpit" viewBox="0 0 1600 1000" preserveAspectRatio="none" aria-hidden="true">
                     <path class="tr-frame" fill-rule="evenodd"
                         d="M0 0H1600V1000H0Z M260 90 L1340 90 L1520 300 L1520 760 L1380 900 L220 900 L80 760 L80 300 Z"/>
                     <path class="tr-frame-edge"
                         d="M260 90 L1340 90 L1520 300 L1520 760 L1380 900 L220 900 L80 760 L80 300 Z"/>
                     <path class="tr-frame" d="M770 90 L830 90 L812 210 L788 210 Z"/>
-                    <path class="tr-barrel" id="tr-barrel-l" d="M540 1000 L650 1000 L730 790 L700 784 Z"/>
-                    <path class="tr-barrel" id="tr-barrel-r" d="M1060 1000 L950 1000 L870 790 L900 784 Z"/>
                 </svg>
                 <div class="tr-slowmo" id="tr-slowmo" aria-hidden="true"></div>
-                <div class="tr-reticle" aria-hidden="true"></div>
+                <div class="tr-hurt" id="tr-hurt" aria-hidden="true"></div>
+                <div class="tr-tgts" id="tr-tgts" aria-hidden="true"></div>
+                <div class="tr-tap" id="tr-tap" aria-hidden="true"><i></i></div>
                 <div class="tr-lock hidden" id="tr-lock" aria-hidden="true"><i></i></div>
+                <div class="tr-ro tr-ro-l" aria-hidden="true">
+                    <span>TURRET 2 · ARMED</span><span id="tr-ro-hdg">HDG 000</span><span id="tr-ro-elv">ELV +0</span>
+                </div>
+                <div class="tr-ro tr-ro-r" aria-hidden="true">
+                    <span id="tr-ro-trk">TRK 0</span><span id="tr-ro-rng">RNG ----</span><span id="tr-ro-dfl">DEFL 100%</span>
+                </div>
                 <div class="tr-ask hidden" id="tr-ask">
                     <div class="tr-q" id="tr-q" role="status" aria-live="polite">
                         <div class="tr-q-line"><span class="tr-mic hidden" id="tr-mic" aria-label="Listening"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg></span><span id="tr-q-text"></span> = <span class="tr-q-entry" id="tr-q-entry">?</span></div>
@@ -2438,6 +3539,8 @@
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9V3h6M15 3h6v6M21 15v6h-6M9 21H3v-6"/></svg>
                 </button>
                 <button class="tr-icon-btn tr-probe-btn" id="tr-probe-toggle" title="Performance" aria-label="Performance">ms</button>
+                <button class="tr-icon-btn tr-dbg-btn" id="tr-dbg-toggle" title="Debug settings" aria-label="Debug settings">dbg</button>
+                <div class="tr-dbg hidden" id="tr-dbg"></div>
                 <button class="tr-icon-btn tr-side-btn hidden" id="tr-end" title="End sortie" aria-label="End sortie">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
                 </button>
@@ -2485,6 +3588,7 @@
 
     function wire() {
         tr.stage = $('tr-stage');
+        trBuildTargets();
         trWireInput();
 
         $('tr-probe').addEventListener('click', (e) => {
@@ -2541,8 +3645,12 @@
         });
         $('tr-probe').classList.toggle('hidden', stGet('turret.probe', '1') !== '1');
         $('tr-fs').addEventListener('click', trToggleFullscreen);
-        ['tr-barrel-l', 'tr-barrel-r'].forEach((id) =>
-            $(id).addEventListener('animationend', (e) => e.currentTarget.classList.remove('tr-fire')));
+        $('tr-dbg-toggle').addEventListener('click', () => trSetDebugOpen(!tr.dbgOpen));
+        $('tr-dbg').addEventListener('change', trDebugChange);
+        $('tr-dbg').addEventListener('input', trDebugChange);
+        $('tr-dbg').addEventListener('click', trDebugClick);
+        ['tr-hurt', 'tr-tap'].forEach((id) =>
+            $(id).addEventListener('animationend', (e) => e.currentTarget.classList.remove('tr-on')));
 
         new MutationObserver(() => {
             if (trScreenActive() && !document.hidden) trStart();
@@ -2576,7 +3684,7 @@
 
     // Debug handle for the smoke test, same convention as __MZ / __NP.
     window.__TR = {
-        TIERS, PATHS, state: tr, probe, trProbeStats, trSetTier, trPathAt, trFire, trChoices, trAnswer, trKey,
+        TIERS, state: tr, trPlanPath, trSafePath, BOOMS, SFX, trExplode, trSetDebugOpen, trSpawnFoe, models: () => MODELS, trPickFoe, trBakeGrime, trApplyTier, trHurt, trSpawnRock, trEnemyFire, probe, trProbeStats, trSetTier, trPathAt, trFire, trChoices, trAnswer, trKey,
         trLaunch, trEndSortie, trBuildDeck, trSetKey, trLevel, trReset, trOpenGate, trSfx,
         facts: () => trFacts(), gateAnswer: () => gateAnswer,
         // Advance the simulation by hand — a backgrounded test page gets no rAF.
