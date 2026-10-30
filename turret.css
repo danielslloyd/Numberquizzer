@@ -710,3 +710,58 @@
     font: 800 1.4rem system-ui, sans-serif;
 }
 .tr-gate-ok { min-width: 6rem; min-height: 2.6rem; font-size: 1.1rem; }
+
+/* ---- benchmark ---- */
+/* Knobs the benchmark switches off. Not set outside a run. */
+.tr-no-glass .tr-glass,
+.tr-no-frame .tr-cockpit,
+.tr-no-hud .tr-ro, .tr-no-hud .tr-tgts, .tr-no-hud .tr-lock, .tr-no-hud .tr-hud { display: none; }
+
+.tr-bench {
+    position: absolute;
+    inset: 0;
+    z-index: 7;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    background: rgba(5, 6, 13, .75);
+    color: #d8e2f0;
+    font: 12px/1.35 ui-monospace, Menlo, Consolas, monospace;
+}
+.tr-bench.hidden { display: none; }
+/* While running: one small strip, so the report is not itself a cost. */
+.tr-bench-run {
+    inset: 10px auto auto 50%;
+    transform: translateX(-50%);
+    gap: .6rem;
+    max-width: calc(100% - 140px);
+    padding: .35rem .6rem;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, .7);
+}
+.tr-bench-prog { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tr-bench-card {
+    box-sizing: border-box;
+    width: min(40rem, 100%);
+    max-height: 100%;
+    overflow: auto;
+    padding: .7rem .9rem .8rem;
+    border: 1px solid #4a5568;
+    border-radius: 10px;
+    background: rgba(8, 11, 20, .96);
+}
+.tr-bench-title { font: 800 15px/1.3 system-ui, sans-serif; color: #eef6ff; margin-bottom: .3rem; }
+.tr-bench-line { margin: .1rem 0; }
+.tr-bench-h { margin: .6rem 0 .2rem; font-weight: 700; color: #8fd8ff; }
+.tr-bench-t { width: 100%; border-collapse: collapse; }
+.tr-bench-t th { text-align: right; font-weight: 400; color: #8b97a8; padding: 0 .4rem; }
+.tr-bench-t td { padding: .05rem .4rem; white-space: nowrap; }
+.tr-bench-t td:first-child { padding-left: 0; white-space: normal; }
+.tr-bench-n { text-align: right; font-variant-numeric: tabular-nums; }
+.tr-bench-bar { width: 30%; }
+.tr-bench-bar i { display: block; height: .55em; min-width: 1px; border-radius: 2px; background: #ffb347; }
+.tr-bench-dim { color: #6b7686; }
+.tr-bench-dim .tr-bench-bar i { background: #3a4252; }
+.tr-bench-foot { margin-top: .6rem; color: #8b97a8; font-size: 11px; }
+.tr-bench .tr-chip { color: #eef6ff; }

@@ -90,6 +90,16 @@
         med:  { label: 'Med',  scale: 0.75, stars: 500, enemies: 4, rocks: 20, shiny: true, flashLight: false, thrustLight: false, rockDetail: 3 },
         high: { label: 'High', scale: 1.0,  stars: 900, enemies: 5, rocks: 28, shiny: true, flashLight: true, thrustLight: true, rockDetail: 5 },
     };
+    // Everything else the benchmark can switch off, one at a time. Every tier
+    // has all of it; `tr.q` is the tier with whatever the benchmark has set
+    // on top (`tr.qOver`), and is what the rest of the code reads.
+    //   nebulae, sun  big additive sprites in the sky — fill rate
+    //   booms         explosion sprites;  bite  the crescent maths in them
+    //   points        bolts, enemy bolts and engine glows
+    //   guns          the two gun meshes, near and large on screen
+    //   glass, frame, hud   the DOM layers over the canvas: the three grime
+    //                 canvases, the cockpit SVG, the readouts and target boxes
+    const KNOBS = { nebulae: true, sun: true, booms: true, bite: true, points: true, guns: true, glass: true, frame: true, hud: true };
     const TIER_ORDER = ['low', 'med', 'high'];
     const MAX_STARS = 900, MAX_ENEMIES = 5, MAX_ROCKS = 40;
     const MAX_BOLTS = 24, MAX_ZAPS = 16, MAX_PUFFS = 56;
@@ -120,6 +130,10 @@
     // panels, not the whole hull from inside it.
     const THRUST_RANGE = 9, THRUST_I = 0.9, THRUST_BACK = 2.2;
     const BITE_ON = true;                   // explosion discs are eaten from inside (trBiteShader)
+    const BOOM_RATE = 1;                    // explosion playback speed; the debug slider goes down to 0.05
+    // After a lock the answers ignore clicks this long (real seconds), so the
+    // second tap of a rapid burst cannot land on the card that just opened.
+    const ASK_GUARD = 0.25;
     const SHIP_SCALE = 1.6;                 // a fighter at 60 units is a speck on a 7-inch screen otherwise
     const BOLT_SPEED = 110;                 // defaults; the debug panel can change both
     const MUZZLE_S = 0.09, MUZZLE_I = 3.2;  // muzzle light: how long, how bright
@@ -227,11 +241,11 @@
         boom: 0, nearPx: NEAR_PX, sfx: {}, dbgOpen: false, mouse: null, shiny: null,
         grime: null, grimeImg: null, grimeW: 0, grimeH: 0, glassOp: [-1, -1, -1],
         hurtAge: 9, hurtK: 0, boltSpeed: BOLT_SPEED, zapSpeed: ZAP_SPEED, dbgCats: [],
-        muzzleLight: null, muzzleK: 0, bite: true, ships: null, shipShineK: null, shipThrust: null, thrustLights: [], rockDetail: 0,
+        muzzleLight: null, muzzleK: 0, bite: true, boomRate: BOOM_RATE, askGuard: ASK_GUARD, ships: null, shipShineK: null, shipThrust: null, thrustLights: [], rockDetail: 0,
         pilot: null, spawnAt: 0, rockAt: 0, lockFoe: null, barrel: 1, hits: 0,
         deflector: 100, hudLeft: 0, hud: null,
         running: false, lost: false, raf: 0, last: 0, wt: 0, timeScale: 1,
-        tier: 'med', auto: true, cap: 30,
+        tier: 'med', auto: true, cap: 30, q: null, qOver: null, bench: null, benchRep: null, skyGlows: [],
         ask: null, deck: [], aceQ: [], sortie: null, set: null,
         input: 'choice', kidInput: true, timer: 0, fluent: null, sound: true, spDenied: false,
         toastLeft: 0, shake: 0,
@@ -289,6 +303,8 @@
         const s = dbg.ships || {};
         tr.ships = { squish: num(s.squish, 0, 0.8, SHIPS.squish), accent: hex(s.accent, SHIPS.accent), shine: num(s.shine, 0, 3, SHIPS.shine),
             thrust: s.thrust === undefined ? SHIPS.thrust : !!s.thrust, thrustColor: hex(s.thrustColor, SHIPS.thrustColor) };
+        tr.boomRate = num(dbg.boomRate, 0.05, 1, BOOM_RATE);
+        tr.askGuard = num(dbg.guard, 0, 1, ASK_GUARD);
         tr.boltSpeed = num(dbg.bolt, 30, 300, BOLT_SPEED);
         tr.zapSpeed = num(dbg.zap, 20, 200, ZAP_SPEED);
         tr.dbgCats = Array.isArray(dbg.open) ? dbg.open.filter((k) => typeof k === 'string') : [];
@@ -300,7 +316,7 @@
     }
 
     function trSaveDebug() {
-        stSetJSON('turret.debug', { boom: BOOMS[tr.boom][0], bite: tr.bite, near: tr.nearPx, sfx: tr.sfx, grime: tr.grime, ships: tr.ships,
+        stSetJSON('turret.debug', { boom: BOOMS[tr.boom][0], bite: tr.bite, boomRate: tr.boomRate, guard: tr.askGuard, near: tr.nearPx, sfx: tr.sfx, grime: tr.grime, ships: tr.ships,
             bolt: tr.boltSpeed, zap: tr.zapSpeed, open: tr.dbgCats });
     }
 
@@ -858,6 +874,7 @@
     }
 
     function trBuildNebulae(group) {
+        tr.skyGlows = [];
         const tex = trGlowTexture(128, 0.45);
         [[0x5a2a8a, -0.5, 0.35, -1, 95], [0x1f5a6a, 0.7, 0.1, -0.8, 80], [0x7a2450, 0.1, 0.7, -0.6, 70]]
             .forEach(([hex, x, y, z, size]) => {
@@ -869,6 +886,8 @@
                 s.position.set(x, y, z).normalize().multiplyScalar(130);
                 s.scale.set(size, size, 1);
                 s.renderOrder = -1;
+                s.userData.knob = 'nebulae';
+                tr.skyGlows.push(s);
                 group.add(s);
             });
     }
@@ -892,6 +911,8 @@
         disc.position.copy(halo.position);
         disc.scale.set(10 * HALO_K, 10 * HALO_K, 1);
         disc.renderOrder = -1;
+        halo.userData.knob = disc.userData.knob = 'sun';
+        tr.skyGlows.push(halo, disc);
         group.add(halo, disc);
     }
 
@@ -1120,7 +1141,7 @@
     }
 
     function trBuildPools() {
-        tr.rockDetail = TIERS[tr.tier].rockDetail;
+        tr.rockDetail = tr.q.rockDetail;
         tr.rockMesh = trInstanced(trRockGeometry(tr.rockDetail), new THREE.MeshLambertMaterial({ vertexColors: true }), MAX_ROCKS);
         tr.rocks = [];
         for (let i = 0; i < MAX_ROCKS; i++) {
@@ -1148,7 +1169,7 @@
         tr.shipThrust = { k: { value: 0 }, color: { value: new THREE.Color() } };
         ['matte', 'shiny'].forEach((k) => ['dart', 'model'].forEach((m) => { tr.shipMats[k][m].onBeforeCompile = trShipShader; }));
         trShipColours();
-        tr.shiny = TIERS[tr.tier].shiny;
+        tr.shiny = tr.q.shiny;
         // Mesh 0 is the built-in dart, painted all over; trAddShipMeshes
         // appends the models.
         tr.shipMeshes = [trShipMesh(trShipAttrs(trShipGeometry(), () => 1, () => 0.5), 'dart')];
@@ -1182,7 +1203,7 @@
             const mat = new THREE.SpriteMaterial({ map: tr.discTex, transparent: true, depthWrite: false, fog: false });
             const sp = new THREE.Sprite(mat);
             sp.visible = false;
-            const p = { sp, life: 0, max: 1, delay: 0, r0: 1, r1: 2, curve: 0, fade: 0.6, bite: false,
+            const p = { sp, life: 0, max: 1, delay: 0, r0: 1, r1: 2, curve: 0, fade: 0.6, bite: false, rate: 1,
                 biteC: { value: new THREE.Vector2(0.5, 0.5) }, biteR: { value: 0 },
                 vel: new THREE.Vector3(), c0: new THREE.Color(), c1: new THREE.Color() };
             // Same source for every puff, so one program; the uniforms are each puff's own.
@@ -1257,7 +1278,7 @@
         // every lit shader, so showing or hiding it recompiles once, on a
         // tier change — never on a shot.
         tr.muzzleLight = new THREE.PointLight(0x9fe8ff, 0, 30, 2);
-        tr.muzzleLight.visible = TIERS[tr.tier].flashLight;
+        tr.muzzleLight.visible = tr.q.flashLight;
         tr.muzzleK = 0;
         tr.scene.add(tr.muzzleLight);
         // One per fighter, for the same reason: always there, shown on High,
@@ -1265,7 +1286,7 @@
         tr.thrustLights = [];
         for (let i = 0; i < MAX_ENEMIES; i++) {
             const l = new THREE.PointLight(0xffffff, 0, THRUST_RANGE, 2);
-            l.visible = TIERS[tr.tier].thrustLight;
+            l.visible = tr.q.thrustLight;
             tr.thrustLights.push(l);
             tr.scene.add(l);
         }
@@ -1355,8 +1376,11 @@
 
     /* ---- tiers and sizing -------------------------------------------------*/
     function trApplyTier() {
-        const T = TIERS[tr.tier];
+        const T = tr.q = Object.assign({}, KNOBS, TIERS[tr.tier], tr.qOver);
         if (tr.renderer) {
+            tr.skyGlows.forEach((s) => { s.visible = T[s.userData.knob]; });
+            [tr.glows, tr.boltPts, tr.zapPts].forEach((p) => { p.visible = T.points; });
+            tr.guns.forEach((g) => { g.pivot.visible = T.guns; });
             tr.stars.geometry.setDrawRange(0, T.stars);
             // Swapping a material compiles its program the first time: a
             // hitch once, when auto steps down, not a cost every frame.
@@ -1374,6 +1398,11 @@
                 tr.shipMeshes.forEach((m) => { m.material = trShipMat(m.userData.kind); });
             }
             trResize();
+        }
+        if (tr.stage) {
+            tr.stage.classList.toggle('tr-no-glass', !T.glass);
+            tr.stage.classList.toggle('tr-no-frame', !T.frame);
+            tr.stage.classList.toggle('tr-no-hud', !T.hud);
         }
         trProbeReset();
         document.querySelectorAll('[data-tr-tier]').forEach((b) => {
@@ -1405,7 +1434,7 @@
         const w = tr.stage.clientWidth, h = tr.stage.clientHeight;
         if (!w || !h) return;                // display:none reports zero; keep the last good size
         tr.cssW = w; tr.cssH = h;
-        const s = TIERS[tr.tier].scale;
+        const s = tr.q.scale;
         const bh = Math.max(1, Math.round(h * s));
         tr.renderer.setSize(Math.max(1, Math.round(w * s)), bh, false);
         const zoomed = tr.camera.fov < trFov(BASE_FOV) - 0.05;
@@ -1441,6 +1470,8 @@
     function trStop() {
         tr.running = false;
         cancelAnimationFrame(tr.raf);
+        // A hidden page gets no frames, so a run cut off by one is over.
+        if (tr.bench) trBenchEnd('Stopped: the screen was hidden.');
         // The microphone is not held for a screen nobody is looking at.
         trListenStop();
     }
@@ -1448,6 +1479,7 @@
     function trFrame(now) {
         if (!tr.running) return;
         tr.raf = requestAnimationFrame(trFrame);
+        if (tr.bench) { trBenchFrame(now); return; }
         // rAF lands within a millisecond or so of the vsync, so without the
         // slack a 30 fps cap on a 60 Hz panel would skip a frame it should take.
         const gap = now - tr.last;
@@ -1463,7 +1495,9 @@
 
     function trUpdate(dt) {
         trUpdateTime(dt);
-        const wdt = dt * tr.timeScale;
+        // The benchmark holds the world still, so every setting it tries
+        // draws the same frame.
+        const wdt = tr.bench ? 0 : dt * tr.timeScale;
         tr.wt += wdt;
 
         // The turret eases toward the aim on real time, so it stays
@@ -1602,7 +1636,7 @@
     }
 
     function trUpdateRocks(wdt) {
-        const T = TIERS[tr.tier];
+        const T = tr.q;
         let live = 0;
         for (let i = 0; i < MAX_ROCKS; i++) if (tr.rocks[i].active) live++;
 
@@ -1763,7 +1797,7 @@
 
     function trUpdateSpawner() {
         if (tr.wt < tr.spawnAt) return;
-        const T = TIERS[tr.tier];
+        const T = tr.q;
         let busy = 0;
         for (let i = 0; i < MAX_ENEMIES; i++) if (tr.foes[i].active) busy++;
         if (busy >= T.enemies) { tr.spawnAt = tr.wt + 0.5; return; }
@@ -2042,7 +2076,7 @@
         // beside an answer button must not fire. Once it is answered the guns
         // are free again, but nothing locks until the card has gone — one
         // question at a time.
-        if (!tr.running || (tr.ask && tr.ask.phase === 'ask')) return;
+        if (!tr.running || tr.bench || (tr.ask && tr.ask.phase === 'ask')) return;
         const r = tr.stage.getBoundingClientRect();
         const nx = ((clientX - r.left) / r.width) * 2 - 1;
         const ny = -((clientY - r.top) / r.height) * 2 + 1;
@@ -2133,7 +2167,8 @@
     function trAsk(foe, bolt) {
         const fromAce = !!foe.ace;
         const q = fromAce ? foe.ace : tr.deck.shift();
-        tr.ask = { foe, bolt, q, fromAce, mode: trMode(), phase: 'ask', elapsed: 0, left: 0, entry: '', choices: null, sp: null };
+        tr.ask = { foe, bolt, q, fromAce, mode: trMode(), phase: 'ask', elapsed: 0, left: 0, entry: '', choices: null, sp: null,
+            openAt: performance.now() };
         $('tr-hint').classList.add('tr-gone');
         tr.toastLeft = 0;
         trRenderAsk();
@@ -2488,6 +2523,8 @@
         // A bite starts a little off the middle, so for a moment it leaves
         // a crescent. Rings and the muzzle flash are never bitten.
         p.bite = tr.bite && !o.ring && !o.noBite;
+        // The debug slider slows explosions; the muzzle flash is not one.
+        p.rate = o.noBite ? 1 : tr.boomRate;
         p.biteR.value = 0;
         if (p.bite) {
             const a = Math.random() * Math.PI * 2, d = rand(BITE_OFF[0], BITE_OFF[1]);
@@ -2498,13 +2535,44 @@
     /* The bite: a circle cut out of a puff, centred at biteC in the sprite's
      * texture space (the disc is radius 0.25 there, its halo out to 0.5). It
      * waits BITE_AT of the puff's life, then grows to BITE_R by BITE_END —
-     * faster than the disc, so it eats the disc from the inside out. The
-     * edge is softened by a pixel or two's worth, not blurred. */
+     * faster than the disc, so it eats the disc from the inside out.
+     *
+     * Cutting the texture is not enough: the halo round the eaten part
+     * stays, outlines the hole, and the bite reads as a dark disc laid on a
+     * bright one. So while bitten a puff draws itself from the distance to
+     * the crescent — fill, rim and halo exactly as trShapeTexture bakes them
+     * (fill 0.83, a 0.04 rim, halo 0.32 fading over 0.25) — and the rim and
+     * halo follow the bite's edge as well as the disc's. Outside both
+     * circles, a point whose nearest rim has been eaten measures to the
+     * nearer horn of the crescent instead. */
     const BITE_AT = 0.18, BITE_END = 0.7, BITE_R = 0.62, BITE_OFF = [0.05, 0.09];
     const BITE_FRAG = [
         '#include <alphatest_fragment>',
         'if ( biteR > 0.0 ) {',
-        '  diffuseColor.a *= smoothstep( biteR - 0.01, biteR + 0.01, distance( vUv, biteC ) );',
+        '  vec2 c = vec2( 0.5 );',
+        '  float L = length( biteC - c );',
+        '  if ( biteR >= L + 0.25 ) discard;',
+        '  float d1 = length( vUv - c ) - 0.25;',
+        '  float d2 = biteR - length( vUv - biteC );',
+        '  float a = ( 0.0625 - biteR * biteR + L * L ) / ( 2.0 * L );',
+        '  float h2 = 0.0625 - a * a;',
+        '  vec2 dir = ( biteC - c ) / L;',
+        '  vec2 perp = vec2( -dir.y, dir.x );',
+        '  float horn = 1.0;',
+        '  if ( h2 > 0.0 ) {',
+        '    vec2 m = c + a * dir;',
+        '    float h = sqrt( h2 );',
+        '    horn = min( length( vUv - m - h * perp ), length( vUv - m + h * perp ) );',
+        '  }',
+        '  float sd;',
+        '  if ( d1 <= 0.0 && d2 <= 0.0 ) sd = max( d1, d2 );',
+        '  else if ( d1 > 0.0 ) sd = length( c + 0.25 * normalize( vUv - c ) - biteC ) >= biteR ? d1 : horn;',
+        '  else sd = length( biteC + biteR * normalize( vUv - biteC ) - c ) <= 0.25 ? d2 : horn;',
+        '  float aa = 0.006;',
+        '  float inside = 1.0 - smoothstep( -aa, aa, sd );',
+        '  float tone = mix( 0.831, 1.0, smoothstep( -0.04 - aa, -0.04 + aa, sd ) );',
+        '  float halo = 0.32 * clamp( 1.0 - sd / 0.25, 0.0, 1.0 );',
+        '  diffuseColor = vec4( diffuse * mix( 1.0, tone, inside ), opacity * mix( halo, 1.0, inside ) );',
         '  if ( diffuseColor.a < 0.004 ) discard;',
         '}'].join('\n');
 
@@ -2516,11 +2584,12 @@
             .replace('#include <alphatest_fragment>', BITE_FRAG);
     }
 
-    function trUpdatePuffs(wdt) {
-        const drag = Math.exp(-2 * wdt);
+    function trUpdatePuffs(wdt0) {
         for (let i = 0; i < MAX_PUFFS; i++) {
             const p = tr.puffs[i];
             if (p.life <= 0) continue;
+            const wdt = wdt0 * p.rate;
+            const drag = Math.exp(-2 * wdt);
             if (p.delay > 0) { p.delay -= wdt; continue; }
             p.life -= wdt;
             if (p.life <= 0) { p.sp.visible = false; continue; }
@@ -2531,11 +2600,11 @@
             else r = p.r0 + (p.r1 - p.r0) * (1 - (1 - f) * (1 - f));
             p.sp.position.addScaledVector(p.vel, wdt);
             p.vel.multiplyScalar(drag);
-            p.sp.visible = true;
+            p.sp.visible = tr.q.booms;
             p.sp.scale.setScalar(Math.max(0.001, r * 2 * HALO_K));
             p.sp.material.color.copy(p.c0).lerp(p.c1, f);
             p.sp.material.opacity = f < p.fade ? 1 : 1 - (f - p.fade) / (1 - p.fade);
-            if (p.bite) p.biteR.value = BITE_R * Math.pow(clamp((f - BITE_AT) / (BITE_END - BITE_AT), 0, 1), 0.8);
+            if (p.bite) p.biteR.value = !tr.q.bite ? 0 : BITE_R * Math.pow(clamp((f - BITE_AT) / (BITE_END - BITE_AT), 0, 1), 0.8);
         }
     }
 
@@ -2549,6 +2618,15 @@
             [[0xff9e2e, 0xbf3314], [0xff6a1f, 0x5a1a10], [0xf2d8a0, 0x4d4440]].forEach(([a, b], k) =>
                 trPuff({ at, off: jit(0.55 * R), c0: a, c1: b, r0: 0.5 * R, r1: rand(1.4, 2) * R,
                     life: rand(0.4, 0.55) + k * 0.05, delay: (k + 1) * 0.06, order: k + 1 }));
+            trShock(at, R);
+        }],
+        // Every circle starts white-hot or yellow and cools to a dark orange
+        // as it grows; the later ones start cooler, so the cluster ages.
+        ['White hot', (at, R) => {
+            trPuff({ at, c0: 0xffffff, c1: 0xb84a12, r0: 0.7 * R, r1: 2.3 * R, life: 0.5 });
+            [[0xfffbe0, 0xa8400f, 0.5], [0xfff2a0, 0x9a3a0c, 0.45], [0xffe680, 0x8a320a, 0.6]].forEach(([a, b, s], k) =>
+                trPuff({ at, off: jit(0.6 * R), c0: a, c1: b, r0: s * R, r1: rand(1.3, 1.9) * R,
+                    life: rand(0.45, 0.6) + k * 0.05, delay: (k + 1) * 0.05, order: k + 1 }));
             trShock(at, R);
         }],
         ['Bolt ring', (at, R) => {
@@ -2917,6 +2995,424 @@
         $('tr-probe-fps').classList.toggle('tr-bad', s.p95 > budget * 1.35);
     }
 
+    /* ---- benchmark ---------------------------------------------------------
+     * About two minutes of trying one setting at a time, for a device whose
+     * numbers cannot be sent anywhere: the report is on the screen, and the
+     * last one is kept under nq.turret.bench.
+     *
+     * The world is held still (trUpdate's wdt is 0) on a busy tableau — every
+     * fighter in view, a full rock field, explosions mid-bloom, bolts in the
+     * air — so every trial draws the same frame and a difference is the
+     * setting's. The frame cap is off. Each frame is timed three ways:
+     *   frame  rAF to rAF: what the player feels, DOM layers and all, but
+     *          snapped to the screen's refresh
+     *   draw   render() plus a one-pixel readback, which waits for the GPU to
+     *          finish the frame: the 3D cost, not snapped to anything
+     *   js     the update
+     * A trial waits BENCH_SETTLE and ten frames after its change — shader
+     * compiles and buffer reallocations land there — then takes medians over
+     * BENCH_MEASURE. Each cost is measured against the runs of the whole
+     * setting on either side of it, interpolated, so a device slowing as it
+     * warms up is read as drift, not as a cost.
+     */
+    const BENCH_SETTLE = 700, BENCH_MEASURE = 2000, BENCH_LONGEST = 8000, BENCH_N = 600;
+    // [knob, label, value when off]. Rock detail "off" is the coarsest.
+    const BENCH_KNOBS = [
+        ['enemies', 'Fighters', 0], ['shiny', 'Shiny fighters (Phong)', false], ['thrustLight', 'Thruster lights', false],
+        ['flashLight', 'Muzzle light', false], ['rocks', 'Rocks', 0], ['rockDetail', 'Rock detail (720 → 180 faces)', 2],
+        ['stars', 'Stars', 0], ['nebulae', 'Nebulae', false], ['sun', 'Sun and halo', false],
+        ['booms', 'Explosions', false], ['bite', 'Bite maths in explosions', false], ['points', 'Bolts and engine glows', false],
+        ['guns', 'Guns', false], ['glass', 'Window grime (3 canvases)', false], ['frame', 'Cockpit frame (SVG)', false],
+        ['hud', 'Readouts and target boxes', false],
+    ];
+    const BENCH_DOM = ['glass', 'frame', 'hud'];
+
+    function trBenchPlan() {
+        const full = Object.assign({}, KNOBS, TIERS.high), low = Object.assign({}, KNOBS, TIERS.low);
+        const bare = Object.assign({}, full);
+        BENCH_KNOBS.forEach(([k, , off]) => { bare[k] = off; });
+        const plan = [];
+        const add = (group, label, q, knob) => plan.push({ group, label, q, knob: knob || '' });
+        const without = (base, k, off) => { const q = Object.assign({}, base); q[k] = off; return q; };
+        add('base', 'High, everything', full);
+        BENCH_KNOBS.forEach(([k, label, off]) => add('high', label, without(full, k, off), k));
+        add('base', 'High, everything', full);
+        [0.5, 0.6, 0.75, 0.9].forEach((s) => add('scale', Math.round(s * 100) + '%', without(full, 'scale', s)));
+        add('tier', 'Medium', Object.assign({}, KNOBS, TIERS.med));
+        add('lowbase', 'Low, everything', low);
+        // Only what Low has to switch off.
+        BENCH_KNOBS.forEach(([k, label, off]) => { if (low[k] !== off) add('low', label, without(low, k, off), k); });
+        add('lowbase', 'Low, everything', low);
+        add('tier', 'Sky colour only', bare);
+        add('base', 'High, everything', full);
+        return plan;
+    }
+
+    // A ray from the camera through a point on screen (NDC), `d` units out.
+    function trBenchAt(nx, ny, d, out) {
+        V1.set(nx, ny, 0.5).unproject(tr.camera).sub(tr.camera.getWorldPosition(V3)).normalize();
+        return out.copy(V3).addScaledVector(V1, d);
+    }
+
+    function trBenchClear() {
+        tr.foes.forEach((e) => { e.active = false; e.locked = false; e.ace = null; });
+        tr.rocks.forEach((r) => { r.active = false; });
+        tr.bolts.forEach((b) => { b.active = false; });
+        tr.zaps.forEach((z) => { z.active = false; });
+        tr.puffs.forEach((p) => { p.life = 0; p.sp.visible = false; });
+        tr.lockFoe = null;
+    }
+
+    // The tableau. Made once per run; trials only show or hide parts of it.
+    function trBenchStage(B) {
+        trBenchClear();
+        tr.spawnAt = tr.rockAt = Infinity;
+        tr.hurtAge = 9;
+        tr.shake = 0;
+        tr.mouse = null;
+        tr.camera.position.set(0, 0, 0);
+        tr.yaw = tr.aimYaw = 0;
+        tr.pitch = tr.aimPitch = 0.12;
+        tr.camera.rotation.set(tr.pitch, tr.yaw, 0);
+        tr.scene.updateMatrixWorld();
+        const seen = [];
+        // Fighters on real paths, each frozen at a moment it is in view and
+        // not on top of another.
+        const kinds = tr.shipMeshes.length;
+        for (let tries = 0; B.foes.length < MAX_ENEMIES && tries < 80; tries++) {
+            const path = trSafePath(false), e = tr.foes.find((x) => !x.active);
+            if (!path || !e) continue;
+            trSpawnFoe(path, 0, null, null, kinds > 1 ? 1 + (B.foes.length % (kinds - 1)) : 0);
+            e.strafe = null;
+            let found = -1;
+            for (let i = 4; i <= 36 && found < 0; i++) {
+                const t = e.dur * i / 40;
+                trPathAt(e, e.t0 + t, V4);
+                const d = V4.length();
+                V2.copy(V4).project(tr.camera);
+                if (d < 22 || d > 75 || V2.z > 1 || Math.abs(V2.x) > 0.75 || Math.abs(V2.y) > 0.7) continue;
+                if (seen.some(([x, y]) => Math.hypot(x - V2.x, y - V2.y) < 0.3)) continue;
+                found = t;
+                seen.push([V2.x, V2.y]);
+            }
+            if (found < 0) { e.active = false; continue; }
+            e.t0 = tr.wt - found;
+            B.foes.push(e);
+        }
+        for (let i = 0; i < TIERS.high.rocks; i++) {
+            const r = trRock();
+            if (!r) break;
+            trBenchAt(rand(-0.9, 0.9), rand(-0.75, 0.75), rand(22, 100), r.pos);
+            r.size = rand(1.5, 5);
+            B.rocks.push(r);
+        }
+        // Explosions a few frames apart, so they are at different stages.
+        const rate = tr.boomRate;
+        tr.boomRate = 1;
+        for (let k = 0; k < 4; k++) {
+            trBenchAt(rand(-0.6, 0.6), rand(-0.5, 0.5), rand(28, 55), V5);
+            trExplode(V5, V1);
+            trUpdatePuffs(0.05);
+        }
+        for (let k = 0; k < 2; k++) {
+            trRockBoom(trBenchAt(rand(-0.7, 0.7), rand(-0.6, 0.6), rand(25, 50), V5), rand(2, 4), 3);
+            trUpdatePuffs(0.04);
+        }
+        trUpdatePuffs(0.06);
+        tr.boomRate = rate;
+        // Bolts part-way out, and enemy fire part-way in.
+        for (let k = 0; k < 8; k++) {
+            const from = trGunTip(tr.guns[k % 2], V5);
+            const b = trSpawnBolt(from, trBenchAt(rand(-0.7, 0.7), rand(-0.5, 0.6), 150, V6), tr.wt + 1, null);
+            if (!b) break;
+            const u = rand(0.05, 0.6);
+            b.t0 = tr.wt - u;
+            b.t1 = tr.wt + 1 - u;
+        }
+        B.foes.forEach((e, k) => {
+            const z = tr.zaps[k];
+            const u = rand(0.1, 0.7);
+            trPathAt(e, tr.wt, z.from);
+            z.to.set(rand(-9, 9), rand(-5, 7), 6);
+            z.hit = false;
+            z.t0 = tr.wt - u;
+            z.t1 = tr.wt + 1 - u;
+            z.active = true;
+        });
+        // The muzzle light held on, where it is when a shot has just gone.
+        trGunTip(tr.guns[0], tr.muzzleLight.position);
+        tr.muzzleK = 0;
+        tr.muzzleLight.intensity = MUZZLE_I * 0.5;
+    }
+
+    function trBenchStart() {
+        if (tr.bench || !tr.renderer || !tr.running) return;
+        if (tr.sortie || tr.ask) {
+            trBenchShow({ note: 'End the sortie first: the benchmark clears the sky.', results: [] });
+            return;
+        }
+        trSetDebugOpen(false);
+        const gl = tr.renderer.getContext();
+        const B = tr.bench = {
+            plan: trBenchPlan(), i: -1, t0: 0, m0: 0, frames: 0, n: 0, started: performance.now(),
+            iv: new Float32Array(BENCH_N), js: new Float32Array(BENCH_N), draw: new Float32Array(BENCH_N),
+            px: new Uint8Array(4), gl, results: [], foes: [], rocks: [], hidden: [], over: tr.qOver, device: trBenchDevice(gl),
+        };
+        ['tr-brief', 'tr-debrief', 'tr-probe'].forEach((id) => {
+            const el = $(id);
+            if (!el.classList.contains('hidden')) { el.classList.add('hidden'); B.hidden.push(el); }
+        });
+        trBenchStage(B);
+        const box = $('tr-bench');
+        box.textContent = '';
+        box.className = 'tr-bench tr-bench-run';
+        const text = trEl('span', 'tr-bench-prog');
+        text.id = 'tr-bench-prog';
+        const stop = trEl('button', 'tr-chip', 'Stop');
+        stop.dataset.trBenchAct = 'stop';
+        box.append(text, stop);
+        trBenchNext();
+    }
+
+    function trBenchNext() {
+        const B = tr.bench;
+        B.i++;
+        if (B.i >= B.plan.length) { trBenchEnd(''); return; }
+        const P = B.plan[B.i];
+        tr.qOver = P.q;
+        trApplyTier();
+        B.foes.forEach((e, k) => { e.active = k < tr.q.enemies; });
+        B.rocks.forEach((r, k) => { r.active = k < tr.q.rocks; });
+        B.t0 = performance.now();
+        B.m0 = 0;
+        B.frames = B.n = 0;
+        const left = B.i ? (B.t0 - B.started) / B.i * (B.plan.length - B.i) / 1000 : B.plan.length * (BENCH_SETTLE + BENCH_MEASURE) / 1000;
+        const lc = P.label.charAt(0).toLowerCase() + P.label.slice(1);
+        const what = P.group === 'high' ? 'High without ' + lc
+            : P.group === 'low' ? 'Low without ' + lc
+            : P.group === 'scale' ? 'High at ' + P.label + ' resolution' : P.label;
+        $('tr-bench-prog').textContent = 'Benchmark ' + (B.i + 1) + '/' + B.plan.length + ' · ' + what + ' · about '
+            + Math.floor(left / 60) + ':' + String(Math.round(left % 60)).padStart(2, '0') + ' left';
+    }
+
+    function trMedian(a, n) {
+        const s = Float32Array.from(a.subarray(0, n)).sort();
+        return n ? s[n >> 1] : 0;
+    }
+
+    function trBenchFrame(now) {
+        const B = tr.bench, gl = B.gl;
+        const gap = now - tr.last;
+        tr.last = now;
+        const t0 = performance.now();
+        trUpdate(Math.min(gap / 1000, 0.1));
+        const t1 = performance.now();
+        tr.renderer.render(tr.scene, tr.camera);
+        gl.readPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, B.px);
+        const t2 = performance.now();
+        B.frames++;
+        if (t2 - B.t0 < BENCH_SETTLE || B.frames <= 10) return;
+        if (!B.m0) B.m0 = t2;
+        // A quarter-second gap is the browser throttling the page, not a frame.
+        if (gap < 250 && B.n < BENCH_N) {
+            B.iv[B.n] = gap; B.js[B.n] = t1 - t0; B.draw[B.n] = t2 - t1;
+            B.n++;
+        }
+        const done = (t2 - B.m0 >= BENCH_MEASURE && B.n >= 10) || B.n >= BENCH_N || (t2 - B.t0 > BENCH_LONGEST && B.n >= 3);
+        if (!done) return;
+        const P = B.plan[B.i];
+        // Frame is a mean: each interval is a whole number of refreshes, and
+        // only the mix of one-refresh and two-refresh frames shows a cost
+        // smaller than a refresh. Draw and js are medians, past compile hitches.
+        let sum = 0;
+        for (let i = 0; i < B.n; i++) sum += B.iv[i];
+        B.results.push({ group: P.group, label: P.label, knob: P.knob, n: B.n,
+            frame: sum / B.n, draw: trMedian(B.draw, B.n), js: trMedian(B.js, B.n) });
+        trBenchNext();
+    }
+
+    function trBenchEnd(note) {
+        const B = tr.bench;
+        if (!B) return;
+        tr.bench = null;
+        tr.qOver = B.over;
+        B.hidden.forEach((el) => el.classList.remove('hidden'));
+        if (tr.foes.length) trBenchClear();
+        tr.spawnAt = tr.rockAt = tr.wt + 1;
+        if (tr.muzzleLight) tr.muzzleLight.intensity = 0;
+        trApplyTier();
+        tr.last = performance.now();
+        const rep = { at: Date.now(), note, device: B.device, results: B.results };
+        if (B.results.length) stSetJSON('turret.bench', rep);
+        trBenchShow(rep);
+    }
+
+    function trBenchDevice(gl) {
+        let gpu = '';
+        try {
+            const ext = gl.getExtension('WEBGL_debug_renderer_info');
+            gpu = String(gl.getParameter(ext ? ext.UNMASKED_RENDERER_WEBGL : gl.RENDERER));
+        } catch (err) { /* not told */ }
+        return { gpu, webgl2: typeof WebGL2RenderingContext !== 'undefined' && gl instanceof WebGL2RenderingContext,
+            css: [tr.cssW, tr.cssH], dpr: window.devicePixelRatio || 1, ua: navigator.userAgent };
+    }
+
+    /* The report, as sections of lines and rows, so the screen and the Copy
+     * button say the same thing. A cost is the setting's run subtracted from
+     * the whole setting's runs either side of it, weighted by position; `noise`
+     * is half their disagreement, or 3%, whichever is more. */
+    function trBenchReport(rep) {
+        const R = rep.results;
+        const out = { lines: [], tables: [] };
+        const f1 = (v) => v.toFixed(1);
+        const sg = (v) => (v < 0 ? '−' : '+') + Math.abs(v).toFixed(1);
+        const fps = (ms) => Math.round(1000 / ms);
+        const D = rep.device || {};
+        out.lines.push((D.gpu || 'GPU not reported') + (D.webgl2 ? ' · WebGL2' : ' · WebGL1'));
+        if (D.css) out.lines.push('Stage ' + D.css[0] + '×' + D.css[1] + ' CSS px at ' + D.dpr + '× · drawn at '
+            + D.css[0] + '×' + D.css[1] + ' on High');
+        if (!R.length) return out;
+
+        const around = (i, group) => {
+            let a = -1, b = -1;
+            for (let j = i - 1; j >= 0 && a < 0; j--) if (R[j].group === group) a = j;
+            for (let j = i + 1; j < R.length && b < 0; j++) if (R[j].group === group) b = j;
+            if (a < 0 && b < 0) return null;
+            if (a < 0) a = b;
+            if (b < 0) b = a;
+            const w = a === b ? 0 : (i - a) / (b - a);
+            const at = (k) => R[a][k] + (R[b][k] - R[a][k]) * w;
+            const half = (k) => Math.abs(R[b][k] - R[a][k]) / 2;
+            return { draw: at('draw'), frame: at('frame'), js: at('js'),
+                nd: Math.max(half('draw'), 0.03 * at('draw'), 0.1), nf: Math.max(half('frame'), 0.03 * at('frame'), 0.1) };
+        };
+        const costs = (group, baseGroup) => R.map((r, i) => {
+            if (r.group !== group) return null;
+            const b = around(i, baseGroup);
+            if (!b) return null;
+            // The DOM layers cost in compositing, which draw cannot see, so
+            // they are judged by frame; everything else by draw, which is not
+            // snapped to the refresh.
+            const draw = b.draw - r.draw, frame = b.frame - r.frame;
+            const dom = BENCH_DOM.indexOf(r.knob) >= 0;
+            const rank = dom ? frame : draw;
+            return { knob: r.knob, label: r.label, draw, frame, rank, real: rank > (dom ? b.nf : b.nd),
+                share: clamp(rank / (dom ? b.frame : b.draw), 0, 1) };
+        }).filter(Boolean).sort((x, y) => y.rank - x.rank);
+
+        const named = (group) => R.filter((r) => r.group === group);
+        const avg = (list, k) => list.reduce((s, r) => s + r[k], 0) / list.length;
+        const base = named('base'), low = named('lowbase');
+        const summary = (label, list) => {
+            if (!list.length) return;
+            out.lines.push(label + ': frame ' + f1(avg(list, 'frame')) + ' ms (' + fps(avg(list, 'frame')) + ' fps) · draw '
+                + f1(avg(list, 'draw')) + ' · js ' + f1(avg(list, 'js')));
+        };
+        summary('High', base);
+        summary('Medium', R.filter((r) => r.label === 'Medium'));
+        summary('Low', low);
+        summary('Sky only', R.filter((r) => r.label === 'Sky colour only'));
+        const fastest = Math.min.apply(null, R.map((r) => r.frame));
+        out.lines.push('Fastest frame seen ' + f1(fastest) + ' ms (' + fps(fastest) + ' fps): probably the screen\'s refresh, the floor every frame time sits on');
+
+        const high = costs('high', 'base'), lowC = costs('low', 'lowbase');
+        const top = high.filter((c) => c.real).slice(0, 3);
+        if (top.length) out.lines.push('Costliest on High: ' + top.map((c) => c.label + ' (' + sg(c.rank) + ' ms)').join(', '));
+        const dom = high.filter((c) => BENCH_DOM.indexOf(c.knob) >= 0);
+        if (dom.length) {
+            const f = dom.reduce((s, c) => s + Math.max(0, c.frame), 0), d = dom.reduce((s, c) => s + Math.max(0, c.draw), 0);
+            out.lines.push('The layers over the canvas (grime, frame, HUD) together: ' + sg(f) + ' ms frame, ' + sg(d) + ' ms draw');
+        }
+        if (base.length) {
+            const js = avg(base, 'js'), draw = avg(base, 'draw');
+            out.lines.push(js < draw * 0.3 ? 'Script is ' + f1(js) + ' ms against ' + f1(draw) + ' ms of drawing: the GPU is the limit'
+                : 'Script is ' + f1(js) + ' ms against ' + f1(draw) + ' ms of drawing: the CPU matters here too');
+        }
+        if (base.length > 1) {
+            const a = base[0].draw, z = base[base.length - 1].draw;
+            if (Math.abs(z - a) > Math.max(0.1 * a, 0.3)) out.lines.push('Drew ' + Math.round(Math.abs(z / a - 1) * 100) + '% ' + (z > a ? 'slower' : 'faster')
+                + ' at the end than the start (' + f1(a) + ' → ' + f1(z) + ' ms) — heat, probably; small costs are uncertain');
+        }
+        if (rep.note) out.lines.push(rep.note);
+
+        const table = (title, list) => {
+            if (list.length) out.tables.push({ title, cols: ['draw', 'frame'],
+                rows: list.map((c) => ({ label: c.label, a: sg(c.draw), b: sg(c.frame), share: c.share, dim: !c.real })) });
+        };
+        table('On High, switching each off saves (ms)', high);
+        table('On Low, switching each off saves (ms)', lowC);
+        const scale = R.filter((r) => r.group === 'scale');
+        if (scale.length) {
+            const rows = scale.concat(base.length ? [{ label: '100%', draw: avg(base, 'draw'), frame: avg(base, 'frame') }] : []);
+            const top = Math.max.apply(null, rows.map((r) => r.draw));
+            out.tables.push({ title: 'Resolution on High (ms)', cols: ['draw', 'frame'],
+                rows: rows.map((r) => ({ label: r.label, a: f1(r.draw), b: f1(r.frame), share: r.draw / top, dim: false })) });
+        }
+        out.foot = 'draw: render plus a GPU readback, not snapped to the refresh. frame: mean time from one frame to the next, '
+            + 'everything included, built of whole refreshes. Rows are sorted by draw, except the grime, frame and HUD, which '
+            + 'are DOM layers and sorted by frame — draw cannot see them. Grey: within the noise between repeated runs. The '
+            + 'scene is held still, so things that cost by moving (the target boxes) read low.';
+        return out;
+    }
+
+    function trBenchText(rep) {
+        const r = trBenchReport(rep);
+        const lines = ['Turret benchmark · ' + new Date(rep.at || Date.now()).toLocaleString()].concat(r.lines);
+        r.tables.forEach((t) => {
+            lines.push('', t.title + '   ' + t.cols.join(' / '));
+            t.rows.forEach((row) => lines.push('  ' + row.label.padEnd(30) + row.a.padStart(7) + row.b.padStart(7) + (row.dim ? '  ~' : '')));
+        });
+        if (r.foot) lines.push('', r.foot);
+        return lines.join('\n');
+    }
+
+    function trBenchShow(rep) {
+        tr.benchRep = rep;
+        const box = $('tr-bench');
+        box.textContent = '';
+        box.className = 'tr-bench';
+        const card = box.appendChild(trEl('div', 'tr-bench-card'));
+        const r = trBenchReport(rep);
+        card.appendChild(trEl('div', 'tr-bench-title', 'Benchmark'
+            + (rep.results.length ? ' · ' + new Date(rep.at).toLocaleString() : '')));
+        if (!rep.results.length && rep.note) card.appendChild(trEl('div', 'tr-bench-line', rep.note));
+        else r.lines.forEach((l) => card.appendChild(trEl('div', 'tr-bench-line', l)));
+        r.tables.forEach((t) => {
+            card.appendChild(trEl('div', 'tr-bench-h', t.title));
+            const tbl = card.appendChild(trEl('table', 'tr-bench-t'));
+            const head = tbl.appendChild(trEl('tr'));
+            head.append(trEl('th'), trEl('th', null, t.cols[0]), trEl('th', null, t.cols[1]), trEl('th'));
+            t.rows.forEach((row) => {
+                const line = tbl.appendChild(trEl('tr', row.dim ? 'tr-bench-dim' : ''));
+                const bar = trEl('i');
+                bar.style.width = Math.round(clamp(row.share, 0, 1) * 100) + '%';
+                const cell = trEl('td', 'tr-bench-bar');
+                cell.appendChild(bar);
+                line.append(trEl('td', null, row.label), trEl('td', 'tr-bench-n', row.a), trEl('td', 'tr-bench-n', row.b), cell);
+            });
+        });
+        if (r.foot && rep.results.length) card.appendChild(trEl('div', 'tr-bench-foot', r.foot));
+        const acts = card.appendChild(trEl('div', 'tr-card-actions'));
+        [['Run again', 'again'], ['Copy', 'copy'], ['Close', 'close']].forEach(([label, act]) => {
+            const b = acts.appendChild(trEl('button', 'tr-chip', label));
+            b.dataset.trBenchAct = act;
+        });
+    }
+
+    function trBenchClick(e) {
+        const b = e.target.closest('[data-tr-bench-act]');
+        if (!b) return;
+        const act = b.dataset.trBenchAct;
+        if (act === 'stop') trBenchEnd('Stopped part-way: costs are from the trials that finished.');
+        else if (act === 'again') { $('tr-bench').className = 'tr-bench hidden'; trBenchStart(); }
+        else if (act === 'close') $('tr-bench').className = 'tr-bench hidden';
+        else if (act === 'copy' && tr.benchRep) {
+            const text = trBenchText(tr.benchRep);
+            const done = () => { b.textContent = 'Copied'; };
+            if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, () => { b.textContent = 'Copy failed'; });
+        }
+    }
+
     /* ---- window grime and the hit flash ------------------------------------
      * Three canvases on the glass, between the 3D view and the cockpit frame
      * — over the guns and the scene, under every piece of HUD — all cut by
@@ -3098,6 +3594,8 @@
         zap: ['Enemy bolts', 20, 200, 5, () => tr.zapSpeed, (v) => { tr.zapSpeed = v; }, (v) => v + ' u/s'],
         reach: ['Reach', 2, 50, 1, () => Math.round(tr.grime.inset * 100), (v) => { tr.grime.inset = v / 100; }, (v) => v + '%', true],
         fade: ['Fade', 0, 30, 1, () => Math.round(tr.grime.soft * 100), (v) => { tr.grime.soft = v / 100; }, (v) => v + '%', true],
+        boomRate: ['Speed', 5, 100, 5, () => Math.round(tr.boomRate * 100), (v) => { tr.boomRate = v / 100; }, (v) => (v / 100).toFixed(2) + '×'],
+        guard: ['Answer guard', 0, 1000, 50, () => Math.round(tr.askGuard * 1000), (v) => { tr.askGuard = v / 1000; }, (v) => (v / 1000).toFixed(2) + ' s'],
         squish: ['Squish', 0, 80, 1, () => Math.round(tr.ships.squish * 100), (v) => { tr.ships.squish = v / 100; }, (v) => v + '%'],
         shine: ['Shine', 0, 300, 5, () => Math.round(tr.ships.shine * 100),
             (v) => { tr.ships.shine = v / 100; if (tr.shipShineK) tr.shipShineK.value = tr.ships.shine; }, (v) => v + '%'],
@@ -3150,6 +3648,8 @@
         let d = cat('combat', 'Combat');
         note(d, 'Lock distance: how far outside a fighter\'s target box a shot may land and still lock it — slow-mo and a question. 0 is on the box. While this panel is open, each tap shows it as a dashed ring.');
         slider(d, 'near');
+        note(d, 'Answer guard: after a lock, clicks on the answers are ignored this long, so a fast second tap cannot answer by accident.');
+        slider(d, 'guard');
         head(d, 'Bolt speed');
         slider(d, 'bolt');
         slider(d, 'zap');
@@ -3168,6 +3668,7 @@
         r.append(boom, trDbgBtn('Test', 'boom'));
         r = row(d);
         check(r, 'bite', 'Bitten circles — each disc is eaten from inside by a faster circle', tr.bite);
+        slider(d, 'boomRate');
         head(d, 'Window grime');
         note(d, 'On the glass round the edges. Strength runs from the low end facing away from the sun to the high end facing it.');
         r = row(d);
@@ -3240,6 +3741,10 @@
         r = row(d);
         check(r, 'probe', 'Show frame-time readout', !$('tr-probe').classList.contains('hidden'));
         note(d, 'Quality and the frame cap are in the readout. Shiny fighters are on Medium and High; the muzzle light is on High only.');
+        note(d, 'Benchmark: about two minutes on a held scene, switching one thing off at a time on High and on Low, then resolution. The report stays on screen.');
+        r = row(d);
+        r.append(trDbgBtn('Run benchmark', 'bench'));
+        if (stJSON('turret.bench', null)) r.append(trDbgBtn('Last result', 'benchLast'));
 
         r = row(box);
         r.append(trDbgBtn('Reset to defaults', 'reset'));
@@ -3333,7 +3838,7 @@
         const act = b.dataset.trDbgAct;
         if (act === 'play') { trPreview(b.dataset.trDbgSfxPlay); return; }
         if (act === 'reset') {
-            tr.boom = 0; tr.bite = BITE_ON; tr.nearPx = NEAR_PX; tr.sfx = {};
+            tr.boom = 0; tr.bite = BITE_ON; tr.boomRate = BOOM_RATE; tr.askGuard = ASK_GUARD; tr.nearPx = NEAR_PX; tr.sfx = {};
             tr.boltSpeed = BOLT_SPEED; tr.zapSpeed = ZAP_SPEED;
             tr.grime = Object.assign({}, GRIME);
             tr.ships = Object.assign({}, SHIPS);
@@ -3344,7 +3849,13 @@
             trBuildDebug();
             return;
         }
+        if (act === 'benchLast') {
+            const rep = stJSON('turret.bench', null);
+            if (rep && Array.isArray(rep.results)) { trSetDebugOpen(false); trBenchShow(rep); }
+            return;
+        }
         if (!tr.renderer) return;
+        if (act === 'bench') { trBenchStart(); return; }
         if (act === 'boom') {
             // Straight ahead of the turret, near enough to see properly.
             tr.scene.updateMatrixWorld();
@@ -3367,7 +3878,7 @@
         const presses = new Map();
         let aimer = null;
         st.addEventListener('pointerdown', (e) => {
-            if (e.target.closest('button, select, input, .tr-probe, .tr-dbg')) return;
+            if (e.target.closest('button, select, input, .tr-probe, .tr-dbg, .tr-bench')) return;
             presses.set(e.pointerId, { sx: e.clientX, sy: e.clientY, px: e.clientX, py: e.clientY, t: performance.now(), drag: false });
             // Capture keeps a drag alive when the finger leaves the stage;
             // without it the drag still works, so a refusal is not an error.
@@ -4012,6 +4523,7 @@
                         <button class="tr-chip" data-tr-cap="60">60</button>
                     </div>
                 </div>
+                <div class="tr-bench hidden" id="tr-bench"></div>
                 <button class="tr-icon-btn tr-fs-btn" id="tr-fs" title="Full screen" aria-label="Full screen">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9V3h6M15 3h6v6M21 15v6h-6M9 21H3v-6"/></svg>
                 </button>
@@ -4092,6 +4604,8 @@
         trWireGear();
 
         $('tr-ask').addEventListener('click', (e) => {
+            // Real time, not world time: the world is nearly stopped by now.
+            if (tr.ask && performance.now() - tr.ask.openAt < tr.askGuard * 1000) return;
             const opt = e.target.closest('[data-tr-choice]');
             if (opt && !opt.disabled) { trAnswer(Number(opt.dataset.trChoice)); return; }
             const key = e.target.closest('[data-tr-key]');
@@ -4121,6 +4635,7 @@
         $('tr-dbg').addEventListener('input', trDebugChange);
         $('tr-dbg').addEventListener('click', trDebugClick);
         $('tr-dbg').addEventListener('toggle', trDebugToggle, true);
+        $('tr-bench').addEventListener('click', trBenchClick);
         $('tr-tap').addEventListener('animationend', (e) => e.currentTarget.classList.remove('tr-on'));
 
         new MutationObserver(() => {
@@ -4156,6 +4671,7 @@
     // Debug handle for the smoke test, same convention as __MZ / __NP.
     window.__TR = {
         TIERS, state: tr, trPlanPath, trSafePath, BOOMS, SFX, trExplode, trSetDebugOpen, trSpawnFoe, models: () => MODELS, trPickFoe, trBakeGrime, trApplyTier, trShatter, trHurt, trSpawnRock, trEnemyFire, probe, trProbeStats, trSetTier, trPathAt, trFire, trChoices, trAnswer, trKey,
+        trBenchStart, trBenchEnd, trBenchPlan, trBenchReport, trBenchText, KNOBS,
         trLaunch, trEndSortie, trBuildDeck, trSetKey, trLevel, trReset, trOpenGate, trSfx,
         facts: () => trFacts(), gateAnswer: () => gateAnswer,
         // Advance the simulation by hand — a backgrounded test page gets no rAF.
