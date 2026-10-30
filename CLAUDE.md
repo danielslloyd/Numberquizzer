@@ -283,6 +283,17 @@ migration copies rather than moves and nothing is ever deleted.
   of `MAX_ENEMIES`, dark when unused, for the same reason as the muzzle light. The light stays in the scene and is
   hidden, because the light count is part of every lit shader: toggling it
   recompiles once on a tier change, adding and removing it would on every shot.
+- **Read quality from `tr.q`, never `TIERS[tr.tier]`.** `tr.q` is the tier
+  plus `KNOBS` (sky glows, explosions, bite, points, guns and the three DOM
+  layers) plus the benchmark's `tr.qOver`; a read past it is a setting the
+  benchmark cannot switch off. `trApplyTier` rebuilds it.
+- **The benchmark holds the world still.** `wdt` is 0 while `tr.bench` is
+  set, on a tableau staged once (`trBenchStage`), so every trial draws the
+  same frame. Draw is timed with a one-pixel `readPixels`, which waits for the
+  GPU; frame time alone is snapped to the refresh and cannot rank 3D costs.
+  Costs are against the full-setting runs either side, interpolated, so a
+  device warming up reads as drift. The report is on screen and in
+  `nq.turret.bench` — the device it is for cannot send it anywhere.
 - **The glass is baked, not drawn.** Grime, its hit-coloured twin and the hit
   wash share one stencil and are baked on resize or a settings change only. A
   hit crossfades opacities; it never re-bakes. A lock does not turn the turret.
@@ -296,9 +307,15 @@ migration copies rather than moves and nothing is ever deleted.
   the instance colour; the `accent`, `shine` and `glow` (thruster)
   attributes and the r128 chunks `trShipShader` replaces carry that. Squish is in the instance
   matrix, never baked into the geometry.
+- **A bite is a crescent, not a hole.** While bitten, a puff draws itself
+  from the distance to the crescent (`BITE_FRAG`), so its rim and halo follow
+  the bite's edge. Cutting only the texture leaves the halo outlining the
+  hole, and the bite reads as a dark disc laid on a bright one.
 - **A tap is never swallowed.** A full bolt pool gives up its oldest free
   shot; a locked bolt is never taken. Taps fire once a card is answered —
-  only a card that is still asking holds the guns.
+  only a card that is still asking holds the guns. The one deliberate
+  exception: answers ignore clicks for `askGuard` real seconds after a lock,
+  so the next tap of a burst cannot answer the card it just opened.
 - **Nothing owed is dropped.** A question open, or an ace in the air, when the
   scene is torn down goes back in the deck or the ace queue.
 - **Bests come from whole sorties only**, and the turret never writes
